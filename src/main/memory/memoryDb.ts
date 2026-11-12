@@ -1,6 +1,7 @@
 // The memory database (spec 2026-11-11 memory §2): the ONE importer of `node:sqlite`. It opens the
-// file, creates and migrates the tables, and fails safe: a corrupt file is renamed (kept, never
-// deleted) and an empty one starts; a file it cannot open, or one a newer app wrote, is refused
+// file, creates and migrates the tables, and fails safe: a corrupt file (not a database, or
+// damaged past its header: `PRAGMA quick_check` at open) is renamed (kept, never deleted) and an
+// empty one starts; a file it cannot open, or one a newer app wrote, is refused
 // without a write. Every row it hands out goes through a Zod schema. A SQLite error can carry text
 // from the database, so logs carry `code=` only, never an error or a message.
 import { existsSync, renameSync } from 'node:fs'
@@ -109,13 +110,23 @@ function userVersion(raw: DatabaseSync): number {
   return parseRow(UserVersionRow, raw.prepare('PRAGMA user_version').get()).user_version
 }
 
-/** Reads `user_version` through a read-only connection: a read-write close would checkpoint a
- *  leftover `-wal` into the file, and a refused file must stay byte for byte as it was. */
-function versionOnDisk(file: string): number {
+const QuickCheckRow = z.object({ quick_check: z.literal('ok') })
+
+/** Reads the file through a read-only connection before any write: a read-write close would
+ *  checkpoint a leftover `-wal` into the file, and a refused or damaged file must keep its bytes
+ *  (seen with SQLite 3.53.1: a read-only `quick_check` leaves the file and its `-wal` as they
+ *  were). Answers `user_version`, or `'corrupt'` when `PRAGMA quick_check` throws (a page past the
+ *  header is damaged: SQLITE_CORRUPT, which `attemptOpen` turns into a backup) or answers anything
+ *  but one `ok` row. A newer file is not checked: it is refused untouched, never backed up. */
+function inspectOnDisk(file: string): number | 'corrupt' {
   if (file === IN_MEMORY || !existsSync(file)) return 0
   const probe = new DatabaseSync(file, { readOnly: true })
   try {
-    return userVersion(probe)
+    const version = userVersion(probe)
+    if (version > MEMORY_SCHEMA_VERSION) return version
+    const rows = probe.prepare('PRAGMA quick_check').all()
+    const healthy = rows.length === 1 && QuickCheckRow.safeParse(rows[0]).success
+    return healthy ? version : 'corrupt'
   } finally {
     probe.close()
   }
@@ -175,8 +186,11 @@ type Attempt = MemoryDbOpen | 'corrupt'
 
 function attemptOpen(file: string, log: (code: string) => void): Attempt {
   try {
-    // Read before any write: switching journal_mode or migrating would touch a newer file.
-    if (versionOnDisk(file) > MEMORY_SCHEMA_VERSION) {
+    // Read before any write: switching journal_mode or migrating would touch a newer file, and a
+    // damaged one must be backed up as it is.
+    const onDisk = inspectOnDisk(file)
+    if (onDisk === 'corrupt') return 'corrupt'
+    if (onDisk > MEMORY_SCHEMA_VERSION) {
       log('memory_db_newer_version')
       return READ_FAILED
     }

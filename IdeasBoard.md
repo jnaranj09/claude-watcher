@@ -42,7 +42,6 @@ allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 - **A neutral tone for `Callout`**: `Callout` has only `success` and `danger`, so the Memory dialog's "Memory is off." notice is red although nothing failed. A neutral tone would fit a notice like it. `pending_review` `low_effort`
 - **Every folder and session name for the Memory filters**: The Memory dialog's Folder and Session filters offer the values found in the scope's newest 100 items and the rows already shown, so an older value may not be offered. An endpoint that lists every folder and session name would offer them all. `pending_review` `low_effort`
 - **A line diff in Memory's History**: History shows what a restore changes as a whole-text swap (the text now removed, the picked version added); a line-by-line diff would show only the lines that differ. `pending_review` `low_effort`
-- **Integrity check of the memory database at open**: A file that passes the version check and then hits corruption while it is opened read-write may lose its `-wal` before the backup is made. An integrity check at open, before any write, would catch it first. `pending_review` `medium_effort`
 
 ---
 

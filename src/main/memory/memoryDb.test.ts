@@ -146,6 +146,50 @@ describe('openMemoryDb', () => {
     db.close()
   })
 
+  it('backs up a file damaged past its header and starts empty', () => {
+    const db = openOk(file)
+    db.transaction(() => {
+      for (let i = 0; i < 400; i++) insertItem(db, `item-${i}-${'x'.repeat(400)}`)
+    })
+    db.close()
+    // Past the first two pages (4 KiB each): the header and `user_version` still read fine.
+    const bytes = readFileSync(file)
+    bytes.fill(0x41, 8192, Math.floor(bytes.length / 2))
+    writeFileSync(file, bytes)
+    lines = []
+    const open = openMemoryDb(file, deps)
+    expect(open).toMatchObject({ ok: true, problem: 'corrupt_reset' })
+    expect(readFileSync(join(dir, `${MEMORY_DB_FILE}.corrupt-1700000000000`)).equals(bytes)).toBe(
+      true
+    )
+    expect(lines).toEqual(['[claude-watcher][memory] code=memory_db_corrupt_reset'])
+    const fresh = openOk(file)
+    expect(fresh.get('SELECT count(*) AS n FROM item', CountRow)).toEqual({ n: 0 })
+    fresh.close()
+  })
+
+  it('backs up a damaged file without folding its leftover -wal in', () => {
+    // A copy taken while the writer is open: the file plus a -wal holding a later write.
+    const live = openOk(join(dir, 'live.db'))
+    live.transaction(() => {
+      for (let i = 0; i < 400; i++) insertItem(live, `item-${i}-${'x'.repeat(400)}`)
+    })
+    live.run('PRAGMA wal_checkpoint(TRUNCATE)')
+    live.run('PRAGMA wal_autocheckpoint = 0')
+    insertItem(live, 'late')
+    copyFileSync(join(dir, 'live.db'), file)
+    copyFileSync(join(dir, 'live.db-wal'), `${file}-wal`)
+    live.close()
+    const bytes = readFileSync(file)
+    bytes.fill(0x41, 8192, Math.floor(bytes.length / 2))
+    writeFileSync(file, bytes)
+    const wal = readFileSync(`${file}-wal`)
+    expect(openMemoryDb(file, deps)).toMatchObject({ ok: true, problem: 'corrupt_reset' })
+    const backup = join(dir, `${MEMORY_DB_FILE}.corrupt-1700000000000`)
+    expect(readFileSync(backup).equals(bytes)).toBe(true)
+    expect(readFileSync(`${backup}-wal`).equals(wal)).toBe(true)
+  })
+
   // A folder at one backup name makes that rename fail: before anything moved (-wal), after the
   // -wal moved (-shm), or after both side files moved (the main file).
   it.each(['-wal', '-shm', ''])(
