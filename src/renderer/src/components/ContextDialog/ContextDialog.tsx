@@ -8,6 +8,7 @@ import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
 import { Callout } from '../Callout/Callout'
 import { useBoard } from '../../stores/boardStore'
 import type { ModReport, SessionSetupState } from '../../../../shared/ipc/contract'
+import type { MemoryActivity } from '../../../../shared/schemas/memory'
 import { CONTEXT_TERMS } from '../../copy/terms'
 import {
   CONTEXT_CATEGORIES,
@@ -23,7 +24,11 @@ const isCategory = (id: string | null): id is ContextCategoryId =>
   CONTEXT_CATEGORIES.some((c) => c.id === id)
 
 /** Each category's total tokens, where the report has them. */
-function categoryTokens(report: ModReport, id: ContextCategoryId): number | null {
+function categoryTokens(
+  report: ModReport,
+  id: ContextCategoryId,
+  memory: MemoryActivity | null
+): number | null {
   const sum = (rows: readonly { tokens: number }[]): number =>
     rows.reduce((total, r) => total + r.tokens, 0)
   switch (id) {
@@ -37,6 +42,8 @@ function categoryTokens(report: ModReport, id: ContextCategoryId): number | null
       return sum(report.mcpServers)
     case 'commands':
       return report.slashCommands?.tokens ?? null
+    case 'memory':
+      return memory?.injected?.tokens ?? null
     case 'hooks':
     case 'plugins':
       return null
@@ -94,6 +101,33 @@ export function ContextDialog({
     }
   }, [sessionId])
 
+  // What memory gave, pulled and saved for this session. Main answers even while memory is off;
+  // a failed read is a notice on the Memory page (its own copy, never the error's text).
+  const [memory, setMemory] = useState<{ activity: MemoryActivity; at: number } | null>(null)
+  const [memoryError, setMemoryError] = useState<string | null>(null)
+  useEffect(() => {
+    if (sessionId === null) return
+    let live = true
+    const load = (): void => {
+      window.memory
+        .activity(sessionId)
+        .then((activity) => {
+          if (!live) return
+          setMemory({ activity, at: Date.now() })
+          setMemoryError(null)
+        })
+        .catch(() => {
+          if (live) setMemoryError(CONTEXT_COPY.memoryLoadFailed)
+        })
+    }
+    load()
+    const off = window.memory.onChanged(load)
+    return () => {
+      live = false
+      off()
+    }
+  }, [sessionId])
+
   const selected = dialog.state.selectedId
   const category = isCategory(selected) ? selected : FIRST_CONTEXT_CATEGORY
   const report = setup?.state === 'ready' ? setup.report : null
@@ -110,7 +144,8 @@ export function ContextDialog({
           <ManageDialog.List>
             <ManageDialog.Rows>
               {CONTEXT_CATEGORIES.map((c) => {
-                const tokens = report === null ? null : categoryTokens(report, c.id)
+                const tokens =
+                  report === null ? null : categoryTokens(report, c.id, memory?.activity ?? null)
                 return (
                   <ManageDialog.Row
                     key={c.id}
@@ -146,6 +181,8 @@ export function ContextDialog({
                 category={category}
                 report={report}
                 sessionId={sessionId}
+                memory={memory}
+                memoryError={memoryError}
               />
             </ManageDialog.Pane>
           ) : loadNotice !== null && !ended ? (

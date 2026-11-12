@@ -247,12 +247,20 @@ describe('WorkspacesDialog', () => {
 
   // UX-09: the cascade also takes the rules and every past-session record of the workspace, and
   // the warning used to stop at tags. Each word is asserted on its own so dropping any one fails.
-  it('names everything the cascade deletes: templates, shortcuts, tags, rules, goals, past sessions', () => {
+  it('names everything the cascade deletes: templates, shortcuts, tags, rules, goals, past sessions, memory', () => {
     const { r } = render()
     click(q(r, '[data-testid="workspace-select-w1"]'))
     click(q(r, '[data-testid="workspace-delete-w1"]'))
     const text = q(r, '[data-testid="workspace-delete-confirm-text"]').textContent
-    for (const word of ['templates', 'shortcuts', 'tags', 'rules', 'goals', 'past sessions']) {
+    for (const word of [
+      'templates',
+      'shortcuts',
+      'tags',
+      'rules',
+      'goals',
+      'past sessions',
+      'memory'
+    ]) {
       expect(text).toContain(word)
     }
   })

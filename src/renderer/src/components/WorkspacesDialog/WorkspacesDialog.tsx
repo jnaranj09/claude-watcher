@@ -207,14 +207,14 @@ function WorkspaceForm({
       {/* The cascade warning, a danger Callout (owner, 2026-10-14: a muted line under the folder
           was easy to miss before an irreversible delete) — the one thing this Delete says that Templates' does not, because
           deleting a workspace also deletes everything scoped to it: templates, shortcuts, tags,
-          rules, goals and past sessions (main's `cascade()`; UX-09 — rules and past sessions were left
+          rules, goals, past sessions and memory (main's `cascade()`; UX-09 — rules and past sessions were left
           out and went silently). */}
       {workspace !== null && workspace.id !== DEFAULT_WORKSPACE_ID && state.armed && (
         <Callout
           tone="danger"
           testId="workspace-delete-confirm-text"
           title={`Delete ${workspace.name}?`}
-          detail="Its templates, shortcuts, tags, rules, goals and past sessions are deleted too. This cannot be undone."
+          detail="Its templates, shortcuts, tags, rules, goals, past sessions and memory are deleted too. This cannot be undone."
         />
       )}
 
@@ -268,10 +268,10 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
       // workspace that no longer exists.
       const activeId = workspacesStore.getState().activeId
       if (wasActive && activeId !== id) boardStore.getState().focusWorkspace(activeId)
-      // A committed delete CASCADES in main (templates, shortcuts, tags, rules, goals and past
-      // sessions all removeByWorkspace), and nothing else tells the renderer: the five projections
-      // below otherwise load ONLY at startup (past sessions are read from main each time their
-      // dialog opens, so they need no re-read). Without this re-read the deleted rows sit in the projections until an
+      // A committed delete CASCADES in main (templates, shortcuts, tags, rules, goals, past
+      // sessions and memory all removeByWorkspace), and nothing else tells the renderer: the five projections
+      // below otherwise load ONLY at startup (past sessions and memory are read from main each
+      // time their dialog opens, so they need no re-read). Without this re-read the deleted rows sit in the projections until an
       // unrelated round-trip or a restart — and since their workspace is gone, the Manage dialogs
       // file them under `(no workspace)`, where they look legitimate: saving one throws
       // template_not_found / rule_not_found, ↑/↓ on a rule silently fail, and a deleted rule still

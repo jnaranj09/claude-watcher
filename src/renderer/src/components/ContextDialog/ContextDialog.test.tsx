@@ -16,6 +16,7 @@ import type {
 import { cssRule } from '../../test/cssRule'
 import { dialogToast } from '../../test/toasts'
 import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
+import type { MemoryActivity } from '../../../../shared/schemas/memory'
 
 const TERMINAL = 'term-1'
 const NOW = 1_000_000_000
@@ -72,6 +73,33 @@ function stubContext(state: SessionSetupState): Bridge {
   return bridge
 }
 
+const NO_ACTIVITY: MemoryActivity = { injected: null, entries: [] }
+
+type MemoryStub = {
+  activity: ReturnType<typeof vi.fn<(id: string) => Promise<MemoryActivity>>>
+  onChanged: ReturnType<typeof vi.fn<(cb: () => void) => () => void>>
+  off: ReturnType<typeof vi.fn<() => void>>
+  fire: () => void
+}
+
+function stubMemory(answer: MemoryActivity = NO_ACTIVITY): MemoryStub {
+  let listener: (() => void) | null = null
+  const off = vi.fn<() => void>(() => {
+    listener = null
+  })
+  const stub: MemoryStub = {
+    activity: vi.fn(() => Promise.resolve(answer)),
+    onChanged: vi.fn((cb) => {
+      listener = cb
+      return off
+    }),
+    off,
+    fire: () => listener?.()
+  }
+  ;(window as unknown as { memory: unknown }).memory = stub
+  return stub
+}
+
 const wrapped = (code: string): Error =>
   new Error(`Error invoking remote method 'file-history:restore': Error: ${code}`)
 
@@ -80,11 +108,13 @@ const onClose = vi.fn()
 beforeEach(() => {
   vi.spyOn(Date, 'now').mockReturnValue(NOW)
   boardStore.setState({ terminalIdBySessionId: { [SID]: TERMINAL } })
+  stubMemory()
 })
 afterEach(() => {
   rendered?.unmount()
   rendered = undefined
   delete (window as unknown as { context?: unknown }).context
+  delete (window as unknown as { memory?: unknown }).memory
 })
 
 async function open(
@@ -117,7 +147,7 @@ describe('ContextDialog — a ready report', () => {
     expect(screen.getByRole('dialog', { name: 'Context' })).toBeVisible()
   })
 
-  it('lists the seven categories in order, Instructions first and selected', async () => {
+  it('lists the eight categories in order, Instructions first and selected', async () => {
     await open()
     expect(rail().map((b) => b.dataset.testid)).toEqual([
       'context-category-instructions',
@@ -126,7 +156,8 @@ describe('ContextDialog — a ready report', () => {
       'context-category-mcp',
       'context-category-commands',
       'context-category-hooks',
-      'context-category-plugins'
+      'context-category-plugins',
+      'context-category-memory'
     ])
     expect(rail().map((b) => within(b).getByTestId('context-category-label').textContent)).toEqual([
       'Instructions',
@@ -135,7 +166,8 @@ describe('ContextDialog — a ready report', () => {
       'MCP servers',
       'Commands',
       'Hooks',
-      'Plugins'
+      'Plugins',
+      'Memory'
     ])
     expect(screen.getByTestId('context-category-instructions')).toHaveAttribute(
       'aria-current',
@@ -467,6 +499,83 @@ describe('ContextDialog — the other pages', () => {
   it('a page with nothing says so', async () => {
     await open({ state: 'ready', report: modReportFixture({ skills: null }) })
     expect(within(await page('skills')).getByText('Claude listed no skills.')).toBeVisible()
+  })
+})
+
+const IDS = Array.from({ length: 12 }, (_, i) => `m${i + 1}`)
+
+describe('ContextDialog — the Memory page', () => {
+  const openMemory = async (answer: MemoryActivity): Promise<MemoryStub> => {
+    const memory = stubMemory(answer)
+    await open()
+    await userEvent.click(screen.getByTestId('context-category-memory'))
+    return memory
+  }
+
+  it('shows the injected token count and the number of items', async () => {
+    const memory = await openMemory({ injected: { tokens: 1250, itemIds: IDS }, entries: [] })
+    expect(memory.activity).toHaveBeenCalledWith(SID)
+    expect(screen.getByTestId('context-memory-injected')).toHaveTextContent(
+      '1,250 tokens · 12 items'
+    )
+  })
+
+  it('totals the injected tokens on the rail row', async () => {
+    stubMemory({ injected: { tokens: 1250, itemIds: IDS }, entries: [] })
+    await open()
+    expect(
+      within(screen.getByTestId('context-category-memory')).getByTestId('context-category-tokens')
+    ).toHaveTextContent('1,250 tokens')
+  })
+
+  it('says Nothing injected. when nothing was injected', async () => {
+    await openMemory(NO_ACTIVITY)
+    expect(screen.getByTestId('context-memory-injected')).toHaveTextContent('Nothing injected.')
+  })
+
+  it('lists a pulled and a saved entry under their headings, with time and tool', async () => {
+    await openMemory({
+      injected: null,
+      entries: [
+        { at: NOW - 5 * 60_000, action: 'pulled', tool: 'memory_search', itemId: 'm1' },
+        { at: NOW - 2 * 3_600_000, action: 'saved', tool: 'memory_save', itemId: 'm2' },
+        { at: NOW - 60_000, action: 'updated', tool: 'memory_update', itemId: 'm2' },
+        { at: NOW - 30_000, action: 'marked_stale', tool: 'memory_mark_stale', itemId: 'm3' }
+      ]
+    })
+    const pulled = screen.getByTestId('context-memory-pulled')
+    expect(within(pulled).getByText('memory_search')).toBeVisible()
+    expect(within(pulled).getByText('5 min ago')).toBeVisible()
+    const saved = screen.getByTestId('context-memory-saved')
+    expect(within(saved).getByText('memory_save')).toBeVisible()
+    expect(within(saved).getByText('2 h ago')).toBeVisible()
+    expect(within(saved).getByText('memory_update')).toBeVisible()
+    expect(within(saved).getByText('memory_mark_stale')).toBeVisible()
+    expect(within(pulled).queryByText('memory_save')).not.toBeInTheDocument()
+  })
+
+  it('reloads when memory changes, and stops listening when the dialog closes', async () => {
+    const memory = await openMemory(NO_ACTIVITY)
+    expect(memory.activity).toHaveBeenCalledTimes(1)
+    memory.activity.mockResolvedValue({ injected: { tokens: 10, itemIds: ['m1'] }, entries: [] })
+    await act(async () => {
+      memory.fire()
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('context-memory-injected')).toHaveTextContent('10 tokens · 1 item')
+    rendered?.unmount()
+    rendered = undefined
+    expect(memory.off).toHaveBeenCalled()
+  })
+
+  it('a failed read shows a danger notice from the page’s own copy, never the error text', async () => {
+    const memory = stubMemory()
+    memory.activity.mockRejectedValue(new Error('secret_detail'))
+    await open()
+    await userEvent.click(screen.getByTestId('context-category-memory'))
+    const notice = screen.getByTestId('context-memory-load-error')
+    expect(notice).toHaveTextContent('Could not load memory.')
+    expect(notice).not.toHaveTextContent('secret_detail')
   })
 })
 

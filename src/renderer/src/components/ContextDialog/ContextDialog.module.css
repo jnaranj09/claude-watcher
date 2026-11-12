@@ -69,6 +69,21 @@
   font-size: 13px;
 }
 
+/* The Memory page: Injected, Pulled, Saved, a section apart; each heading is a quiet label. */
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-section);
+  min-width: 0;
+}
+
+.section {
+  margin: 0 0 var(--gap-stack);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 /* History: back + file name, the versions, the diff, the footer — blocks a section apart. */
 .history {
   display: flex;

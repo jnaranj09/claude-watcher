@@ -7,6 +7,9 @@
 import { Children, useState, type JSX, type ReactNode } from 'react'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import type { ModReport } from '../../../../shared/ipc/contract'
+import type { MemoryActivity } from '../../../../shared/schemas/memory'
+import { Callout } from '../Callout/Callout'
+import { relativeEnded } from '../PastSessionsDialog/pastSessionsView'
 import { isAbsolutePath, isInstructionPath } from '../../../../shared/schemas/contextIpc'
 import {
   CONTEXT_COPY,
@@ -46,9 +49,7 @@ function Row({
             ))}
         </span>
       </span>
-      {Children.toArray(children).length > 0 && (
-        <span className={styles.actions}>{children}</span>
-      )}
+      {Children.toArray(children).length > 0 && <span className={styles.actions}>{children}</span>}
     </div>
   )
 }
@@ -133,14 +134,77 @@ function InstructionsPage({
   )
 }
 
+type MemoryLoad = { activity: MemoryActivity; at: number }
+
+/** What this session was given at launch, then what it pulled and saved (an update or a stale
+ *  mark counts as saved). `at` is when the answer came, the "now" its times are measured from. */
+function MemoryPage({
+  memory,
+  error
+}: {
+  memory: MemoryLoad | null
+  error: string | null
+}): JSX.Element {
+  const notice =
+    error === null ? null : (
+      <Callout tone="danger" title={error} testId="context-memory-load-error" />
+    )
+  if (memory === null) return <>{notice}</>
+  const { activity, at } = memory
+  const entries = (testId: string, title: string, none: string, saved: boolean): JSX.Element => {
+    const rows = activity.entries.filter((e) => (e.action === 'pulled') !== saved)
+    return (
+      <section data-testid={testId}>
+        <h4 className={styles.section}>{title}</h4>
+        {rows.length === 0 ? (
+          <p className={styles.empty}>{none}</p>
+        ) : (
+          <div data-settings-group="">
+            {rows.map((e, i) => (
+              <Row
+                key={`${i}-${e.at}-${e.tool}`}
+                testId="context-memory-entry"
+                name={e.tool}
+                details={[relativeEnded(e.at, at)]}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+    )
+  }
+  return (
+    <div className={styles.sections}>
+      {notice}
+      <section>
+        <h4 className={styles.section}>{CONTEXT_COPY.injected}</h4>
+        <p className={styles.empty} data-testid="context-memory-injected">
+          {activity.injected === null
+            ? CONTEXT_COPY.nothingInjected
+            : CONTEXT_COPY.injectedSummary(
+                activity.injected.tokens,
+                activity.injected.itemIds.length
+              )}
+        </p>
+      </section>
+      {entries('context-memory-pulled', CONTEXT_COPY.pulled, CONTEXT_COPY.nothingPulled, false)}
+      {entries('context-memory-saved', CONTEXT_COPY.saved, CONTEXT_COPY.nothingSaved, true)}
+    </div>
+  )
+}
+
 export function ContextPage({
   category,
   report,
-  sessionId
+  sessionId,
+  memory,
+  memoryError
 }: {
   category: ContextCategoryId
   report: ModReport
   sessionId: string
+  memory: MemoryLoad | null
+  memoryError: string | null
 }): JSX.Element {
   switch (category) {
     case 'instructions':
@@ -218,6 +282,8 @@ export function ContextPage({
           ))}
         </Rows>
       )
+    case 'memory':
+      return <MemoryPage memory={memory} error={memoryError} />
     case 'plugins':
       return (
         <Rows empty="plugins">

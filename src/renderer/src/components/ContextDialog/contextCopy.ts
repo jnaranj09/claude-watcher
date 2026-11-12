@@ -4,7 +4,7 @@ import { formatVersion, MIN_MOD_CLAUDE_VERSION } from '../../../../shared/launch
 import type { ContextRefusalCode, ModSkipReason } from '../../../../shared/ipc/contract'
 import { CONTEXT_REFUSAL_CODES } from '../../../../shared/schemas/contextIpc'
 import { BRIDGE_MOD_FAILED_COPY, STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
-import { HISTORY_TERMS } from '../../copy/terms'
+import { HISTORY_TERMS, MEMORY_TERMS } from '../../copy/terms'
 
 export type ContextCategoryId =
   | 'instructions'
@@ -14,6 +14,7 @@ export type ContextCategoryId =
   | 'commands'
   | 'hooks'
   | 'plugins'
+  | 'memory'
 
 /** The rail's order; the first is where Context opens. */
 export const CONTEXT_CATEGORIES: readonly { id: ContextCategoryId; label: string }[] = [
@@ -23,7 +24,8 @@ export const CONTEXT_CATEGORIES: readonly { id: ContextCategoryId; label: string
   { id: 'mcp', label: 'MCP servers' },
   { id: 'commands', label: 'Commands' },
   { id: 'hooks', label: 'Hooks' },
-  { id: 'plugins', label: 'Plugins' }
+  { id: 'plugins', label: 'Plugins' },
+  { id: 'memory', label: MEMORY_TERMS.label }
 ]
 
 export const FIRST_CONTEXT_CATEGORY: ContextCategoryId = 'instructions'
@@ -42,6 +44,15 @@ export const CONTEXT_COPY = {
   restored: (file: string) => `Restored ${file}.`,
   importedBy: (file: string) => `imported by ${file}`,
   tokens: (n: number) => `${n.toLocaleString('en-US')} tokens`,
+  memoryLoadFailed: 'Could not load memory.',
+  injected: 'Injected',
+  pulled: 'Pulled',
+  saved: 'Saved',
+  nothingInjected: 'Nothing injected.',
+  nothingPulled: 'Nothing pulled.',
+  nothingSaved: 'Nothing saved.',
+  injectedSummary: (tokens: number, items: number) =>
+    `${tokens.toLocaleString('en-US')} tokens · ${items.toLocaleString('en-US')} ${items === 1 ? 'item' : 'items'}`,
   empty: (what: string) => `Claude listed no ${what}.`
 } as const
 

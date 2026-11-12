@@ -522,7 +522,7 @@ function renderPanel(): RenderResult {
 }
 
 describe('Settings in categories (spec 2026-09-29 §3)', () => {
-  it('is the shell: settings-overlay > settings-panel, a ✕, and five categories in order', () => {
+  it('is the shell: settings-overlay > settings-panel, a ✕, and six categories in order', () => {
     stubSettings()
     stubThemes()
     const r = renderPanel()
@@ -534,6 +534,7 @@ describe('Settings in categories (spec 2026-09-29 §3)', () => {
       'Notifications',
       'Appearance',
       'Terminal',
+      'Memory',
       'Keyboard',
       'API'
     ])
@@ -553,6 +554,21 @@ describe('Settings in categories (spec 2026-09-29 §3)', () => {
     expect(r.container.querySelector('[data-testid="settings-theme"]')).toBeNull()
     // The rail row already names the page; the pane repeats no title (spec 2026-10-07 A.7).
     expect(r.container.querySelector('h3')).toBeNull()
+  })
+
+  it('Memory has one switch, bound to memoryEnabled, with its hint', () => {
+    const stub = stubSettings()
+    stubThemes()
+    const r = renderPanel()
+    openCategory(r, 'memory')
+    const toggle = q(r, '[data-testid="settings-memory-enabled"]')
+    expect(toggle).toHaveAttribute('role', 'switch')
+    expect(q(r, 'label[for="settings-memory-enabled"]')).toHaveTextContent(/^Memory$/)
+    expect(q(r, '[data-testid="settings-pane-memory"]')).toHaveTextContent(
+      "Turns off Claude's own auto memory in sessions this app starts."
+    )
+    setReactCheckbox(toggle as HTMLInputElement, false)
+    expect(stub.setCalls).toContainEqual({ memoryEnabled: false })
   })
 
   it('the on/off settings are switches', () => {

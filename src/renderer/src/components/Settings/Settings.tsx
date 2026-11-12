@@ -1,5 +1,5 @@
 // Settings — the app's preferences, on the ONE two-column shell (spec 2026-09-29 §3): a rail of
-// categories (Notifications, Appearance, Terminal, Keyboard, API) and the chosen category's
+// categories (Notifications, Appearance, Terminal, Memory, Keyboard, API) and the chosen category's
 // controls on the right. Every control persists on change through `persistSetting` (over
 // `persistSettingsPatch`: optimistic + persist + rollback), so there is no Save. It opens on
 // Notifications and never shows a placeholder. Action results are the dialog's ONE toast;
@@ -13,6 +13,7 @@ import {
   useSettings,
   selectSoundEnabled,
   selectNotificationsEnabled,
+  selectMemoryEnabled,
   selectTerminalFontSize,
   selectReminderCount,
   selectReminderFirstDelayMinutes,
@@ -42,6 +43,7 @@ import { Select, type SelectOption } from '../Select/Select'
 import { TextInput } from '../TextInput/TextInput'
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
 import { Switch } from '../Switch/Switch'
+import { MEMORY_TERMS } from '../../copy/terms'
 import { Button } from '../Button/Button'
 import { Callout } from '../Callout/Callout'
 import { KeyChordRecorder } from '../ShortcutsDialog/KeyChordRecorder'
@@ -108,6 +110,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   const soundEnabled = useSettings(selectSoundEnabled)
   const notificationsEnabled = useSettings(selectNotificationsEnabled)
   const terminalFontSize = useSettings(selectTerminalFontSize)
+  const memoryEnabled = useSettings(selectMemoryEnabled)
   const reminderCount = useSettings(selectReminderCount)
   const reminderFirstDelayMinutes = useSettings(selectReminderFirstDelayMinutes)
 
@@ -642,6 +645,28 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                   <p className={styles.hint}>
                     Change this if claude runs its full-screen renderer with mouse support: there,
                     right-click already pastes. Shift + Right-click is never sent to claude.
+                  </p>
+                </>
+              )}
+              {category === 'memory' && (
+                <>
+                  <div className={styles.row}>
+                    <label className={styles.label} htmlFor="settings-memory-enabled">
+                      {MEMORY_TERMS.label}
+                    </label>
+                    <div className={styles.controlGroup}>
+                      <Switch
+                        id="settings-memory-enabled"
+                        testId="settings-memory-enabled"
+                        checked={memoryEnabled}
+                        onChange={(on) => {
+                          void persistSetting({ memoryEnabled: on }, 'memory')
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <p className={styles.hint}>
+                    Turns off Claude&apos;s own auto memory in sessions this app starts.
                   </p>
                 </>
               )}
