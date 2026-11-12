@@ -322,6 +322,49 @@ describe('goals MCP endpoint logging', () => {
     ])
   })
 
+  describe('an error outcome with a log code', () => {
+    const callOf = (name: string): unknown => ({
+      jsonrpc: '2.0',
+      id: 5,
+      method: 'tools/call',
+      params: { name, arguments: {} }
+    })
+    function endpointOver(lines: string[]): McpEndpoint<Grant> {
+      return createMcpEndpoint({
+        serverName: 'stub',
+        area: 'stubarea',
+        tokens: { resolve: (): Grant | null => null },
+        tools: {
+          list: () => [],
+          call: (name) =>
+            name === 'coded'
+              ? { kind: 'result', text: 'Some sentence.', isError: true, code: 'some_code' }
+              : { kind: 'result', text: 'plain_code', isError: true }
+        },
+        log: (l) => lines.push(l)
+      })
+    }
+
+    it('logs the code and still answers the caller with the text', () => {
+      const lines: string[] = []
+      const res = endpointOver(lines).handle(callOf('coded'), worker)
+      expect(lines).toEqual([
+        '[claude-watcher][stubarea] route=mcp method=tools/call code=some_code'
+      ])
+      expect(res).toMatchObject({
+        result: { content: [{ type: 'text', text: 'Some sentence.' }], isError: true }
+      })
+    })
+
+    it('without a code logs the text, as before', () => {
+      const lines: string[] = []
+      endpointOver(lines).handle(callOf('plain'), worker)
+      expect(lines).toEqual([
+        '[claude-watcher][stubarea] route=mcp method=tools/call code=plain_code'
+      ])
+    })
+  })
+
   it('resolve takes the bearer header and answers the grant, or null', () => {
     const tokens = createGoalTokens()
     const token = tokens.mint(worker)

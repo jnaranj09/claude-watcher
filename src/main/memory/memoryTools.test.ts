@@ -34,6 +34,7 @@ function meta(workspaceId: string, over: Partial<MemorySessionMeta> = {}): Memor
 }
 
 let store: MemoryStore
+let clock = NOW
 let activity: MemoryActivityLog
 let sessions: Map<string, MemorySessionMeta>
 let enabled: boolean
@@ -43,12 +44,13 @@ let tools: McpTools<MemoryGrant>
 const tagNames: Record<string, string> = { t1: 'infra', t2: 'ci' }
 
 beforeEach(() => {
+  clock = NOW
   const open = openMemoryDb(':memory:', { now: () => NOW, log: () => undefined })
   if (!open.ok) throw new Error('open failed')
   let n = 0
   store = createMemoryStore({
     db: open.db,
-    now: () => NOW,
+    now: () => clock,
     newId: () => `m${++n}`,
     report: () => undefined,
     log: () => undefined
@@ -56,7 +58,8 @@ beforeEach(() => {
   activity = createMemoryActivity()
   sessions = new Map([
     ['s1', meta('w1')],
-    ['s2', meta('w2')]
+    ['s2', meta('w2')],
+    ['s3', meta('w1', { sessionName: 'old run' })]
   ])
   enabled = true
   storeAvailable = true
@@ -136,6 +139,56 @@ describe('memory tools: list', () => {
   })
 })
 
+describe('memory tools: input schema drift', () => {
+  const DECOYS = ['workspaceId', 'sessionId', 'basis', 'origin', 'withSource', 'offset', 'pinned']
+  const VALUES: Record<string, unknown> = {
+    id: 'm1',
+    reason: 'r',
+    by: 'kind',
+    check: 'ls',
+    scope: 'global',
+    key: 'k',
+    value: 'v',
+    title: 't',
+    body: 'b',
+    kind: 'specific'
+  }
+  const SPECIFIC = { kind: 'specific', key: 'k', value: 'v' }
+  const FACT = { kind: 'fact', title: 't', body: 'b' }
+  const BASES: Record<string, Record<string, unknown>[]> = {
+    memory_get: [{ id: 'm1' }],
+    memory_browse: [{ by: 'kind' }],
+    memory_save: [
+      { ...SPECIFIC, scope: 'global' },
+      { ...FACT, scope: 'global' }
+    ],
+    memory_update: [
+      { id: 'm1', ...SPECIFIC, reason: 'r' },
+      { id: 'm1', ...FACT, reason: 'r' }
+    ],
+    memory_mark_stale: [{ id: 'm1', reason: 'r' }]
+  }
+
+  function accepted(name: string, universe: string[]): string[] {
+    const keys = (BASES[name] ?? []).flatMap((base) =>
+      universe.filter(
+        (k) => k in base || call(name, { ...base, [k]: VALUES[k] }).kind !== 'invalid_params'
+      )
+    )
+    return [...new Set(keys)].sort()
+  }
+
+  it.each(Object.keys(BASES))(
+    '%s: the JSON schema lists exactly the keys its parser accepts',
+    (name) => {
+      saved(specific('seed', 'v'))
+      const def = tools.list(as('s1')).find((t) => t.name === name)
+      const listed = Object.keys(def?.inputSchema['properties'] ?? {}).sort()
+      expect(accepted(name, [...listed, ...DECOYS])).toEqual(listed)
+    }
+  )
+})
+
 describe('memory tools: not available', () => {
   it.each([
     ['memory is off', () => (enabled = false)],
@@ -154,6 +207,7 @@ describe('memory tools: not available', () => {
       expect(call(name, args)).toEqual({
         kind: 'result',
         text: MEMORY_NOT_AVAILABLE,
+        code: 'memory_not_available',
         isError: true
       })
     }
@@ -263,27 +317,35 @@ describe('scope', () => {
 })
 
 describe('memory_search', () => {
-  it('prints the header, one line per row and the count, in exact text', () => {
-    const a = saved({ ...specific('db port', '5433'), scope: 'workspace' })
-    store.setState(a, 'stale', 'operator', null)
-    const b = saved({ kind: 'fact', title: 'Deploy', body: 'steps', scope: 'workspace' })
+  it('prints the whole text: header, rows newest first, the count', () => {
+    const tick = (): number => (clock += 1000)
+    tick()
+    const stale = saved(specific('db port', '5433'))
+    tick()
+    const deleted = saved(
+      { kind: 'fact', title: 'Deploy', body: 'steps', scope: 'workspace' },
+      's3'
+    )
+    store.markSessionDeleted('s3')
+    tick()
+    sessions.set('s1', meta('w1', { tagIds: ['gone'] }))
+    const unknownTag = saved({ kind: 'fact', title: 'Release', body: 'notes', scope: 'workspace' })
+    tick()
     sessions.set('s1', meta('w1', { tagIds: ['t1', 'gone'], sessionName: 'ops' }))
-    const c = saved({ kind: 'fact', title: 'Release', body: 'notes', scope: 'workspace' })
-    store.markSessionDeleted('s1')
+    const tagged = saved(specific('region', 'eu'))
+    tick()
+    store.setState(stale, 'stale', 'operator', null)
     const day = formatDay(NOW)
-    const out = text(call('memory_search', { includeStale: true, limit: 20 }))
-    expect(out.split('\n')).toHaveLength(5)
-    expect(out.split('\n')[0]).toBe('id | kind | key/title | date | basis | session | tags')
-    expect(out).toContain(
-      `${a} | specific | db port | ${day} | inferred | build | - | stale | session deleted ${day}`
+    expect(text(call('memory_search', { includeStale: true, limit: 20 }))).toBe(
+      [
+        'id | kind | key/title | date | basis | session | tags',
+        `${stale} | specific | db port | ${day} | inferred | build | - | stale`,
+        `${tagged} | specific | region | ${day} | inferred | ops | infra`,
+        `${unknownTag} | fact | Release | ${day} | inferred | build | -`,
+        `${deleted} | fact | Deploy | ${day} | inferred | old run | - | session deleted ${day}`,
+        '4 of 4'
+      ].join('\n')
     )
-    expect(out).toContain(
-      `${b} | fact | Deploy | ${day} | inferred | build | - | session deleted ${day}`
-    )
-    expect(out).toContain(
-      `${c} | fact | Release | ${day} | inferred | ops | infra | session deleted ${day}`
-    )
-    expect(out.endsWith('3 of 3')).toBe(true)
   })
 
   it('leaves stale items out unless asked, and says No items. for nothing', () => {
@@ -345,6 +407,12 @@ describe('memory_get', () => {
         'state: active'
       ].join('\n')
     )
+  })
+
+  it('a tags line with only unknown tag ids is a dash', () => {
+    sessions.set('s1', meta('w1', { tagIds: ['gone', 'lost'] }))
+    const id = saved(specific('k', 'v'))
+    expect(text(call('memory_get', { id }))).toContain('\ntags: -\n')
   })
 
   it('prints a fact body as stored, no check line, and the deleted-session line', () => {
@@ -445,6 +513,7 @@ describe('failures', () => {
     expect(call('memory_save', specific('k', SECRET))).toEqual({
       kind: 'result',
       text: MEMORY_NOT_AVAILABLE,
+      code: 'memory_not_available',
       isError: true
     })
     expect(lines).toEqual(['[claude-watcher][memory] code=memory_tool_failed'])

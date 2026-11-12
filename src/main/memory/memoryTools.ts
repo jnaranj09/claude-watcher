@@ -217,7 +217,13 @@ const DEFS: Record<MemoryToolName, McpToolDef> = {
 
 const refused = (code: string): McpToolOutcome => ({ kind: 'result', text: code, isError: true })
 const ok = (text: string): McpToolOutcome => ({ kind: 'result', text, isError: false })
-const notAvailable = (): McpToolOutcome => refused(MEMORY_NOT_AVAILABLE)
+/** The model reads the sentence; the endpoint logs the code. */
+const notAvailable = (): McpToolOutcome => ({
+  kind: 'result',
+  text: MEMORY_NOT_AVAILABLE,
+  isError: true,
+  code: 'memory_not_available'
+})
 
 /** What one call works with once the gates passed. */
 interface Call {

@@ -40,7 +40,9 @@ export interface McpToolDef {
 }
 
 export type McpToolOutcome =
-  | { kind: 'result'; text: string; isError: boolean }
+  /** `code` (errors only) is what the endpoint logs in place of `text`, for a server whose error
+   *  text is a sentence for the model rather than a snake_case token. Omitted = `text` is the code. */
+  | { kind: 'result'; text: string; isError: boolean; code?: string }
   /** An unknown tool for this grant, or arguments that fail the schema. */
   | { kind: 'invalid_params' }
 
@@ -119,9 +121,10 @@ function answer<G>(body: unknown, grant: G, tools: McpTools<G>, serverName: stri
           result: outcome.isError ? { ...result, isError: true } : result
         },
         method: logMethod,
-        // An error's text is a refusal code. A success's text can carry operator text (the goals
-        // server's `list_tasks` titles), so it is never logged: `ok` stands for it.
-        code: outcome.isError ? outcome.text : 'ok'
+        // An error logs its `code`, or its text when it has none (the goals server's text is a
+        // refusal code). A success's text can carry operator or memory text, so it is never
+        // logged: `ok` stands for it.
+        code: outcome.isError ? (outcome.code ?? outcome.text) : 'ok'
       }
     }
     case undefined:
