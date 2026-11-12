@@ -20,6 +20,7 @@ import type { Settings, SettingsPatch } from '../../../shared/ipc/contract'
 import {
   DEFAULT_SETTINGS,
   type ReminderFirstDelayMinutes,
+  type ClaudeAutoMemory,
   type TerminalScheme,
   type TerminalMenuTrigger
 } from '../../../shared/schemas/settings'
@@ -61,6 +62,9 @@ export interface SettingsState {
   showAllTagsByWorkspace: Readonly<Record<string, true>>
   /** Memory — the master switch (default ON). Main reads its own copy; this drives Settings. */
   memoryEnabled: boolean
+  /** Claude's own auto memory in launched sessions (off / on / claude decides). Main reads its
+   *  own copy at each spawn; this drives Settings. */
+  claudeAutoMemory: ClaudeAutoMemory
   /** Action feedback (spec 2026-09-29 §2.1) — the last Settings MAIN returned (DEFAULT_SETTINGS
    *  before the first load). A refused write rolls the projection back to it. */
   authoritative: Settings
@@ -98,6 +102,7 @@ export function createSettingsStore(): SettingsStoreApi {
     railCollapsed: DEFAULT_SETTINGS.railCollapsed,
     showAllTagsByWorkspace: DEFAULT_SETTINGS.showAllTagsByWorkspace,
     memoryEnabled: DEFAULT_SETTINGS.memoryEnabled,
+    claudeAutoMemory: DEFAULT_SETTINGS.claudeAutoMemory,
     authoritative: DEFAULT_SETTINGS,
 
     hydrate: (settings) => {
@@ -119,6 +124,7 @@ export function createSettingsStore(): SettingsStoreApi {
         railCollapsed: settings.railCollapsed,
         showAllTagsByWorkspace: settings.showAllTagsByWorkspace,
         memoryEnabled: settings.memoryEnabled,
+        claudeAutoMemory: settings.claudeAutoMemory,
         authoritative: settings
       })
     },
@@ -154,7 +160,10 @@ export function createSettingsStore(): SettingsStoreApi {
         ...(patch.showAllTagsByWorkspace !== undefined
           ? { showAllTagsByWorkspace: patch.showAllTagsByWorkspace }
           : {}),
-        ...(patch.memoryEnabled !== undefined ? { memoryEnabled: patch.memoryEnabled } : {})
+        ...(patch.memoryEnabled !== undefined ? { memoryEnabled: patch.memoryEnabled } : {}),
+        ...(patch.claudeAutoMemory !== undefined
+          ? { claudeAutoMemory: patch.claudeAutoMemory }
+          : {})
       })
     }
   }))
@@ -168,6 +177,9 @@ export function createSettingsStore(): SettingsStoreApi {
 export const selectSoundEnabled = (state: SettingsState): boolean => state.soundEnabled
 /** Memory — the live master switch (primitive). */
 export const selectMemoryEnabled = (state: SettingsState): boolean => state.memoryEnabled
+/** Claude's own auto memory in launched sessions (primitive). */
+export const selectClaudeAutoMemory = (state: SettingsState): ClaudeAutoMemory =>
+  state.claudeAutoMemory
 /** UX-13 — the live desktop-popup toggle (primitive). */
 export const selectNotificationsEnabled = (state: SettingsState): boolean =>
   state.notificationsEnabled

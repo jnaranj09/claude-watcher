@@ -3,9 +3,10 @@
 // `--mcp-config` flag followed by a file per server (probed on claude 2.1.322: both servers
 // connect), so the two are joined here: the question nudge, the task block, then the memory index;
 // the goals file first; one comma-joined `--allowedTools`. The child env is the base env plus
-// memory's (`CLAUDE_CODE_DISABLE_AUTO_MEMORY`, `CLAUDE_WATCHER_MEMORY`), so memory on turns
-// claude's own auto memory off for that launch and memory off leaves it on. `rawClaudeSpawn`
-// (`ipc/registerLaunchIpc.ts`) spawns with exactly what this returns.
+// memory's (`CLAUDE_WATCHER_MEMORY`, only while memory is on) plus what the `Claude's auto
+// memory` setting asks for (`AUTO_MEMORY_ENV`), which does not depend on memory being on.
+// `rawClaudeSpawn` (`ipc/registerLaunchIpc.ts`) spawns with exactly what this returns.
+import type { ClaudeAutoMemory } from '../../shared/schemas/settings'
 import { QUESTION_FORMAT_PROMPT, type ClaudeCommandSpec } from './claudeBin'
 import { joinSystemPrompt } from '../goals/goalPrompt'
 import type { GoalSpawnExtras } from '../goals/goalLaunch'
@@ -15,6 +16,17 @@ type SpawnCommandFields = Pick<
   ClaudeCommandSpec,
   'appendSystemPrompt' | 'mcpConfigPaths' | 'allowedTools'
 >
+
+/** claude's own auto memory, per launch (`settings.claudeAutoMemory`). claude reads
+ *  `CLAUDE_CODE_DISABLE_AUTO_MEMORY`: `1` turns it off, `0` forces it on over the operator's own
+ *  `autoMemoryEnabled: false`, and with the variable left as the app's own env has it, claude's
+ *  settings decide (all three probed on claude 2.1.322 with that setting off: `1` and unset gave
+ *  no auto memory, `0` gave it). */
+const AUTO_MEMORY_ENV: Readonly<Record<ClaudeAutoMemory, Readonly<Record<string, string>>>> = {
+  off: { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' },
+  on: { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '0' },
+  claude: {}
+}
 
 function spawnCommandFields(goal: GoalSpawnExtras, memory: MemorySpawnExtras): SpawnCommandFields {
   const paths = [goal.mcpConfigPath, memory.mcpConfigPath].filter((p): p is string => p !== null)
@@ -31,12 +43,15 @@ function spawnCommandFields(goal: GoalSpawnExtras, memory: MemorySpawnExtras): S
 }
 
 /** Asks memory for the launch's folder and workspace (main's active one when the launch names
- *  none), then joins it with goals. `env` is not changed: the result holds a new one. */
+ *  none), then joins it with goals. `env` is not changed: the result holds a new one, with the
+ *  auto memory choice last (it is the operator's setting, so nothing before it wins). */
 export function spawnExtras(input: {
   goal: GoalSpawnExtras
   memory: (target: { cwd: string; workspaceId: string }) => MemorySpawnExtras
   launch: { cwd: string; workspaceId: string | null }
   activeWorkspaceId: () => string
+  /** `settings.claudeAutoMemory`, read at this spawn. */
+  autoMemory: ClaudeAutoMemory
   env: Readonly<Record<string, string>>
 }): { fields: SpawnCommandFields; env: Record<string, string> } {
   const { goal, launch } = input
@@ -44,5 +59,8 @@ export function spawnExtras(input: {
     cwd: launch.cwd,
     workspaceId: launch.workspaceId ?? input.activeWorkspaceId()
   })
-  return { fields: spawnCommandFields(goal, memory), env: { ...input.env, ...memory.env } }
+  return {
+    fields: spawnCommandFields(goal, memory),
+    env: { ...input.env, ...memory.env, ...AUTO_MEMORY_ENV[input.autoMemory] }
+  }
 }

@@ -14,6 +14,7 @@ import {
   selectSoundEnabled,
   selectNotificationsEnabled,
   selectMemoryEnabled,
+  selectClaudeAutoMemory,
   selectTerminalFontSize,
   selectReminderCount,
   selectReminderFirstDelayMinutes,
@@ -57,6 +58,7 @@ import { useServerHealth } from '../../hooks/useServerHealth'
 import { useFlash } from '../../hooks/useFlash'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import type {
+  ClaudeAutoMemory,
   SettingsPatch,
   TerminalMenuTrigger,
   TerminalScheme
@@ -87,6 +89,14 @@ const TERMINAL_MENU_TRIGGER_OPTIONS: readonly SelectOption<TerminalMenuTrigger>[
   { value: 'ctrl-right-click', label: 'Ctrl + Right-click' }
 ]
 
+/** Claude Code's own auto memory in the sessions this app starts. `claude` sets nothing. */
+const CLAUDE_AUTO_MEMORY_LABEL = "Claude's auto memory"
+const CLAUDE_AUTO_MEMORY_OPTIONS: readonly SelectOption<ClaudeAutoMemory>[] = [
+  { value: 'off', label: 'Off' },
+  { value: 'on', label: 'On' },
+  { value: 'claude', label: 'Claude decides' }
+]
+
 /** `#terminals`' gear passes no onClose in tests; a module constant keeps the actions memo
  *  stable. (The header ✕ always renders; with NO_CLOSE it does nothing — the real app always
  *  passes `onClose`.) */
@@ -111,6 +121,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   const notificationsEnabled = useSettings(selectNotificationsEnabled)
   const terminalFontSize = useSettings(selectTerminalFontSize)
   const memoryEnabled = useSettings(selectMemoryEnabled)
+  const claudeAutoMemory = useSettings(selectClaudeAutoMemory)
   const reminderCount = useSettings(selectReminderCount)
   const reminderFirstDelayMinutes = useSettings(selectReminderFirstDelayMinutes)
 
@@ -666,7 +677,28 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                     </div>
                   </div>
                   <p className={styles.hint}>
-                    Turns off Claude&apos;s own auto memory in sessions this app starts.
+                    Sessions this app starts can save exact values and facts, and find them again.
+                  </p>
+
+                  <div className={styles.row}>
+                    <span className={styles.label}>{CLAUDE_AUTO_MEMORY_LABEL}</span>
+                    <div className={styles.controlGroup}>
+                      <Select
+                        value={claudeAutoMemory}
+                        options={CLAUDE_AUTO_MEMORY_OPTIONS}
+                        onChange={(next) =>
+                          void persistSetting({ claudeAutoMemory: next }, "Claude's auto memory")
+                        }
+                        ariaLabel={CLAUDE_AUTO_MEMORY_LABEL}
+                        testId="settings-claude-auto-memory"
+                        align="end"
+                      />
+                    </div>
+                  </div>
+                  <p className={styles.hint}>
+                    Claude Code&apos;s own memory, in sessions this app starts. It works beside this
+                    app&apos;s memory. Claude decides: this app changes nothing, so your Claude
+                    settings apply. A change applies to sessions started after it.
                   </p>
                 </>
               )}

@@ -57,7 +57,8 @@ describe('SettingsSchema — versioned, our-shape, fail-closed (AC-4/5/6)', () =
       railCollapsed: false,
       showAllTagsByWorkspace: {},
       windowSize: null,
-      memoryEnabled: true
+      memoryEnabled: true,
+      claudeAutoMemory: 'claude'
     }
     const parsed = parseSettings(valid)
     expect(parsed).toEqual(valid)
@@ -541,5 +542,33 @@ describe('memoryEnabled — additive on v1', () => {
     expect(SettingsPatchSchema.parse({ memoryEnabled: false })).toEqual({ memoryEnabled: false })
     expect(SettingsPatchSchema.parse({ soundEnabled: true })).toEqual({ soundEnabled: true })
     expect(SettingsPatchSchema.safeParse({ memoryEnabled: 'yes' }).success).toBe(false)
+  })
+})
+
+describe('claudeAutoMemory — additive on v1', () => {
+  it('a settings file written before this key leaves the choice to Claude', () => {
+    const { claudeAutoMemory: _c, ...without } = DEFAULT_SETTINGS
+    void _c
+    expect(SettingsSchema.parse(without).claudeAutoMemory).toBe('claude')
+    expect(DEFAULT_SETTINGS.claudeAutoMemory).toBe('claude')
+  })
+
+  it('takes off, on and claude, and nothing else', () => {
+    for (const mode of ['off', 'on', 'claude'] as const) {
+      expect(SettingsSchema.parse({ ...DEFAULT_SETTINGS, claudeAutoMemory: mode })).toMatchObject({
+        claudeAutoMemory: mode
+      })
+    }
+    expect(SettingsSchema.safeParse({ ...DEFAULT_SETTINGS, claudeAutoMemory: true }).success).toBe(
+      false
+    )
+  })
+
+  it('a patch carries it with NO default', () => {
+    expect(SettingsPatchSchema.parse({ claudeAutoMemory: 'off' })).toEqual({
+      claudeAutoMemory: 'off'
+    })
+    expect(SettingsPatchSchema.parse({ memoryEnabled: false })).toEqual({ memoryEnabled: false })
+    expect(SettingsPatchSchema.safeParse({ claudeAutoMemory: 'auto' }).success).toBe(false)
   })
 })

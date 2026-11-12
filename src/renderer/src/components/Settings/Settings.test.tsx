@@ -556,7 +556,7 @@ describe('Settings in categories (spec 2026-09-29 §3)', () => {
     expect(r.container.querySelector('h3')).toBeNull()
   })
 
-  it('Memory has one switch, bound to memoryEnabled, with its hint', () => {
+  it('Memory has its switch, bound to memoryEnabled, with its hint', () => {
     const stub = stubSettings()
     stubThemes()
     const r = renderPanel()
@@ -565,10 +565,31 @@ describe('Settings in categories (spec 2026-09-29 §3)', () => {
     expect(toggle).toHaveAttribute('role', 'switch')
     expect(q(r, 'label[for="settings-memory-enabled"]')).toHaveTextContent(/^Memory$/)
     expect(q(r, '[data-testid="settings-pane-memory"]')).toHaveTextContent(
-      "Turns off Claude's own auto memory in sessions this app starts."
+      'Sessions this app starts can save exact values and facts, and find them again.'
     )
+    // The switch no longer touches Claude's own memory: the old hint must not come back.
+    expect(q(r, '[data-testid="settings-pane-memory"]')).not.toHaveTextContent(/Turns off/)
     setReactCheckbox(toggle as HTMLInputElement, false)
     expect(stub.setCalls).toContainEqual({ memoryEnabled: false })
+  })
+
+  it("Memory offers Claude's auto memory as Off, On or Claude decides, and saves the pick", () => {
+    const stub = stubSettings()
+    stubThemes()
+    const r = renderPanel()
+    openCategory(r, 'memory')
+    expect(optionValues(r.container, 'settings-claude-auto-memory')).toEqual([
+      'off',
+      'on',
+      'claude'
+    ])
+    expect(selectedValue(r.container, 'settings-claude-auto-memory')).toBe('claude')
+    expect(optionLabel(r.container, 'settings-claude-auto-memory', 'claude')).toBe('Claude decides')
+    expect(q(r, '[data-testid="settings-pane-memory"]')).toHaveTextContent(
+      'Claude decides: this app changes nothing, so your Claude settings apply.'
+    )
+    chooseOption(r.container, 'settings-claude-auto-memory', 'off')
+    expect(stub.setCalls).toContainEqual({ claudeAutoMemory: 'off' })
   })
 
   it('the on/off settings are switches', () => {

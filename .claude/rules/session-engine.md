@@ -133,15 +133,19 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   block (`memory/memoryIndex.ts`: rules of use; pinned items newest first, which may pass the cap
   but never `MEMORY_LIMITS.indexCeilingChars` (the block rides one argv string; the rest are
   counted, `<n> more pinned`); the folder's specifics, capped at `MEMORY_LIMITS.indexChars`) and
-  the env `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` (claude's own auto
-  memory off) + `CLAUDE_WATCHER_MEMORY=1` (for the operator's own hooks). `pty/spawnExtras.ts`
+  the env `CLAUDE_WATCHER_MEMORY=1` (for the operator's own hooks). `pty/spawnExtras.ts`
   joins it with goals: one `--append-system-prompt` (`QUESTION_FORMAT_PROMPT`, the task block,
   then the index), one `--mcp-config` flag (goals file first), one comma-joined `--allowedTools`;
   it also asks memory for the launch's workspace (main's active one when it names none) and
-  builds the child env (memory's two vars only while memory is on).
+  builds the child env (memory's var only while memory is on).
+  claude's own auto memory is a separate setting (`settings.claudeAutoMemory`, owner 2026-11-12:
+  the two memories work side by side), read at every spawn whether memory is on or not: `off` →
+  env `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, `on` → `=0` (forces it on over the operator's
+  `autoMemoryEnabled: false`), `claude` (default) → the app sets nothing, so claude's settings
+  decide (all three probed on claude 2.1.322).
   A launch never fails for memory: any throw leaves no token or file, logs
-  `code=memory_launch_failed`, and the session starts as if memory were off (auto memory
-  included). A Reopen drops the replaced id's memory token and file first, even with memory off.
+  `code=memory_launch_failed`, and the session starts as if memory were off. A Reopen drops the
+  replaced id's memory token and file first, even with memory off.
   Served at `MEMORY_MCP_PATH` (`/mcp/memory`) on the hook listener by the shared
   `mcp/mcpEndpoint.ts`, behind the same guards as `/mcp/goals`; a POST to any other `/mcp/` path
   is 404. Memory tokens are their own store (`mcp/sessionTokens.ts`): neither server's bearer

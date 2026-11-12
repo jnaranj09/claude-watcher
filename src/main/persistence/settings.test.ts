@@ -119,7 +119,8 @@ describe('createSettingsStore — first install + round-trip (AC-5)', () => {
       railCollapsed: false,
       showAllTagsByWorkspace: {},
       windowSize: null,
-      memoryEnabled: true
+      memoryEnabled: true,
+      claudeAutoMemory: 'claude'
     }
     const fake = makeFakeBlobStore(persisted)
     const log = vi.fn()
@@ -159,7 +160,8 @@ describe('createSettingsStore — first install + round-trip (AC-5)', () => {
       railCollapsed: false,
       showAllTagsByWorkspace: {},
       windowSize: null,
-      memoryEnabled: true
+      memoryEnabled: true,
+      claudeAutoMemory: 'claude'
     })
   })
 })

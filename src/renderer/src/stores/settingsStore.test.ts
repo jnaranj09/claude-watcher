@@ -21,7 +21,8 @@ import {
   selectRailCollapsed,
   selectShowAllTagsByWorkspace,
   selectTerminalMenuTrigger,
-  selectMemoryEnabled
+  selectMemoryEnabled,
+  selectClaudeAutoMemory
 } from './settingsStore'
 import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
 
@@ -55,7 +56,8 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
       railCollapsed: false,
       showAllTagsByWorkspace: {},
       windowSize: null,
-      memoryEnabled: true
+      memoryEnabled: true,
+      claudeAutoMemory: 'claude'
     })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
@@ -109,6 +111,15 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
     expect(selectMemoryEnabled(store.getState())).toBe(false)
     store.getState().hydrate(DEFAULT_SETTINGS)
     expect(selectMemoryEnabled(store.getState())).toBe(true)
+  })
+
+  it('claudeAutoMemory: hydrate and applyPatch carry it', () => {
+    const store = createSettingsStore()
+    expect(selectClaudeAutoMemory(store.getState())).toBe('claude')
+    store.getState().applyPatch({ claudeAutoMemory: 'off' })
+    expect(selectClaudeAutoMemory(store.getState())).toBe('off')
+    store.getState().hydrate({ ...DEFAULT_SETTINGS, claudeAutoMemory: 'on' })
+    expect(selectClaudeAutoMemory(store.getState())).toBe('on')
   })
 
   it('an empty patch is a no-op', () => {

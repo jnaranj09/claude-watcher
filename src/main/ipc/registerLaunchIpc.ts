@@ -15,6 +15,7 @@ import {
   SessionArchiveSchema,
   SessionDeleteSchema
 } from '../../shared/schemas/launch'
+import type { ClaudeAutoMemory } from '../../shared/schemas/settings'
 import type { WorkspacesStore } from '../persistence/workspaces'
 import { parseSessionWorkspaceMove, pickDirectoryDefaultPath } from '../persistence/workspacesIpc'
 import type { TemplatesStore } from '../persistence/templates'
@@ -149,8 +150,8 @@ export interface LaunchIpcDeps {
     previousSessionId: string | null
   ) => GoalSpawnExtras
   /** Memory: what one spawn of `sessionId` adds (the index for its folder, the memory server's
-   *  config and tools, and the env that turns claude's auto memory off), or nothing
-   *  (memory/memoryLaunch.ts). Read at spawn time; `previousSessionId` as for goals. */
+   *  config and tools, and its env flag), or nothing (memory/memoryLaunch.ts). Read at spawn
+   *  time; `previousSessionId` as for goals. */
   memorySpawnExtras: (
     sessionId: string,
     launch: { cwd: string; workspaceId: string },
@@ -158,6 +159,9 @@ export interface LaunchIpcDeps {
   ) => MemorySpawnExtras
   /** The workspace a launch that names none lands in (main's active one, read at spawn). */
   activeWorkspaceId: () => string
+  /** `settings.claudeAutoMemory`, read at spawn: claude's own auto memory off, on, or left to
+   *  claude's settings (pty/spawnExtras.ts). */
+  claudeAutoMemory: () => ClaudeAutoMemory
   isSessionLive: (sessionId: string) => boolean
   getTerminalManager: () => TerminalManager | null
   getPastSessionsStore: () => PastSessionsStore | null
@@ -195,6 +199,7 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     goalSpawnExtras,
     memorySpawnExtras,
     activeWorkspaceId,
+    claudeAutoMemory,
     isSessionLive,
     getTerminalManager,
     getPastSessionsStore,
@@ -311,14 +316,15 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     // minted id first), and `mark_task_done` when the operator chose it. Nothing for any other
     // launch.
     const goal = goalSpawnExtras(sessionId, goalLaunch, resume, previousSessionId)
-    // Memory: the folder's index, the memory tools and claude's own auto memory off for this
-    // launch, or nothing at all (memory off, hook port not ours, database closed, a failure).
-    // Joined with goals, with the child env, in pty/spawnExtras.ts.
+    // Memory: the folder's index and the memory tools for this launch, or nothing at all (memory
+    // off, hook port not ours, database closed, a failure). Joined with goals, with the child env
+    // and the operator's choice for claude's own auto memory, in pty/spawnExtras.ts.
     const extras = spawnExtras({
       goal,
       memory: (target) => memorySpawnExtras(sessionId, target, previousSessionId),
       launch,
       activeWorkspaceId,
+      autoMemory: claudeAutoMemory(),
       env
     })
 

@@ -101,7 +101,7 @@ every exit is archived or deleted with a reason; min claude version is checked a
 
 `claude-watcher-memory.db` (`node:sqlite`, imported by `memory/memoryDb.ts` only); items global
 or per workspace; MCP `/mcp/memory` (own tokens); the agent never deletes or pins; memory text
-is sensitive. Memory on → spawn env `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, `CLAUDE_WATCHER_MEMORY=1`.
+is sensitive. claude's own auto memory: its own setting (`claudeAutoMemory`, `pty/spawnExtras.ts`).
 
 ## Workspaces
 

@@ -93,6 +93,14 @@ export const TerminalMenuTriggerSchema = z.enum([
 export type TerminalMenuTrigger = z.infer<typeof TerminalMenuTriggerSchema>
 export const DEFAULT_TERMINAL_MENU_TRIGGER: TerminalMenuTrigger = 'right-click'
 
+/** Claude Code's own auto memory in the sessions this app starts (owner, 2026-11-12): forced
+ *  `off`, forced `on`, or `claude`: the app sets nothing, so the operator's Claude settings
+ *  decide. Separate from `memoryEnabled`: the two memories work side by side (this app's keeps
+ *  exact values and facts, claude's keeps how to work), so neither switch moves the other. */
+export const ClaudeAutoMemorySchema = z.enum(['off', 'on', 'claude'])
+export type ClaudeAutoMemory = z.infer<typeof ClaudeAutoMemorySchema>
+export const DEFAULT_CLAUDE_AUTO_MEMORY: ClaudeAutoMemory = 'claude'
+
 /**
  * The versioned settings shape (v1): `version` + `soundEnabled` + `terminalFontSize` +
  * `reminderCount` + `reminderFirstDelayMinutes` + `expanderKey` + `apiEnabled` + `apiPort` +
@@ -191,7 +199,10 @@ export const SettingsSchema = z.object({
   windowSize: WindowSizeSchema.nullable().default(null),
   // Memory (spec 2026-11-11): the master switch — off means no memory tools, no injection, no
   // extraction. Additive on v1, same `.default()` reasoning as above: on for an older file.
-  memoryEnabled: z.boolean().default(true)
+  memoryEnabled: z.boolean().default(true),
+  // Claude's own auto memory in launched sessions. Additive on v1, same `.default()` reasoning as
+  // above: an older file leaves the choice to Claude.
+  claudeAutoMemory: ClaudeAutoMemorySchema.default(DEFAULT_CLAUDE_AUTO_MEMORY)
 })
 
 /** The settings type — INFERRED from the schema (one source of truth). */
@@ -227,7 +238,8 @@ export const SettingsPatchSchema = z
     railCollapsed: z.boolean(),
     showAllTagsByWorkspace: ShowAllTagsByWorkspaceSchema,
     windowSize: WindowSizeSchema.nullable(),
-    memoryEnabled: z.boolean()
+    memoryEnabled: z.boolean(),
+    claudeAutoMemory: ClaudeAutoMemorySchema
   })
   .partial()
 
@@ -256,7 +268,8 @@ export const DEFAULT_SETTINGS: Settings = {
   railCollapsed: false,
   showAllTagsByWorkspace: {},
   windowSize: null,
-  memoryEnabled: true
+  memoryEnabled: true,
+  claudeAutoMemory: DEFAULT_CLAUDE_AUTO_MEMORY
 }
 
 /**

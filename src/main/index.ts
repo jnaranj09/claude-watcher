@@ -1232,6 +1232,7 @@ app
           previousSessionId
         ),
       activeWorkspaceId: () => requireWorkspacesStore().activeId(),
+      claudeAutoMemory: () => (settingsStore?.get() ?? DEFAULT_SETTINGS).claudeAutoMemory,
       isSessionLive,
       getTerminalManager: () => terminalManager,
       getPastSessionsStore: () => pastSessionsStore,

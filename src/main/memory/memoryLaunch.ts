@@ -4,10 +4,10 @@
 // `memorySpawnExtras` runs inside every actual spawn (`rawClaudeSpawn`, ipc/registerLaunchIpc.ts).
 // With memory on, the hook port ours (SEC-6: the server lives on it) and the database open, the
 // session gets its own bearer token, a `--mcp-config` file for `claude-watcher-memory`, the six
-// tools pre-allowed, the index for its folder appended to its system prompt, and two env vars: one
-// turns claude's native auto memory off for that launch (two memories would double up), the other
+// tools pre-allowed, the index for its folder appended to its system prompt, and one env var that
 // lets an operator's own hooks tell. All of it or nothing: a memory failure never fails a launch;
-// the session starts as if memory were off (native auto memory included), with a code logged.
+// the session starts as if memory were off, with a code logged. claude's own auto memory is not
+// set here: it has its own setting, applied to every launch in `pty/spawnExtras.ts`.
 //
 // The memory server's tokens are its own (`createSessionTokens`), so a memory bearer opens nothing
 // on `/mcp/goals` and a goals bearer nothing on `/mcp/memory`. Its config files share the goals
@@ -36,12 +36,8 @@ import {
 const AREA = 'memory'
 const LOG_PREFIX = `[claude-watcher][${AREA}]`
 
-/** The env a memory launch gets: claude's own auto memory off, and a flag for the operator's hooks
- *  (probed on claude 2.1.322: the first turns native auto memory off for that launch). */
-const MEMORY_SPAWN_ENV = {
-  CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1',
-  CLAUDE_WATCHER_MEMORY: '1'
-} as const
+/** The env a memory launch gets: a flag for the operator's own hooks. */
+const MEMORY_SPAWN_ENV = { CLAUDE_WATCHER_MEMORY: '1' } as const
 
 /** What one spawn gets from memory. `NO_MEMORY_EXTRAS` = nothing, not even the env. */
 export interface MemorySpawnExtras {

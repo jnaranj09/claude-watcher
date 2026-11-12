@@ -1,5 +1,5 @@
 // What a launch with memory on gets (spec 2026-11-11 memory, "Claude integration"): its own token,
-// the memory server's config, the six tools pre-allowed, the index and the two env vars, all or
+// the memory server's config, the six tools pre-allowed, the index and its env var, all or
 // nothing. A memory failure never fails the launch, and the memory server's bearers open nothing
 // of the goals server's (and the other way round).
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -102,10 +102,11 @@ describe('memorySpawnExtras', () => {
     expect(NO_MEMORY_EXTRAS.env).toEqual({})
   })
 
-  it('mints a token, writes the config and returns the index, the tools and both env vars', () => {
+  it('mints a token, writes the config and returns the index, the tools and its env var', () => {
     const on = spawnDeps()
     const out = memorySpawnExtras(on, 's1', launch, null)
-    expect(out.env).toEqual({ CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1', CLAUDE_WATCHER_MEMORY: '1' })
+    // Claude's own auto memory is not memory's to set: `pty/spawnExtras.ts`, from its setting.
+    expect(out.env).toEqual({ CLAUDE_WATCHER_MEMORY: '1' })
     expect(out.allowedTools).toBe(
       MEMORY_TOOLS.map((t) => `mcp__claude-watcher-memory__${t}`).join(',')
     )
@@ -229,7 +230,7 @@ describe('memorySpawnExtras', () => {
   it("a write to one launch's empty env never turns the env on for a later launch", () => {
     const off = spawnDeps({ enabled: () => false })
     const first = memorySpawnExtras(off, 's1', launch, null)
-    first.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY = '1'
+    first.env.CLAUDE_WATCHER_MEMORY = '1'
     expect(memorySpawnExtras(off, 's2', launch, null).env).toEqual({})
     expect(NO_MEMORY_EXTRAS.env).toEqual({})
     expect(Object.isFrozen(NO_MEMORY_EXTRAS)).toBe(true)

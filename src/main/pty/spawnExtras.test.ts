@@ -1,13 +1,15 @@
 // What a spawn adds to the claude command from goals and memory together: one system prompt (the
 // question nudge, then the task block, then the memory index), one `--mcp-config` flag with each
 // server's file (goals first) and one comma-joined `--allowedTools`; and the child env, with
-// memory's vars only while memory is on, for the launch's workspace (main's active one when it
-// names none).
+// memory's var only while memory is on, for the launch's workspace (main's active one when it
+// names none), and with claude's own auto memory forced off, forced on or left alone, as the
+// `Claude's auto memory` setting says.
 import { describe, it, expect, vi } from 'vitest'
 import { composeClaudeCommand, QUESTION_FORMAT_PROMPT } from './claudeBin'
 import { spawnExtras } from './spawnExtras'
 import { NO_MEMORY_EXTRAS, type MemorySpawnExtras } from '../memory/memoryLaunch'
 import type { GoalSpawnExtras } from '../goals/goalLaunch'
+import type { ClaudeAutoMemory } from '../../shared/schemas/settings'
 
 const goal: GoalSpawnExtras = {
   appendPrompt: 'TASK BLOCK',
@@ -19,7 +21,7 @@ const memory: MemorySpawnExtras = {
   appendPrompt: 'MEMORY INDEX',
   mcpConfigPath: '/ud/mcp/memory.json',
   allowedTools: 'mcp__claude-watcher-memory__memory_search,mcp__claude-watcher-memory__memory_get',
-  env: { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1', CLAUDE_WATCHER_MEMORY: '1' }
+  env: { CLAUDE_WATCHER_MEMORY: '1' }
 }
 
 const LAUNCH = { cwd: '/work/app', workspaceId: 'w1' }
@@ -28,14 +30,17 @@ const BASE_ENV = { PATH: '/usr/bin', HOME: '/home/op' }
 function extras(
   g: GoalSpawnExtras,
   m: MemorySpawnExtras,
-  launch: { cwd: string; workspaceId: string | null } = LAUNCH
+  launch: { cwd: string; workspaceId: string | null } = LAUNCH,
+  autoMemory: ClaudeAutoMemory = 'claude',
+  env: Readonly<Record<string, string>> = BASE_ENV
 ): ReturnType<typeof spawnExtras> {
   return spawnExtras({
     goal: g,
     memory: () => m,
     launch,
     activeWorkspaceId: () => 'active',
-    env: BASE_ENV
+    autoMemory,
+    env
   })
 }
 
@@ -107,10 +112,37 @@ describe('spawnExtras command fields', () => {
 })
 
 describe('spawnExtras env and workspace', () => {
-  it("memory on: the child env carries the base env and memory's two vars", () => {
-    expect(extras(NO_GOAL, memory).env).toEqual({
+  it("memory on: the child env carries the base env and memory's var", () => {
+    expect(extras(NO_GOAL, memory).env).toEqual({ ...BASE_ENV, CLAUDE_WATCHER_MEMORY: '1' })
+  })
+
+  it("Claude's auto memory off: the env turns it off, with memory on or off", () => {
+    expect(extras(NO_GOAL, memory, LAUNCH, 'off').env).toEqual({
       ...BASE_ENV,
-      CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1',
+      CLAUDE_WATCHER_MEMORY: '1',
+      CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1'
+    })
+    expect(extras(NO_GOAL, NO_MEMORY_EXTRAS, LAUNCH, 'off').env).toEqual({
+      ...BASE_ENV,
+      CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1'
+    })
+  })
+
+  it("Claude's auto memory on: the env forces it on, over a base env that turned it off", () => {
+    const env = { ...BASE_ENV, CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' }
+    expect(extras(NO_GOAL, NO_MEMORY_EXTRAS, LAUNCH, 'on', env).env).toEqual({
+      ...BASE_ENV,
+      CLAUDE_CODE_DISABLE_AUTO_MEMORY: '0'
+    })
+  })
+
+  it('Claude decides: the variable is left as the base env has it, set or not', () => {
+    expect(extras(NO_GOAL, memory, LAUNCH, 'claude').env).not.toHaveProperty(
+      'CLAUDE_CODE_DISABLE_AUTO_MEMORY'
+    )
+    const env = { ...BASE_ENV, CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' }
+    expect(extras(NO_GOAL, memory, LAUNCH, 'claude', env).env).toEqual({
+      ...env,
       CLAUDE_WATCHER_MEMORY: '1'
     })
   })
@@ -126,6 +158,7 @@ describe('spawnExtras env and workspace', () => {
       memory: () => memory,
       launch: LAUNCH,
       activeWorkspaceId: () => 'active',
+      autoMemory: 'off',
       env
     })
     expect(env).toEqual(BASE_ENV)
@@ -138,6 +171,7 @@ describe('spawnExtras env and workspace', () => {
       memory: memoryFor,
       launch: LAUNCH,
       activeWorkspaceId: () => 'active',
+      autoMemory: 'off',
       env: BASE_ENV
     })
     expect(memoryFor).toHaveBeenCalledWith({ cwd: '/work/app', workspaceId: 'w1' })
@@ -150,6 +184,7 @@ describe('spawnExtras env and workspace', () => {
       memory: memoryFor,
       launch: { cwd: '/work/app', workspaceId: null },
       activeWorkspaceId: () => 'active',
+      autoMemory: 'off',
       env: BASE_ENV
     })
     expect(memoryFor).toHaveBeenCalledWith({ cwd: '/work/app', workspaceId: 'active' })
