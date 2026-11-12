@@ -1,7 +1,8 @@
 // The scope dropdown that sits in a Manage dialog's header (.claude/rules/design.md). ONE
 // component for Templates and Shortcuts — the two dialogs list the same scopes and must offer
 // the same choices in the same order. Past sessions drops the `Global` entry (`showGlobal={false}`):
-// every record there has a workspace.
+// every record there has a workspace. Memory has no unfiltered entry either (no `allLabel`): main
+// lists one workspace's items (and the global ones beside it), never every workspace's.
 //
 // Built on the project's `Select`, never a native <select>: this control is the reason that rule
 // exists. Chromium draws a native popup from the desktop's GTK theme, so on a light desktop it
@@ -11,7 +12,7 @@ import type { JSX } from 'react'
 import type { Workspace } from '../../../../shared/ipc/contract'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import { Select, type SelectOption } from '../Select/Select'
-import { workspaceScope, type ScopeFilterValue } from './scope'
+import { ALL_SCOPE, workspaceScope, type ScopeFilterValue } from './scope'
 
 export interface ScopeFilterProps {
   value: ScopeFilterValue
@@ -21,8 +22,8 @@ export interface ScopeFilterProps {
    *  a SUBSET of this entry (the rows in no workspace), and it has to keep that word because it
    *  is the same word the item's own Workspace dropdown uses when you save it. So the entries
    *  are told apart by what they are ABOUT — this one names the list, "Global" names a property
-   *  of a row. */
-  allLabel: string
+   *  of a row. Omitted ⇒ no unfiltered entry (Memory). */
+  allLabel?: string
   /** Adds `(no workspace)`. Pass `hasOrphans(rows, known)` — never `true` unconditionally. */
   showOrphans: boolean
   /** Past sessions: every record has a workspace, so there is no Global entry to offer. Default true. */
@@ -44,8 +45,10 @@ export function ScopeFilter({
 }: ScopeFilterProps): JSX.Element {
   // Each entry is its workspace's NAME in its tint — never a dot (spec 2026-09-29), and something a
   // native <option> could never draw. Global and `(no workspace)` are untinted.
+  const all: SelectOption<ScopeFilterValue>[] =
+    allLabel === undefined ? [] : [{ value: ALL_SCOPE, label: allLabel }]
   const options: SelectOption<ScopeFilterValue>[] = [
-    { value: 'all', label: allLabel },
+    ...all,
     ...(showGlobal
       ? [
           {

@@ -1,10 +1,11 @@
-// FilterChips (spec 2026-10-16 §3) — the ONE chip row: the board's filter bar and the Sessions
-// dialog's Active / Past rails all render it. Controlled: the caller owns `filters` (the board per
+// FilterChips (spec 2026-10-16 §3) — the ONE chip row: the board's filter bar, the Sessions
+// dialog's Active / Past rails and the Memory dialog's rail all render it. Controlled: the caller owns `filters` (the board per
 // workspace in boardStore, the rails per page and scope in SessionsDialog) and gets every change
 // through `onChange`. One pill per type that is on, in `types` order; `+ Add filter` opens a type
 // menu whose rows open their values beside them (`Popover.Submenu`); a pill opens the same values
-// under itself. Multi-pick lists (tags, folders, goals) stay open; single picks (a preset, a calendar
-// day) close.
+// under itself. Multi-pick lists (tags, folders, goals, sessions) stay open; single picks (a preset,
+// a calendar day, and a folder, goal or session on a surface that lists it in `single`) close. A
+// toggle type (`Session deleted`) has no values: its type row turns it on, its pill only removes.
 //
 // A multi pick made from the type menu turns that type ON, which takes its row out of the type
 // menu (a type that is on is not offered twice). So the list moves under the new pill and stays
@@ -35,10 +36,18 @@ import {
   removeFilterLabel,
   TIME_RANGE_LABEL,
   timePickRowLabel,
-  timePillText
+  timePillText,
+  type TimeFilterType
 } from '../../lib/filterCopy'
 import { Calendar } from '../Calendar/Calendar'
-import { CalendarIcon, FolderIcon, GoalIcon, PlusIcon } from '../Icon/MenuIcons'
+import {
+  CalendarIcon,
+  FolderIcon,
+  GoalIcon,
+  PlusIcon,
+  TerminalIcon,
+  TrashIcon
+} from '../Icon/MenuIcons'
 import { Popover } from '../Popover/Popover'
 import { moveMenuRow } from '../Popover/menuArrows'
 import { Presence } from '../Presence/Presence'
@@ -57,7 +66,8 @@ export interface FilterChipsProps {
   filters: SessionFilters
   onChange: (next: SessionFilters) => void
   /** Which types this surface offers, in pill order: board ['tag','folder','goal','launched'],
-   *  Active ['tag','folder','launched'], Past ['tag','folder','launched','ended']. */
+   *  Active ['tag','folder','launched'], Past ['tag','folder','launched','ended'], Memory its
+   *  filter fields' (`MemoryDialog/memoryFilters.ts`). */
   types: readonly FilterType[]
   /** Tags offered, in list order (global first, then the workspace's own). */
   tags: readonly Tag[]
@@ -65,6 +75,11 @@ export interface FilterChipsProps {
   folders: readonly string[]
   /** Goals offered (the board's workspace's, in creation order). Omitted ⇒ none. */
   goals?: readonly { id: string; name: string }[]
+  /** Session names offered (Memory). Omitted ⇒ none. */
+  sessionNames?: readonly string[]
+  /** The list types picked ONE value at a time (a radio list that closes on a pick): Memory's
+   *  folder, session and goal, which main filters by one value. Omitted ⇒ every list is multi. */
+  single?: readonly ListType[]
   /** The `Create tags` row while no tag exists. Omitted ⇒ no such row. */
   onManageTags?: () => void
   now: () => number
@@ -74,7 +89,9 @@ export interface FilterChipsProps {
   wrap?: boolean
 }
 
-type TimeType = 'launched' | 'ended'
+type TimeType = TimeFilterType
+/** The types whose values are a list of paths or names. */
+export type ListType = 'folder' | 'goal' | 'session'
 type Origin = 'add' | 'pill'
 type CalendarOpen = {
   at: 'calendar'
@@ -96,7 +113,7 @@ const PRESETS: readonly TimeRange[] = ['today', '7d', '30d']
 const DAY_MODES = ['on', 'since'] as const
 
 function isTime(type: FilterType): type is TimeType {
-  return type === 'launched' || type === 'ended'
+  return type === 'launched' || type === 'ended' || type === 'updated'
 }
 
 /** Folders in list order: by name, then by full path (two `api` folders keep one order). */
@@ -116,6 +133,8 @@ function typeIcon(type: FilterType): JSX.Element {
   if (type === 'tag') return <TagGlyphIcon size={14} />
   if (type === 'folder') return <FolderIcon />
   if (type === 'goal') return <GoalIcon />
+  if (type === 'session') return <TerminalIcon />
+  if (type === 'sessionDeleted') return <TrashIcon />
   return <CalendarIcon />
 }
 
@@ -138,6 +157,8 @@ export function FilterChips({
   tags,
   folders,
   goals = [],
+  sessionNames = [],
+  single = [],
   onManageTags,
   now,
   testIdPrefix,
@@ -159,12 +180,18 @@ export function FilterChips({
   const launchedRowRef = useRef<HTMLButtonElement | null>(null)
   const endedRowRef = useRef<HTMLButtonElement | null>(null)
   const goalRowRef = useRef<HTMLButtonElement | null>(null)
+  const sessionRowRef = useRef<HTMLButtonElement | null>(null)
+  const updatedRowRef = useRef<HTMLButtonElement | null>(null)
+  const sessionDeletedRowRef = useRef<HTMLButtonElement | null>(null)
   const typeRefs = {
     tag: tagRowRef,
     folder: folderRowRef,
     goal: goalRowRef,
     launched: launchedRowRef,
-    ended: endedRowRef
+    ended: endedRowRef,
+    session: sessionRowRef,
+    updated: updatedRowRef,
+    sessionDeleted: sessionDeletedRowRef
   }
 
   // Tag is ON only through a tag this surface still offers: a gone id draws no pill, so it must not
@@ -201,7 +228,10 @@ export function FilterChips({
       'type-folder': folderRowRef,
       'type-goal': goalRowRef,
       'type-launched': launchedRowRef,
-      'type-ended': endedRowRef
+      'type-ended': endedRowRef,
+      'type-session': sessionRowRef,
+      'type-updated': updatedRowRef,
+      'type-sessionDeleted': sessionDeletedRowRef
     }[refocus.key]
     if (typeRow !== undefined) {
       typeRow.current?.focus()
@@ -261,8 +291,14 @@ export function FilterChips({
     }))
   }
 
-  /** A multi pick (tag, folder): the list stays open, under the pill from now on. */
-  function multiPick(type: 'tag' | 'folder' | 'goal', next: SessionFilters, rowKey: string): void {
+  /** A multi pick (tag, folder, goal, session): the list stays open, under the pill from now on.
+   *  A single-pick type closes its list instead, like a preset. */
+  function multiPick(type: 'tag' | ListType, next: SessionFilters, rowKey: string): void {
+    if (type !== 'tag' && single.includes(type)) {
+      onChange(next)
+      closeTo(triggerAfter(next, open?.at === 'pill' ? 'pill' : 'add', type))
+      return
+    }
     if (open?.at === 'pill') {
       onChange(next)
     } else {
@@ -288,16 +324,37 @@ export function FilterChips({
     multiPick('tag', { ...filters, tagIds }, `tag-row-${tagId}`)
   }
 
+  /** `list` with `value` turned on or off; on a single-pick type, `value` alone. */
+  function toggled(type: ListType, list: readonly string[], value: string): string[] {
+    if (single.includes(type)) return [value]
+    return list.includes(value) ? list.filter((x) => x !== value) : [...list, value]
+  }
+
   function toggleFolder(path: string): void {
-    const on = filters.folders.includes(path)
-    const chosen = on ? filters.folders.filter((x) => x !== path) : [...filters.folders, path]
+    const chosen = toggled('folder', filters.folders, path)
     multiPick('folder', { ...filters, folders: chosen }, `folder-row-${path}`)
   }
 
   function toggleGoal(goalId: string): void {
-    const on = filters.goalIds.includes(goalId)
-    const goalIds = on ? filters.goalIds.filter((x) => x !== goalId) : [...filters.goalIds, goalId]
+    const goalIds = toggled('goal', filters.goalIds, goalId)
     multiPick('goal', { ...filters, goalIds }, `goal-row-${goalId}`)
+  }
+
+  function toggleSession(name: string): void {
+    const sessionNames = toggled('session', filters.sessionNames, name)
+    multiPick('session', { ...filters, sessionNames }, `session-row-${name}`)
+  }
+
+  /** A toggle type's row in the type menu (it has no values): on at once, and the menu closes. */
+  function turnOnDeleted(): void {
+    const next = { ...filters, sessionDeleted: true }
+    onChange(next)
+    closeTo(triggerAfter(next, 'add', 'sessionDeleted'))
+  }
+
+  /** A list row's role: a radio on a single-pick type, else a checkbox. */
+  function listRole(type: ListType): 'menuitemradio' | 'menuitemcheckbox' {
+    return single.includes(type) ? 'menuitemradio' : 'menuitemcheckbox'
   }
 
   function setTime(type: TimeType, pick: TimePick, from: Origin): void {
@@ -384,6 +441,7 @@ export function FilterChips({
     if (type === 'tag') return `tag-row-${tags[0]?.id ?? ''}`
     if (type === 'folder') return `folder-row-${folderList()[0] ?? ''}`
     if (type === 'goal') return `goal-row-${goals[0]?.id ?? ''}`
+    if (type === 'session') return `session-row-${sessionList()[0] ?? ''}`
     return `${type}-row-${PRESETS[0] ?? 'today'}`
   }
 
@@ -394,7 +452,7 @@ export function FilterChips({
       return (
         <Popover.Item
           key={path}
-          role="menuitemcheckbox"
+          role={listRole('folder')}
           aria-checked={checked}
           testId={tid(`folder-row-${path}`)}
           data-filter-focus={`folder-row-${path}`}
@@ -416,7 +474,7 @@ export function FilterChips({
       return (
         <Popover.Item
           key={g.id}
-          role="menuitemcheckbox"
+          role={listRole('goal')}
           aria-checked={checked}
           testId={tid(`goal-row-${g.id}`)}
           data-filter-focus={`goal-row-${g.id}`}
@@ -427,6 +485,44 @@ export function FilterChips({
         </Popover.Item>
       )
     })
+  }
+
+  /** Session names in list order. */
+  function sessionList(): string[] {
+    return [...new Set([...sessionNames, ...filters.sessionNames])].sort((a, b) =>
+      a.localeCompare(b)
+    )
+  }
+
+  function sessionRows(): ReactNode {
+    const names = sessionList()
+    if (names.length === 0) {
+      return <TagMenuNote testId={tid('no-sessions')}>No sessions yet</TagMenuNote>
+    }
+    return names.map((name) => {
+      const checked = filters.sessionNames.includes(name)
+      return (
+        <Popover.Item
+          key={name}
+          role={listRole('session')}
+          aria-checked={checked}
+          testId={tid(`session-row-${name}`)}
+          data-filter-focus={`session-row-${name}`}
+          title={name}
+          onClick={() => toggleSession(name)}
+        >
+          {name}
+          {checked && <Check />}
+        </Popover.Item>
+      )
+    })
+  }
+
+  /** A list type's rows. */
+  function listRows(type: ListType): ReactNode {
+    if (type === 'folder') return folderRows()
+    if (type === 'goal') return goalRows()
+    return sessionRows()
   }
 
   function timeRows(type: TimeType, from: Origin): ReactNode {
@@ -475,9 +571,9 @@ export function FilterChips({
   /** The values of `type` as a submenu's content (tags and folders scroll in a Popover.List). */
   function submenuValues(type: FilterType): ReactNode {
     if (type === 'tag') return <Popover.List>{tagRows()}</Popover.List>
-    if (type === 'folder') return <Popover.List>{folderRows()}</Popover.List>
-    if (type === 'goal') return <Popover.List>{goalRows()}</Popover.List>
-    return timeRows(type, 'add')
+    if (isTime(type)) return timeRows(type, 'add')
+    if (type === 'sessionDeleted') return null
+    return <Popover.List>{listRows(type)}</Popover.List>
   }
 
   function calendar(o: CalendarOpen): JSX.Element {
@@ -528,11 +624,14 @@ export function FilterChips({
         title: paths.join('\n')
       }
     }
-    if (type === 'goal') {
+    if (type === 'goal' || type === 'session') {
       // Only the goals this surface still offers: a gone id draws no name and is not counted.
-      const picked = goals.filter((g) => filters.goalIds.includes(g.id))
+      const picked =
+        type === 'goal'
+          ? goals.filter((g) => filters.goalIds.includes(g.id)).map((g) => g.name)
+          : filters.sessionNames
       if (picked.length === 0) return null
-      const names = picked.map((g) => g.name).join(', ')
+      const names = picked.join(', ')
       return {
         body: (
           <span className={styles.pillKey}>
@@ -541,6 +640,9 @@ export function FilterChips({
         ),
         label: `${word} filter: ${names}. Change it`
       }
+    }
+    if (type === 'sessionDeleted') {
+      return filters.sessionDeleted ? { body: null, label: word } : null
     }
     const pick = filters[type]
     if (pick === null) return null
@@ -561,30 +663,35 @@ export function FilterChips({
     return (
       <span key={type} className={styles.anchor}>
         <span className={styles.pill} data-testid={tid(`pill-${type}`)} data-filter-pill={type}>
-          <button
-            type="button"
-            className={styles.pillEdit}
-            data-testid={tid(`pill-${type}-edit`)}
-            data-filter-focus={`pill-${type}`}
-            aria-haspopup="menu"
-            aria-expanded={listOpen || cal !== null}
-            aria-label={content.label}
-            {...(content.title !== undefined ? { title: content.title } : {})}
-            onClick={(e) => {
-              if (listOpen || cal !== null) {
-                setOpen(null)
-                return
-              }
-              setOpen({ at: 'pill', type, align: alignUnder(e.currentTarget) })
-              if (e.detail === 0) refocusOn(firstRowKey(type))
-            }}
-          >
-            {content.body}
-          </button>
+          {type === 'sessionDeleted' ? (
+            <span className={styles.pillLabel}>{content.label}</span>
+          ) : (
+            <button
+              type="button"
+              className={styles.pillEdit}
+              data-testid={tid(`pill-${type}-edit`)}
+              data-filter-focus={`pill-${type}`}
+              aria-haspopup="menu"
+              aria-expanded={listOpen || cal !== null}
+              aria-label={content.label}
+              {...(content.title !== undefined ? { title: content.title } : {})}
+              onClick={(e) => {
+                if (listOpen || cal !== null) {
+                  setOpen(null)
+                  return
+                }
+                setOpen({ at: 'pill', type, align: alignUnder(e.currentTarget) })
+                if (e.detail === 0) refocusOn(firstRowKey(type))
+              }}
+            >
+              {content.body}
+            </button>
+          )}
           <button
             type="button"
             className={styles.pillRemove}
             data-testid={tid(`pill-${type}-remove`)}
+            {...(type === 'sessionDeleted' ? { 'data-filter-focus': `pill-${type}` } : {})}
             aria-label={removeFilterLabel(type)}
             title={removeFilterLabel(type)}
             onClick={() => remove(type)}
@@ -611,10 +718,10 @@ export function FilterChips({
                   aria-label={FILTER_TYPE_LABEL[type]}
                   testId={tid(`${type}-list`)}
                 >
-                  {type === 'folder' || type === 'goal' ? (
-                    <Popover.List>{type === 'folder' ? folderRows() : goalRows()}</Popover.List>
-                  ) : (
+                  {isTime(type) ? (
                     timeRows(type, 'pill')
+                  ) : type === 'sessionDeleted' ? null : (
+                    <Popover.List>{listRows(type)}</Popover.List>
                   )}
                 </Popover.Surface>
               </div>
@@ -665,6 +772,23 @@ export function FilterChips({
                 surfaceRef={setTypeMenu}
               >
                 {offTypes.map((t) => {
+                  if (t === 'sessionDeleted') {
+                    return (
+                      <Popover.Item
+                        key={t}
+                        role="menuitem"
+                        buttonRef={sessionDeletedRowRef}
+                        testId={tid(`type-${t}`)}
+                        onMouseEnter={() =>
+                          setOpen({ at: 'add', sub: null, focus: 0, align: open?.align ?? 'start' })
+                        }
+                        onClick={turnOnDeleted}
+                      >
+                        <Popover.ItemIcon>{typeIcon(t)}</Popover.ItemIcon>
+                        {FILTER_TYPE_LABEL[t]}
+                      </Popover.Item>
+                    )
+                  }
                   const subOpen = open?.at === 'add' && open.sub === t
                   return (
                     <Popover.Submenu

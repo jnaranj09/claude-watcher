@@ -4,7 +4,7 @@
 // empty one. The pills, the day rows, the type names and the remove labels follow.
 
 import type { FilterType, TimePick, TimeRange } from './sessionFilters'
-import { GOAL_TERMS } from '../copy/terms'
+import { GOAL_TERMS, MEMORY_TERMS } from '../copy/terms'
 import { dayWindow } from './sessionFilters'
 
 /** `No sessions match the filters and “dep”` — names what hides the cards: the filters, the
@@ -35,7 +35,10 @@ export const FILTER_TYPE_LABEL: Readonly<Record<FilterType, string>> = {
   folder: 'Folder',
   goal: GOAL_TERMS.filterLabel,
   launched: 'Launched',
-  ended: 'Ended'
+  ended: 'Ended',
+  session: 'Session',
+  updated: 'Updated',
+  sessionDeleted: MEMORY_TERMS.sessionDeleted
 }
 
 const DAY_FORMAT: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }
@@ -45,8 +48,11 @@ export function formatDay(day: string): string {
   return new Date(dayWindow(day).start).toLocaleDateString(undefined, DAY_FORMAT)
 }
 
-/** The time pill: `Launched today`, `Ended in last 7 days`, `Launched on Wed, Oct 14`, … */
-export function timePillText(type: 'launched' | 'ended', pick: TimePick): string {
+/** The types whose values are a `TimePick`. */
+export type TimeFilterType = 'launched' | 'ended' | 'updated'
+
+/** The time pill: `Launched today`, `Ended in last 7 days`, `Updated on Wed, Oct 14`, … */
+export function timePillText(type: TimeFilterType, pick: TimePick): string {
   const word = FILTER_TYPE_LABEL[type]
   switch (pick.kind) {
     case 'preset':

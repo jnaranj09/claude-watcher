@@ -10,6 +10,7 @@ import {
   effectiveFilters,
   isTypeOn,
   matchesFilters,
+  timePickDays,
   type FilterSubject,
   type SessionFilters
 } from './sessionFilters'
@@ -151,5 +152,27 @@ describe('helpers', () => {
     expect(
       effectiveFilters(f({ goalIds: ['g', 'gone'] }), new Set(), new Set(['g'])).goalIds
     ).toEqual(['g'])
+  })
+})
+
+describe('timePickDays — a pick as the days a day-granular store filters by', () => {
+  const now = new Date(2026, 10, 12, 15, 0).getTime()
+  it('Today is since today', () => {
+    expect(timePickDays({ kind: 'preset', range: 'today' }, now)).toEqual({ since: '2026-11-12' })
+  })
+  it('Last 7 days starts on the day seven days back', () => {
+    expect(timePickDays({ kind: 'preset', range: '7d' }, now)).toEqual({ since: '2026-11-05' })
+  })
+  it('Last 30 days starts on the day thirty days back', () => {
+    expect(timePickDays({ kind: 'preset', range: '30d' }, now)).toEqual({ since: '2026-10-13' })
+  })
+  it('On a day is that day alone', () => {
+    expect(timePickDays({ kind: 'on', day: '2026-11-03' }, now)).toEqual({
+      since: '2026-11-03',
+      until: '2026-11-03'
+    })
+  })
+  it('Since a day starts on it', () => {
+    expect(timePickDays({ kind: 'since', day: '2026-11-03' }, now)).toEqual({ since: '2026-11-03' })
   })
 })

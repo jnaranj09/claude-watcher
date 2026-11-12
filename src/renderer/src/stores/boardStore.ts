@@ -358,6 +358,11 @@ export interface BoardState {
    */
   goalsDialogOpen: boolean
   /**
+   * Memory (spec 2026-11-11 memory §8) — whether the Memory dialog is open (RENDERER VIEW-STATE).
+   * [state.md: modal open/closed = renderer view-state]
+   */
+  memoryDialogOpen: boolean
+  /**
    * Tags (spec 2026-10-03 C) — the Tags dialog's page (Tags · Rules) while open, else null
    * (RENDERER VIEW-STATE). [state.md: modal open/closed = renderer view-state]
    */
@@ -556,6 +561,10 @@ export interface BoardState {
   openGoalsDialog: () => void
   /** Goals — close the Goals sheet. No-op if already closed. */
   closeGoalsDialog: () => void
+  /** Memory — open the Memory dialog. No-op if already open. */
+  openMemoryDialog: () => void
+  /** Memory — close the Memory dialog. No-op if already closed. */
+  closeMemoryDialog: () => void
   /** Tags — open the dialog on `page`, or switch to it while open. Same page: no-op. */
   openTagsDialog: (page: TagsDialogPage) => void
   /** Tags — close the dialog. No-op if already closed. */
@@ -662,6 +671,7 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     // Workspaces — the Manage-workspaces dialog starts closed.
     workspacesDialogOpen: false,
     goalsDialogOpen: false,
+    memoryDialogOpen: false,
     // Tags — the Manage-tags dialog starts closed.
     tagsDialog: null,
     // Rules — the Manage-rules dialog starts closed.
@@ -1041,6 +1051,13 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       if (get().goalsDialogOpen) set({ goalsDialogOpen: false })
     },
 
+    openMemoryDialog: () => {
+      if (!get().memoryDialogOpen) set({ memoryDialogOpen: true })
+    },
+    closeMemoryDialog: () => {
+      if (get().memoryDialogOpen) set({ memoryDialogOpen: false })
+    },
+
     openTagsDialog: (page) => {
       if (get().tagsDialog !== page) set({ tagsDialog: page })
     },
@@ -1287,6 +1304,8 @@ export const selectShortcutsDialogOpen = (state: BoardState): boolean => state.s
  */
 export const selectWorkspacesDialogOpen = (state: BoardState): boolean => state.workspacesDialogOpen
 export const selectGoalsDialogOpen = (state: BoardState): boolean => state.goalsDialogOpen
+/** Memory — whether the Memory dialog is open (RENDERER VIEW-STATE). */
+export const selectMemoryDialogOpen = (state: BoardState): boolean => state.memoryDialogOpen
 
 /** Tags — the open page (Tags · Rules), or null while the dialog is closed (RENDERER VIEW-STATE). */
 export const selectTagsDialog = (state: BoardState): TagsDialogPage | null => state.tagsDialog

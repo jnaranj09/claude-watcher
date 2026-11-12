@@ -1,8 +1,9 @@
-// The Sessions dialog's rail filter (spec 2026-10-16 §3): the page's search box and the board's
-// `Filter` button (`FilterToggle`) on one line, and the shared chip row (`FilterChips`, wrapping)
-// under it while the button is pressed. Filters live per page and SCOPE while the dialog is open
-// (`useScopedFilters`, railFilters.ts, held by SessionsDialog so a page switch keeps them) and are
-// gone when it closes: view-state, never persisted.
+// The Sessions dialog's rail filter (spec 2026-10-16 §3), and the Memory dialog's (spec 2026-11-11
+// memory §8): the page's search box and the board's `Filter` button (`FilterToggle`) on one line,
+// and the shared chip row (`FilterChips`, wrapping) under it while the button is pressed. The
+// Sessions pages keep their filters per page and SCOPE while the dialog is open (`useScopedFilters`,
+// railFilters.ts, held by SessionsDialog so a page switch keeps them); Memory keeps them per page.
+// Either way they are gone when the dialog closes: view-state, never persisted.
 //
 // The chip row's lists float over the rail's rows and the form beside it (FilterChips' own
 // positioning and z-index). Nothing above them in the dialog clips: the rail (`.list`), the column
@@ -10,7 +11,7 @@
 import { useId, useState, type JSX, type ReactNode } from 'react'
 import type { Tag } from '../../../../shared/ipc/contract'
 import { activeFilterCount, type FilterType, type SessionFilters } from '../../lib/sessionFilters'
-import { FilterChips } from '../FilterChips/FilterChips'
+import { FilterChips, type ListType } from '../FilterChips/FilterChips'
 import { FilterToggle } from '../FilterBar/FilterToggle'
 import styles from './SessionsDialog.module.css'
 
@@ -22,8 +23,13 @@ export interface RailFilterProps {
   types: readonly FilterType[]
   tags: readonly Tag[]
   folders: readonly string[]
+  /** Memory's Goal and Session values, and its one-value lists (FilterChips' props). */
+  goals?: readonly { id: string; name: string }[]
+  sessionNames?: readonly string[]
+  single?: readonly ListType[]
   now: () => number
-  /** 'active-filter' | 'past-filter': FilterChips' ids, and `${testIdPrefix}-toggle`. */
+  /** 'active-filter' | 'past-filter' | 'memory-filter': FilterChips' ids, and
+   *  `${testIdPrefix}-toggle`. */
   testIdPrefix: string
 }
 
@@ -34,6 +40,9 @@ export function RailFilter({
   types,
   tags,
   folders,
+  goals = [],
+  sessionNames = [],
+  single = [],
   now,
   testIdPrefix
 }: RailFilterProps): JSX.Element {
@@ -60,6 +69,9 @@ export function RailFilter({
           types={types}
           tags={tags}
           folders={folders}
+          goals={goals}
+          sessionNames={sessionNames}
+          single={single}
           now={now}
           testIdPrefix={testIdPrefix}
         />

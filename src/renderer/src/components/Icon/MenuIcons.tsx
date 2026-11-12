@@ -54,7 +54,7 @@ export function ClockIcon(): JSX.Element {
   )
 }
 
-/** Active sessions — a terminal prompt. */
+/** Active sessions, and the filter type `Session` — a terminal prompt. */
 export function TerminalIcon(): JSX.Element {
   return (
     <LineIcon>
@@ -111,7 +111,7 @@ export function PlusIcon(): JSX.Element {
   )
 }
 
-/** Launched / Ended — a calendar page. */
+/** Launched / Ended / Updated — a calendar page. */
 export function CalendarIcon(): JSX.Element {
   return (
     <LineIcon>
@@ -139,12 +139,30 @@ export function GoalIcon(): JSX.Element {
   )
 }
 
-/** The search box's magnifier: the board's filter bar and the Sessions pages' rail. */
+/** The search box's magnifier: the board's filter bar and the Sessions and Memory rails. */
 export function SearchIcon(): JSX.Element {
   return (
     <LineIcon>
       <circle cx="7" cy="7" r="4.5" />
       <path d="M10.5 10.5L14 14" />
+    </LineIcon>
+  )
+}
+
+/** Memory — a bookmark (what sessions kept to come back to). */
+export function MemoryIcon(): JSX.Element {
+  return (
+    <LineIcon>
+      <path d="M4.5 2.5h7v11L8 11l-3.5 2.5z" />
+    </LineIcon>
+  )
+}
+
+/** The filter type `Session deleted` — a bin. */
+export function TrashIcon(): JSX.Element {
+  return (
+    <LineIcon>
+      <path d="M2.5 4.5h11M6.5 4.5v-2h3v2M4 4.5l.7 8.2a1 1 0 0 0 1 .8h4.6a1 1 0 0 0 1-.8l.7-8.2" />
     </LineIcon>
   )
 }

@@ -27,8 +27,10 @@ import { ShortcutsDialog } from './components/ShortcutsDialog/ShortcutsDialog'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher/WorkspaceSwitcher'
 import { WorkspacesDialog } from './components/WorkspacesDialog/WorkspacesDialog'
 import { GoalsDialog } from './components/GoalsDialog/GoalsDialog'
+import { MemoryDialog } from './components/MemoryDialog/MemoryDialog'
 import { LucideIcon } from './components/Icon/LucideIcon'
-// The header ☰ menu — Settings, Shortcuts, and the Tags submenu (Manage tags / Manage rules).
+// The header ☰ menu — Settings, Shortcuts, the Tags submenu (Manage tags / Manage rules), Memory and
+// the Sessions submenu.
 import { AppMenu } from './components/AppMenu/AppMenu'
 // Tags — the Manage-tags modal.
 import { TagsDialog } from './components/TagsDialog/TagsDialog'
@@ -68,6 +70,7 @@ import {
   selectShortcutsDialogOpen,
   selectWorkspacesDialogOpen,
   selectGoalsDialogOpen,
+  selectMemoryDialogOpen,
   selectTagsDialog,
   selectSettingsDialogOpen,
   selectContextDialogTerminalId
@@ -192,6 +195,8 @@ function App(): React.JSX.Element {
   // Workspaces — whether the Manage-workspaces dialog is open.
   const workspacesDialogOpen = useBoard(selectWorkspacesDialogOpen)
   const goalsDialogOpen = useBoard(selectGoalsDialogOpen)
+  // Memory — whether the Memory dialog is open.
+  const memoryDialogOpen = useBoard(selectMemoryDialogOpen)
   // Tags — the Tags dialog's open page (Tags · Rules), or null.
   const tagsDialog = useBoard(selectTagsDialog)
   // Settings — whether the Settings dialog is open.
@@ -282,6 +287,7 @@ function App(): React.JSX.Element {
       boardStore.getState().closeShortcutsDialog()
       boardStore.getState().closeWorkspacesDialog()
       boardStore.getState().closeGoalsDialog()
+      boardStore.getState().closeMemoryDialog()
       boardStore.getState().closeTagsDialog()
       boardStore.getState().closeSettingsDialog()
       // R9 — the Delete confirm too: a Delete confirmed under the guard would act on a session
@@ -398,6 +404,12 @@ function App(): React.JSX.Element {
   const handleOpenSettings = useCallback((): void => {
     if (isModalOpen()) return
     boardStore.getState().openSettingsDialog()
+  }, [])
+
+  // Memory — "Memory" from the ☰ menu. Same single-modal guard as every opener.
+  const handleOpenMemory = useCallback((): void => {
+    if (isModalOpen()) return
+    boardStore.getState().openMemoryDialog()
   }, [])
 
   // Phrase shortcuts — "Shortcuts" from the ☰ menu. Same single-modal guard as every opener.
@@ -581,6 +593,7 @@ function App(): React.JSX.Element {
           boardStore.getState().closeShortcutsDialog()
           boardStore.getState().closeWorkspacesDialog()
           boardStore.getState().closeGoalsDialog()
+          boardStore.getState().closeMemoryDialog()
           boardStore.getState().closeTagsDialog()
           boardStore.getState().closeSettingsDialog()
           return
@@ -673,6 +686,7 @@ function App(): React.JSX.Element {
     shortcutsDialogOpen ||
     workspacesDialogOpen ||
     tagsDialog !== null ||
+    memoryDialogOpen ||
     settingsDialogOpen ||
     contextDialogTerminalId !== null ||
     // R9 — the Delete confirm and the Quit guard are modals too: Shift+Tab out of the confirm
@@ -734,13 +748,14 @@ function App(): React.JSX.Element {
               onManage={handleManageTemplates}
             />
             {/* The header control after Goals and + New session: Settings, Shortcuts, the Tags
-              submenu and Past sessions (last). It filters nothing: the filters are the board's
-              FilterBar. */}
+              submenu, Memory and the Sessions submenu (last). It filters nothing: the filters are
+              the board's FilterBar. */}
             <AppMenu
               onOpenSettings={handleOpenSettings}
               onOpenShortcuts={handleOpenShortcuts}
               onManageTags={handleManageTags}
               onManageRules={handleManageRules}
+              onOpenMemory={handleOpenMemory}
               onOpenSessions={handleOpenSessions}
             />
           </span>
@@ -839,6 +854,11 @@ function App(): React.JSX.Element {
             onClose={() => boardStore.getState().closeTagsDialog()}
           />
         )}
+      </Presence>
+      {/* Memory (spec 2026-11-11 memory §8) — what sessions saved (☰ menu → Memory; same z-60
+          layer and single-modal rule). */}
+      <Presence value={memoryDialogOpen || null}>
+        {() => <MemoryDialog onClose={() => boardStore.getState().closeMemoryDialog()} />}
       </Presence>
       {/* Settings — the Settings dialog (☰ menu → Settings; same single-modal rule). */}
       <Presence value={settingsDialogOpen || null}>

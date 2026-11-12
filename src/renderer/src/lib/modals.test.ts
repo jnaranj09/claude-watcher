@@ -4,6 +4,7 @@ import { boardStore } from '../stores/boardStore'
 import { dialogOpenIn, isModalOpen } from './modals'
 
 afterEach(() => {
+  boardStore.getState().closeMemoryDialog()
   boardStore.getState().closeGoalsDialog()
   boardStore.getState().closeSessionsDialog()
   boardStore.getState().closeTagsDialog()
@@ -38,6 +39,16 @@ describe('modals — the Goals sheet', () => {
     expect(dialogOpenIn(boardStore.getState())).toBe(true)
     expect(isModalOpen()).toBe(true)
     boardStore.getState().closeGoalsDialog()
+    expect(dialogOpenIn(boardStore.getState())).toBe(false)
+  })
+})
+
+describe('modals — the Memory dialog', () => {
+  it('memoryDialogOpen counts as a dialog, and not once closed', () => {
+    boardStore.getState().openMemoryDialog()
+    expect(dialogOpenIn(boardStore.getState())).toBe(true)
+    expect(isModalOpen()).toBe(true)
+    boardStore.getState().closeMemoryDialog()
     expect(dialogOpenIn(boardStore.getState())).toBe(false)
   })
 })

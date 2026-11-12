@@ -4,6 +4,7 @@ import { formatVersion, MIN_MOD_CLAUDE_VERSION } from '../../../../shared/launch
 import type { ContextRefusalCode, ModSkipReason } from '../../../../shared/ipc/contract'
 import { CONTEXT_REFUSAL_CODES } from '../../../../shared/schemas/contextIpc'
 import { BRIDGE_MOD_FAILED_COPY, STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
+import { HISTORY_TERMS } from '../../copy/terms'
 
 export type ContextCategoryId =
   | 'instructions'
@@ -32,9 +33,9 @@ export const CONTEXT_COPY = {
   ended: 'This session has ended.',
   loadFailed: 'Could not load this session’s context.',
   openInEditor: 'Open in editor',
-  history: 'History',
-  restore: 'Restore this version',
-  confirmRestore: 'Confirm restore',
+  history: HISTORY_TERMS.history,
+  restore: HISTORY_TERMS.restore,
+  confirmRestore: HISTORY_TERMS.confirmRestore,
   noVersions: 'No versions yet.',
   pickVersion: 'Pick a version to compare it with the file now.',
   tooLargeForHistory: 'This file is over 1 MB, so no versions are kept.',
@@ -58,7 +59,7 @@ export function contextRefusal(err: unknown): ContextRefusalCode | null {
 
 const SHARED: Partial<Record<ContextRefusalCode, string>> = {
   file_missing: 'That file no longer exists.',
-  version_not_found: 'That version is no longer in the history.',
+  version_not_found: HISTORY_TERMS.versionGone,
   store_write_failed: STORE_WRITE_FAILED_COPY
 }
 

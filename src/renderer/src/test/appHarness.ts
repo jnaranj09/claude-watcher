@@ -33,7 +33,8 @@ const OPTIONAL_BRIDGES = [
   'shortcuts',
   'themes',
   'pastSessions',
-  'workspaces'
+  'workspaces',
+  'memory'
 ] as const
 
 type CoreBridgeName =
@@ -112,7 +113,11 @@ function optionalBridgeDefaults(): Partial<Record<OptionalBridgeName, Bridge>> {
       list: vi.fn(() => Promise.resolve({ goals: [], tasks: [], proposals: [], fileProblems: [] })),
       onChanged: vi.fn(() => () => {})
     },
-    shortcuts: { list: vi.fn(() => Promise.resolve([])), save: vi.fn(), remove: vi.fn() }
+    shortcuts: { list: vi.fn(() => Promise.resolve([])), save: vi.fn(), remove: vi.fn() },
+    memory: {
+      list: vi.fn(() => Promise.resolve({ rows: [], total: 0 })),
+      onChanged: vi.fn(() => () => {})
+    }
   }
 }
 
@@ -137,6 +142,7 @@ export function resetBoardView(): void {
     shortcutsDialogOpen: false,
     workspacesDialogOpen: false,
     goalsDialogOpen: false,
+    memoryDialogOpen: false,
     quitGuard: null,
     stopConfirm: null
   })

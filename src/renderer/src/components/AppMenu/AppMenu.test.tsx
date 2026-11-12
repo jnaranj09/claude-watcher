@@ -27,6 +27,7 @@ function render(props: Partial<AppMenuProps> = {}): RenderResult {
       onManageTags={vi.fn()}
       onManageRules={vi.fn()}
       onOpenSessions={vi.fn()}
+      onOpenMemory={vi.fn()}
       {...props}
     />
   )
@@ -76,7 +77,7 @@ describe('AppMenu', () => {
     const r = render()
     click(q(r, 'app-menu'))
     expect(q(r, 'app-menu')?.getAttribute('aria-expanded')).toBe('true')
-    expect(labels(mainMenu(r))).toEqual(['Settings', 'Shortcuts', 'Tags', 'Sessions'])
+    expect(labels(mainMenu(r))).toEqual(['Settings', 'Shortcuts', 'Tags', 'Memory', 'Sessions'])
     for (const id of ['app-menu-tags', 'app-menu-sessions']) {
       expect(q(r, id)?.getAttribute('aria-haspopup')).toBe('menu')
       expect(q(r, id)?.getAttribute('aria-expanded')).toBe('false')
@@ -119,6 +120,24 @@ describe('AppMenu', () => {
     expect(mainMenu(r)).toBeNull()
   })
 
+  it('Memory sits before Sessions, closes the menu and calls onOpenMemory', () => {
+    const onOpenMemory = vi.fn()
+    const r = render({ onOpenMemory })
+    click(q(r, 'app-menu'))
+    click(q(r, 'app-menu-memory'))
+    expect(onOpenMemory).toHaveBeenCalledTimes(1)
+    expect(mainMenu(r)).toBeNull()
+  })
+
+  it('offers no Memory row when nobody handles it', () => {
+    const r = renderComponent(
+      <AppMenu onOpenSettings={vi.fn()} onOpenShortcuts={vi.fn()} onManageTags={vi.fn()} />
+    )
+    cleanup = r.unmount
+    click(q(r, 'app-menu'))
+    expect(q(r, 'app-menu-memory')).toBeNull()
+  })
+
   it('Shortcuts closes the menu and calls onOpenShortcuts', () => {
     const onOpenShortcuts = vi.fn()
     const r = render({ onOpenShortcuts })
@@ -153,7 +172,7 @@ describe('AppMenu', () => {
     const tagRows = [...(subMenu(r)?.querySelectorAll('[role="menuitem"]') ?? [])]
     click(q(r, 'app-menu-sessions'))
     const rows = [...(mainMenu(r)?.querySelectorAll('[role="menuitem"]') ?? []), ...tagRows]
-    expect(rows).toHaveLength(10)
+    expect(rows).toHaveLength(11)
     for (const row of rows) {
       expect(row.querySelector(':scope > [aria-hidden="true"] svg'), rowName(row)).not.toBeNull()
       expect(rowName(row)).not.toContain('…')
@@ -319,7 +338,7 @@ describe('AppMenu', () => {
     expect(subMenu(r)).not.toBeNull()
     act(() => q(r, 'app-menu-tags')?.focus())
     key(q(r, 'app-menu-tags'), 'ArrowDown')
-    expect(q(r, 'app-menu-sessions')).toHaveFocus()
+    expect(q(r, 'app-menu-memory')).toHaveFocus()
   })
 
   it('ArrowRight on Tags opens the submenu on its first row; ArrowLeft goes back to Tags', () => {

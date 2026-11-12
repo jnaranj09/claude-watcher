@@ -1,7 +1,7 @@
 // The header ☰ MENU (2026-09-14): the header's last control, after `+ New session` and `Goals`. Rows:
-// `Settings`, `Shortcuts`, `Tags ›` (Manage tags / Manage rules) and `Sessions ›` (spec
-// 2026-10-03 A: Active sessions / Past sessions / Templates / Import session) — ALWAYS the last
-// row, in the slot `Past sessions` held, with its clock. Every row has an icon and no `…`
+// `Settings`, `Shortcuts`, `Tags ›` (Manage tags / Manage rules), `Memory` (spec 2026-11-11 memory
+// §8) and `Sessions ›` (spec 2026-10-03 A: Active sessions / Past sessions / Templates / Import
+// session) — ALWAYS the last row, in the slot `Past sessions` held, with its clock. Every row has an icon and no `…`
 // (design.md, "Menu rows"). Both submenus are
 // `Popover.Submenu` (side `left`): they open to the LEFT (the menu sits at the window's right
 // edge), hover opens, click OPENS (never toggles), ArrowRight opens on the first row, ArrowLeft
@@ -14,11 +14,13 @@
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react'
 import type { SessionsPage } from '../../stores/boardStore'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
+import { MEMORY_TERMS } from '../../copy/terms'
 import {
   ArchiveIcon,
   ClockIcon,
   ImportIcon,
   KeyboardIcon,
+  MemoryIcon,
   RulesIcon,
   SlidersIcon,
   TemplateIcon,
@@ -37,6 +39,9 @@ export interface AppMenuProps {
   onManageTags: () => void
   /** Rules — the `Manage rules` row. Omitted ⇒ no row (a control nobody handles is not rendered). */
   onManageRules?: () => void
+  /** Memory — the row before Sessions. Omitted ⇒ no row (a control nobody handles is not
+   *  rendered). */
+  onOpenMemory?: () => void
   /** Sessions (spec 2026-10-03 A) — ALWAYS the last row, a submenu; each row opens the Sessions
    *  dialog on its page. Omitted ⇒ no row (a control nobody handles is not rendered). */
   onOpenSessions?: (page: SessionsPage) => void
@@ -70,6 +75,7 @@ export function AppMenu({
   onOpenShortcuts,
   onManageTags,
   onManageRules,
+  onOpenMemory,
   onOpenSessions
 }: AppMenuProps): JSX.Element {
   const [open, setOpen] = useState(false)
@@ -216,6 +222,19 @@ export function AppMenu({
                   </Popover.Item>
                 )}
               </Popover.Submenu>
+              {onOpenMemory !== undefined && (
+                <Popover.Item
+                  role="menuitem"
+                  testId="app-menu-memory"
+                  onClick={() => choose(onOpenMemory)}
+                  onMouseEnter={() => setSubmenu(null)}
+                >
+                  <Popover.ItemIcon>
+                    <MemoryIcon />
+                  </Popover.ItemIcon>
+                  {MEMORY_TERMS.label}
+                </Popover.Item>
+              )}
               {onOpenSessions !== undefined && (
                 <Popover.Submenu
                   side="left"

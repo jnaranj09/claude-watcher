@@ -4,7 +4,7 @@
 // `is*()` forms read the store once, for event handlers.
 import { boardStore, type BoardState } from '../stores/boardStore'
 
-/** The name prompt and the Manage/Settings/Sessions/Goals dialogs — the modals the page-body
+/** The name prompt and the Manage/Settings/Sessions/Goals/Memory dialogs — the modals the page-body
  *  Escape closes all at once (the Delete confirm and the Quit guard each have their own Escape). */
 export function dialogOpenIn(s: BoardState): boolean {
   return (
@@ -13,6 +13,7 @@ export function dialogOpenIn(s: BoardState): boolean {
     s.shortcutsDialogOpen ||
     s.workspacesDialogOpen ||
     s.goalsDialogOpen ||
+    s.memoryDialogOpen ||
     s.tagsDialog !== null ||
     s.settingsDialogOpen ||
     s.contextDialogTerminalId !== null

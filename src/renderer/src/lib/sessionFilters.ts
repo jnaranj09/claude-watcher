@@ -1,6 +1,9 @@
 // Session filters (spec 2026-10-16) — the ONE filter model and matcher behind the board's filter
 // bar and the Sessions dialog's Active and Past pages. Pure: no React, no store. Time comes in as
 // `now` (state.md: inject now()). Name search is NOT here: it stays with each surface's own box.
+// The Memory dialog's chip row holds its filters in this model too (spec 2026-11-11 memory §8);
+// `session`, `updated` and `sessionDeleted` are its types alone. Main applies them (the dialog
+// sends them as `MemoryFilters`), so `matchesFilters` never reads them.
 //
 // Day windows are LOCAL calendar days built from calendar fields (`new Date(y, m, d)`), never by
 // adding 24 h, so a clock-change day still covers the whole day.
@@ -11,7 +14,27 @@ export type TimePick =
   | { kind: 'on'; day: string }
   | { kind: 'since'; day: string }
 
-export type FilterType = 'tag' | 'folder' | 'goal' | 'launched' | 'ended'
+export type FilterType =
+  | 'tag'
+  | 'folder'
+  | 'goal'
+  | 'launched'
+  | 'ended'
+  | 'session'
+  | 'updated'
+  | 'sessionDeleted'
+
+/** Every type, in the order the `Filter` button counts them. */
+const FILTER_TYPES: readonly FilterType[] = [
+  'tag',
+  'folder',
+  'goal',
+  'launched',
+  'ended',
+  'session',
+  'updated',
+  'sessionDeleted'
+]
 
 export interface SessionFilters {
   /** Any of these tag ids; [] = off. */
@@ -23,6 +46,12 @@ export interface SessionFilters {
   launched: TimePick | null
   /** Offered on Past only. */
   ended: TimePick | null
+  /** Memory only: the name of the session that saved the item; [] = off. */
+  sessionNames: readonly string[]
+  /** Memory only: when the item last changed. */
+  updated: TimePick | null
+  /** Memory only: only items whose session was deleted. */
+  sessionDeleted: boolean
 }
 
 /** What a surface hands the matcher for one row. */
@@ -41,7 +70,10 @@ export const NO_FILTERS: SessionFilters = {
   folders: [],
   goalIds: [],
   launched: null,
-  ended: null
+  ended: null,
+  sessionNames: [],
+  updated: null,
+  sessionDeleted: false
 }
 
 const DAY_MS = 86_400_000
@@ -89,6 +121,26 @@ function timeWindow(pick: TimePick, now: number): { from: number; to: number } {
   }
 }
 
+/** A pick as the days a day-granular store filters by (the Memory dialog's `since` / `until`):
+ *  `Today` and `Since a day` from that day on, `On a day` that one day, `Last 7 days` and
+ *  `Last 30 days` from the day `now` minus that many days falls on (the matcher's window above,
+ *  widened to its whole first day). */
+export function timePickDays(pick: TimePick, now: number): { since: string; until?: string } {
+  switch (pick.kind) {
+    case 'preset':
+      if (pick.range === 'today') return { since: dayKey(now) }
+      return { since: dayKey(now - (pick.range === '7d' ? 7 : 30) * DAY_MS) }
+    case 'on':
+      return { since: pick.day, until: pick.day }
+    case 'since':
+      return { since: pick.day }
+    default: {
+      const unreachable: never = pick
+      return unreachable
+    }
+  }
+}
+
 function matchesTime(at: number | undefined, pick: TimePick | null, now: number): boolean {
   if (pick === null) return true
   if (at === undefined) return false
@@ -117,6 +169,12 @@ export function isTypeOn(f: SessionFilters, type: FilterType): boolean {
       return f.launched !== null
     case 'ended':
       return f.ended !== null
+    case 'session':
+      return f.sessionNames.length > 0
+    case 'updated':
+      return f.updated !== null
+    case 'sessionDeleted':
+      return f.sessionDeleted
     default: {
       const unreachable: never = type
       return unreachable
@@ -126,8 +184,7 @@ export function isTypeOn(f: SessionFilters, type: FilterType): boolean {
 
 /** The number on the `Filter` button: how many TYPES are on (search is never counted). */
 export function activeFilterCount(f: SessionFilters): number {
-  return (['tag', 'folder', 'goal', 'launched', 'ended'] as const).filter((t) => isTypeOn(f, t))
-    .length
+  return FILTER_TYPES.filter((t) => isTypeOn(f, t)).length
 }
 
 export function clearType(f: SessionFilters, type: FilterType): SessionFilters {
@@ -142,6 +199,12 @@ export function clearType(f: SessionFilters, type: FilterType): SessionFilters {
       return { ...f, launched: null }
     case 'ended':
       return { ...f, ended: null }
+    case 'session':
+      return { ...f, sessionNames: [] }
+    case 'updated':
+      return { ...f, updated: null }
+    case 'sessionDeleted':
+      return { ...f, sessionDeleted: false }
     default: {
       const unreachable: never = type
       return unreachable

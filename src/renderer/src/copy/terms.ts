@@ -99,3 +99,22 @@ export const FOLDER_TERMS = {
 export const SELECTION_TERMS = {
   count: (n: number): string => `${n} selected`
 } as const
+
+/** Memory (spec 2026-11-11 memory §8): the ☰ row and the dialog's title, its two pages, the
+ *  header's stale switch, and the marker (and filter) on an item whose session was deleted. */
+export const MEMORY_TERMS = {
+  label: 'Memory',
+  specifics: 'Specifics',
+  facts: 'Facts',
+  showStale: 'Show stale',
+  sessionDeleted: 'Session deleted'
+} as const
+
+/** A thing's earlier versions and the way back to one: Context's instruction files and Memory's
+ *  items. */
+export const HISTORY_TERMS = {
+  history: 'History',
+  restore: 'Restore this version',
+  confirmRestore: 'Confirm restore',
+  versionGone: 'That version is no longer in the history.'
+} as const

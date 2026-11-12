@@ -99,6 +99,21 @@
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 
+/* A toggle type's pill (`Session deleted`): its name and ×, no values to change, so the name is
+ * text, not a button: the edit half's box without its pointer and hover. */
+.pillLabel {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+  padding: 0 var(--inset-compact-x) 0 var(--inset-item-x);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  white-space: nowrap;
+}
+
 .pillKey {
   min-width: 0;
   overflow: hidden;

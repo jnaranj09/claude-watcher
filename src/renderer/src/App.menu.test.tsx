@@ -22,6 +22,7 @@ beforeEach(() => {
     },
     tags: {},
     rules: {},
+    memory: {},
     pastSessions: {
       list: vi.fn(() => Promise.resolve([])),
       forget: vi.fn(() => Promise.resolve([])),
@@ -164,6 +165,48 @@ describe('App — the header ☰ menu', () => {
       expect(boardStore.getState().sessionsDialog).toBe('past')
       act(() => guardShow?.({ total: 1, workingCount: 0, sessions: [] }))
       expect(boardStore.getState().sessionsDialog).toBeNull()
+    })
+  })
+
+  describe('Memory', () => {
+    function openMemory(r: RenderResult): void {
+      click(q(r, '[data-testid="app-menu"]'))
+      click(q(r, '[data-testid="app-menu-memory"]'))
+    }
+
+    it('opens the Memory dialog; the header behind it is inert; ✕ closes it', async () => {
+      const r = await renderApp()
+      expect(boardStore.getState().memoryDialogOpen).toBe(false)
+      openMemory(r)
+      await flush(3)
+      expect(q(r, '[data-testid="memory-panel"]')).toBeInTheDocument()
+      expect(q(r, '[data-testid="app-header"]')).toHaveAttribute('inert')
+      click(q(r, '[data-testid="memory-close"]'))
+      expect(boardStore.getState().memoryDialogOpen).toBe(false)
+    })
+
+    it('does nothing while another dialog is open', async () => {
+      const r = await renderApp()
+      act(() => boardStore.getState().openSessionsDialog('templates'))
+      openMemory(r)
+      expect(boardStore.getState().memoryDialogOpen).toBe(false)
+    })
+
+    it('Escape from the page body closes it', async () => {
+      const r = await renderApp()
+      openMemory(r)
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      })
+      expect(boardStore.getState().memoryDialogOpen).toBe(false)
+    })
+
+    it('the quit guard closes it (never two modals stacked)', async () => {
+      const r = await renderApp()
+      openMemory(r)
+      expect(boardStore.getState().memoryDialogOpen).toBe(true)
+      act(() => guardShow?.({ total: 1, workingCount: 0, sessions: [] }))
+      expect(boardStore.getState().memoryDialogOpen).toBe(false)
     })
   })
 })

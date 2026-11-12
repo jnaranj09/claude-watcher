@@ -342,11 +342,9 @@ describe('FilterChips — pills', () => {
     render(
       <Harness
         start={{
+          ...NO_FILTERS,
           tagIds: ['t-web', 't-api'],
-          goalIds: [],
-          folders: [],
-          launched: { kind: 'preset', range: 'today' },
-          ended: null
+          launched: { kind: 'preset', range: 'today' }
         }}
       />
     )

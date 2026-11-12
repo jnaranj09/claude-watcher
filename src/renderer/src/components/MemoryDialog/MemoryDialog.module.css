@@ -1,0 +1,179 @@
+/* Memory — what is this dialog's own in the Manage shell: the two-line rail row, the empty
+   sentence, the form's action row and read-only values, and History. The shell, rail, rows, form,
+   footer and every button are ManageDialog.module.css (.claude/rules/design.md). Text on the
+   raised panel is --text-secondary, never --text-muted. */
+
+/* name + where it lives / age · basis + markers. `min-width: 0` on every flex level, or the
+   ellipsis never engages. */
+.rowMain {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+  min-width: 0;
+}
+.rowLine {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-width: 0;
+}
+/* An item's key or title is unbounded: one line, ellipsis, `title`. */
+.rowName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rowMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-width: 0;
+  font-size: var(--font-size-meta);
+  color: var(--text-secondary);
+}
+.rowAge {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--inset-item-y) var(--inset-item-x);
+  font-size: var(--font-size-meta);
+  color: var(--text-secondary);
+}
+
+/* `Show more` under the last row, at the row's left inset. */
+.more {
+  display: flex;
+  padding: var(--inset-compact-y) var(--inset-item-x);
+}
+
+/* The New form's `Global` switch, then its word (Goals' `Save to GOALS.md` row). A block of its
+   own: a section under the last field. */
+.switchRow {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-field);
+  margin-top: calc(var(--gap-section) - var(--gap-field));
+}
+.switchLabel {
+  color: var(--text-primary);
+  font-size: var(--font-size-body);
+}
+
+/* `[History] [Mark stale]` under the fields: a block of its own, buttons side by side. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-inline);
+  margin-top: calc(var(--gap-section) - var(--gap-field));
+}
+
+/* The read-only lines: label + value with the form's own gap between them, at the fields' text
+   size. A value is unbounded: one line, ellipsis, `title`. */
+.value {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+}
+/* A value that holds a name box or chips (origin session, tags, workspace). */
+.valueRow {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  color: var(--text-primary);
+  font-size: var(--font-size-body);
+}
+
+/* History: back + the item's name, the versions, the change, the reason — blocks a section apart
+   (Context's History). */
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-section);
+  min-width: 0;
+}
+.historyHead {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-width: 0;
+}
+.historyName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+.versions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-row);
+}
+.version {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-field);
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-body);
+}
+/* The version's text: machine data, mono; it gives way first. */
+.versionText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+}
+.versionWhen {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-meta);
+}
+/* The change: one line per row, its mark first; added and removed lines carry the success and
+   danger FILLS (text stays primary: a --danger text colour is the Callout's alone). */
+.diff {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: var(--inset-compact-y) var(--inset-compact-x);
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+}
+.line {
+  white-space: pre;
+}
+.line[data-op='add'] {
+  background: var(--success-fill);
+}
+.line[data-op='del'] {
+  background: var(--danger-fill);
+}

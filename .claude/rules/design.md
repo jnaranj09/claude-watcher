@@ -129,6 +129,9 @@ title.
 - Entries in order: unfiltered (`allLabel`: `All templates`, `All shortcuts` — named after the LIST,
   because `Global` is a subset), `Global`, each workspace, `(no workspace)` only if `hasOrphans`.
 - Past sessions: `showGlobal={false} showOrphans={false}`.
+- Memory: no unfiltered entry (no `allLabel`), no Global, no orphans: main lists ONE workspace's
+  items (plus the global ones with `Include global`). `Show stale` (a `Checkbox`, not persisted)
+  sits beside `Include global`: both choose which rows exist.
 - Opens on the ACTIVE workspace; unknown active id → unfiltered. The Sessions dialog's SESSION
   pages (Active, Past) too (owner 2026-10-12; reverses "open on `All sessions`", 2026-10-03).
 - **Include global** (spec 2026-10-03 H; reverses "strict filtering both ways", owner-approved
@@ -147,7 +150,10 @@ variant="toolbar"` + magnifier, 32px like the board's) + the same `Filter` butto
   (`FilterToggle`) on one line, `FilterChips` (wrapping, `data-wrap`) under it;
   Past adds `Ended`. Filters per page and scope while the dialog is open (`railFilters.ts`
   `useScopedFilters`, held by `SessionsDialog` so a page switch keeps them; tags offered by
-  `railTags`), never persisted.
+  `railTags`), never persisted. The Memory dialog's rail is the same `RailFilter` (owner's pick,
+  2026-11-11): its types come from `MEMORY_FILTER_FIELDS` (`MemoryDialog/memoryFilterMap.ts`:
+  Folder, Session, Tag, Updated, Goal, Session deleted), folder / session / goal pick ONE value
+  (`single`, radio rows that close: main filters by one), filters per page, never persisted.
 - Three empty states, three sentences: nothing at all / nothing in this scope / no search matches.
 - `+ New` at rail bottom (`ManageDialog.ListBottom`, `margin-top: auto`).
 - Options pass a `WorkspaceLabel` as `display`: the OPEN list shows each name in its tint; the closed
@@ -326,12 +332,14 @@ variant="toolbar">` + magnifier `icon`. Escape with text clears and stops; empty
   (`useBoardFilter`). Pinned rail row, notifier, badge, sound ignore both.
 - **Filter types:** Tag (several, any of), Folder (several, any of; the workspace's own folders),
   Launched (Today / Last 7 days / Last 30 days / On a day / Since a day). AND across types. The chip
-  row is `components/FilterChips/FilterChips.tsx`, the ONE chip row (board and the Sessions pages'
-  rail). `+ Add filter` opens a type menu (types already on are not offered); each row is a
+  row is `components/FilterChips/FilterChips.tsx`, the ONE chip row (board, the Sessions pages' rail
+  and the Memory rail; Memory adds Session, Updated and the value-less `Session deleted`, whose type
+  row turns it on and whose pill only removes). `+ Add filter` opens a type menu (types already on are not offered); each row is a
   `Popover.Submenu` whose values open beside it, on the right unless they would leave the window
   (`submenuSide`: the TYPE MENU's right edge + `SUBMENU_ROOM`, measured when a submenu opens), then
   on the left. A pill reopens its values under itself; `×` removes the type. Tag and folder rows
-  are `menuitemcheckbox` and the list stays open while picking; the Launched / Ended rows
+  are `menuitemcheckbox` and the list stays open while picking (a surface's `single` types are
+  `menuitemradio` and a pick closes); the Launched / Ended rows
   (`On a day` / `Since a day` included) are `menuitemradio`, and a preset or a calendar day
   closes. Opened from a KEY (Enter / Space on `+ Add filter` or a pill), the list focuses its
   first row, like the submenu's ArrowRight; a pointer open leaves focus on the trigger.
@@ -398,8 +406,8 @@ a click closes the sheet, then opens the session (`openFromNotification`). A ses
 drops off the row; the task panel draws no such line.
 
 - Rows: `Settings` (sliders), `Shortcuts` (keyboard), `Tags ›` (`Manage tags` /
-  `Manage rules`), `Sessions ›` (clock; `Active sessions` / `Past sessions` / `Templates` /
-  `Import session`) ALWAYS LAST. New rows go before it. Icons: one line set (16 grid, 1.5 stroke,
+  `Manage rules`), `Memory` (bookmark), `Sessions ›` (clock; `Active sessions` / `Past sessions` /
+  `Templates` / `Import session`) ALWAYS LAST. New rows go before it. Icons: one line set (16 grid, 1.5 stroke,
   14px) in a fixed-width slot; `›` at right; submenus still open LEFT.
 - Submenus are `Popover.Submenu` (`components/Popover/PopoverSubmenu.tsx`, side `left` here; the
   filter's type menu is its other caller): open LEFT, level with their row; hover opens, click
@@ -408,7 +416,7 @@ drops off the row; the task panel draws no such line.
   that has focus and stop at its ends (`moveMenuRow`, called from the anchor's keydown).
 - Escape peels one layer (submenu, then menu), listens on the whole menu; closed → passes through.
 - Every row opens a dialog under the single-modal rule (`settingsDialogOpen`, `sessionsDialog`,
-  `tagsDialog` in `boardStore` join `isModalOpen()`).
+  `tagsDialog`, `memoryDialogOpen` in `boardStore` join `isModalOpen()`).
 
 ## Past sessions and exits
 
