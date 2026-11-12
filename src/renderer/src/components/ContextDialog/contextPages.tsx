@@ -134,11 +134,11 @@ function InstructionsPage({
   )
 }
 
-type MemoryLoad = { activity: MemoryActivity; at: number }
+export type MemoryLoad = { activity: MemoryActivity; at: number }
 
 /** What this session was given at launch, then what it pulled and saved (an update or a stale
  *  mark counts as saved). `at` is when the answer came, the "now" its times are measured from. */
-function MemoryPage({
+export function MemoryPage({
   memory,
   error
 }: {
@@ -152,7 +152,10 @@ function MemoryPage({
   if (memory === null) return <>{notice}</>
   const { activity, at } = memory
   const entries = (testId: string, title: string, none: string, saved: boolean): JSX.Element => {
-    const rows = activity.entries.filter((e) => (e.action === 'pulled') !== saved)
+    // Updates and stale marks are writes, so they list under Saved with the saves.
+    const rows = activity.entries.filter((e) =>
+      saved ? e.action !== 'pulled' : e.action === 'pulled'
+    )
     return (
       <section data-testid={testId}>
         <h4 className={styles.section}>{title}</h4>
@@ -196,15 +199,11 @@ function MemoryPage({
 export function ContextPage({
   category,
   report,
-  sessionId,
-  memory,
-  memoryError
+  sessionId
 }: {
-  category: ContextCategoryId
+  category: Exclude<ContextCategoryId, 'memory'>
   report: ModReport
   sessionId: string
-  memory: MemoryLoad | null
-  memoryError: string | null
 }): JSX.Element {
   switch (category) {
     case 'instructions':
@@ -282,8 +281,6 @@ export function ContextPage({
           ))}
         </Rows>
       )
-    case 'memory':
-      return <MemoryPage memory={memory} error={memoryError} />
     case 'plugins':
       return (
         <Rows empty="plugins">

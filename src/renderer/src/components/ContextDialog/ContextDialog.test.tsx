@@ -579,6 +579,90 @@ describe('ContextDialog — the Memory page', () => {
   })
 })
 
+describe('ContextDialog — memory without a setup report', () => {
+  const GIVEN: MemoryActivity = {
+    injected: { tokens: 1250, itemIds: IDS },
+    entries: [{ at: NOW - 60_000, action: 'pulled', tool: 'memory_search', itemId: 'm1' }]
+  }
+  const NO_REPORT: [string, SessionSetupState, string][] = [
+    ['waiting', { state: 'waiting' }, 'Waiting for Claude to report its setup.'],
+    [
+      'unavailable',
+      { state: 'unavailable', reason: 'claude_too_old' },
+      'Update claude to 2.1.304 or newer to see its context.'
+    ]
+  ]
+
+  it.each(NO_REPORT)(
+    '%s: the Memory row has its tokens and the page its content',
+    async (_n, state, sentence) => {
+      stubMemory(GIVEN)
+      await open(state)
+      expect(
+        within(screen.getByTestId('context-category-memory')).getByTestId('context-category-tokens')
+      ).toHaveTextContent('1,250 tokens')
+      await userEvent.click(screen.getByTestId('context-category-memory'))
+      expect(screen.getByTestId('context-memory-injected')).toHaveTextContent(
+        '1,250 tokens · 12 items'
+      )
+      expect(
+        within(screen.getByTestId('context-memory-pulled')).getByText('memory_search')
+      ).toBeVisible()
+      expect(screen.queryByText(sentence)).not.toBeInTheDocument()
+    }
+  )
+
+  it.each(NO_REPORT)(
+    '%s: the other categories still wait for the report',
+    async (_n, state, sentence) => {
+      stubMemory(GIVEN)
+      await open(state)
+      await userEvent.click(screen.getByTestId('context-category-skills'))
+      expect(screen.getByText(sentence)).toBeVisible()
+      expect(screen.queryByTestId('context-memory-injected')).not.toBeInTheDocument()
+    }
+  )
+
+  it('ended: the last answer stays on the Memory page, the other pages say ended', async () => {
+    stubMemory(GIVEN)
+    await open()
+    await userEvent.click(screen.getByTestId('context-category-memory'))
+    act(() => boardStore.setState({ terminalIdBySessionId: {} }))
+    expect(screen.getByTestId('context-memory-injected')).toHaveTextContent('12 items')
+    await userEvent.click(screen.getByTestId('context-category-skills'))
+    expect(screen.getByText('This session has ended.')).toBeVisible()
+  })
+
+  it('a re-keyed session never shows the old session’s activity while the new answer is on its way', async () => {
+    const NEW = 'bbbbbbbb-0000-4000-8000-0000000000bb'
+    const memory = stubMemory(GIVEN)
+    await open({ state: 'waiting' })
+    await userEvent.click(screen.getByTestId('context-category-memory'))
+    expect(screen.getByTestId('context-memory-injected')).toHaveTextContent('12 items')
+    memory.activity.mockReturnValue(new Promise(() => {}))
+    await act(async () => {
+      boardStore.setState({ terminalIdBySessionId: { [NEW]: TERMINAL } })
+      await Promise.resolve()
+    })
+    expect(memory.activity).toHaveBeenLastCalledWith(NEW)
+    expect(screen.queryByTestId('context-memory-injected')).not.toBeInTheDocument()
+  })
+
+  it('a re-keyed session’s failed read never shows beside the old data', async () => {
+    const NEW = 'bbbbbbbb-0000-4000-8000-0000000000bb'
+    const memory = stubMemory(GIVEN)
+    await open({ state: 'waiting' })
+    await userEvent.click(screen.getByTestId('context-category-memory'))
+    memory.activity.mockRejectedValue(new Error('x'))
+    await act(async () => {
+      boardStore.setState({ terminalIdBySessionId: { [NEW]: TERMINAL } })
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('context-memory-load-error')).toBeVisible()
+    expect(screen.queryByTestId('context-memory-injected')).not.toBeInTheDocument()
+  })
+})
+
 describe('ContextDialog — waiting and unavailable', () => {
   it('waiting shows the placeholder sentence', async () => {
     await open({ state: 'waiting' })

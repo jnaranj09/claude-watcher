@@ -2,7 +2,7 @@
 //
 // Renders the SettingsPanel against a stubbed window.settings + the singleton settings store.
 // Asserts:
-//   - the two-column shell: five categories (Notifications, Appearance, Terminal, Keyboard, API),
+//   - the two-column shell: six categories (Notifications, Appearance, Terminal, Memory, Keyboard, API),
 //     opening on Notifications, each showing exactly its own controls (spec 2026-09-29 §3);
 //   - NO global-hotkey control (FR-8 row CUT);
 //   - every control persists through window.settings.set;

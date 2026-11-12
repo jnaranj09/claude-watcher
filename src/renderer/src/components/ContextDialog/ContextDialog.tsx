@@ -17,7 +17,7 @@ import {
   UNAVAILABLE_COPY,
   type ContextCategoryId
 } from './contextCopy'
-import { ContextPage } from './contextPages'
+import { ContextPage, MemoryPage } from './contextPages'
 import styles from './ContextDialog.module.css'
 
 const isCategory = (id: string | null): id is ContextCategoryId =>
@@ -25,10 +25,13 @@ const isCategory = (id: string | null): id is ContextCategoryId =>
 
 /** Each category's total tokens, where the report has them. */
 function categoryTokens(
-  report: ModReport,
+  report: ModReport | null,
   id: ContextCategoryId,
   memory: MemoryActivity | null
 ): number | null {
+  // Memory's activity does not come from the report: it answers by session id.
+  if (id === 'memory') return memory?.injected?.tokens ?? null
+  if (report === null) return null
   const sum = (rows: readonly { tokens: number }[]): number =>
     rows.reduce((total, r) => total + r.tokens, 0)
   switch (id) {
@@ -42,8 +45,6 @@ function categoryTokens(
       return sum(report.mcpServers)
     case 'commands':
       return report.slashCommands?.tokens ?? null
-    case 'memory':
-      return memory?.injected?.tokens ?? null
     case 'hooks':
     case 'plugins':
       return null
@@ -103,8 +104,12 @@ export function ContextDialog({
 
   // What memory gave, pulled and saved for this session. Main answers even while memory is off;
   // a failed read is a notice on the Memory page (its own copy, never the error's text).
-  const [memory, setMemory] = useState<{ activity: MemoryActivity; at: number } | null>(null)
-  const [memoryError, setMemoryError] = useState<string | null>(null)
+  const [memory, setMemory] = useState<{
+    for: string
+    activity: MemoryActivity
+    at: number
+  } | null>(null)
+  const [memoryError, setMemoryError] = useState<{ for: string; text: string } | null>(null)
   useEffect(() => {
     if (sessionId === null) return
     let live = true
@@ -113,11 +118,11 @@ export function ContextDialog({
         .activity(sessionId)
         .then((activity) => {
           if (!live) return
-          setMemory({ activity, at: Date.now() })
+          setMemory({ for: sessionId, activity, at: Date.now() })
           setMemoryError(null)
         })
         .catch(() => {
-          if (live) setMemoryError(CONTEXT_COPY.memoryLoadFailed)
+          if (live) setMemoryError({ for: sessionId, text: CONTEXT_COPY.memoryLoadFailed })
         })
     }
     load()
@@ -127,6 +132,11 @@ export function ContextDialog({
       off()
     }
   }, [sessionId])
+
+  // A re-keyed session (`/clear`) shows nothing of the old one's answer or error while its own is
+  // on the way; an ended session (null id) keeps its last answer.
+  const memoryNow = sessionId === null || memory?.for === sessionId ? memory : null
+  const memoryErrorNow = memoryError?.for === sessionId ? memoryError.text : null
 
   const selected = dialog.state.selectedId
   const category = isCategory(selected) ? selected : FIRST_CONTEXT_CATEGORY
@@ -144,8 +154,7 @@ export function ContextDialog({
           <ManageDialog.List>
             <ManageDialog.Rows>
               {CONTEXT_CATEGORIES.map((c) => {
-                const tokens =
-                  report === null ? null : categoryTokens(report, c.id, memory?.activity ?? null)
+                const tokens = categoryTokens(report, c.id, memoryNow?.activity ?? null)
                 return (
                   <ManageDialog.Row
                     key={c.id}
@@ -173,7 +182,13 @@ export function ContextDialog({
               })}
             </ManageDialog.Rows>
           </ManageDialog.List>
-          {report !== null && sessionId !== null ? (
+          {category === 'memory' && (sessionId !== null || memoryNow !== null) ? (
+            // Memory needs no report: it asks main by session id, so it shows while Claude has
+            // sent no setup (waiting, unavailable) and after the session ended (its last answer).
+            <ManageDialog.Pane testId={`context-pane-${category}`}>
+              <MemoryPage memory={memoryNow} error={memoryErrorNow} />
+            </ManageDialog.Pane>
+          ) : report !== null && sessionId !== null && category !== 'memory' ? (
             <ManageDialog.Pane testId={`context-pane-${category}`}>
               {loadNotice}
               <ContextPage
@@ -181,8 +196,6 @@ export function ContextDialog({
                 category={category}
                 report={report}
                 sessionId={sessionId}
-                memory={memory}
-                memoryError={memoryError}
               />
             </ManageDialog.Pane>
           ) : loadNotice !== null && !ended ? (

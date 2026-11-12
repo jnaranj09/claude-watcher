@@ -67,9 +67,9 @@ A dialog with sibling pages owns this state and renders each page's Header/Colum
   placeholder; scope change → placeholder.
 - Placeholder = ONE sentence, `--text-secondary`, centred: `Select a <thing> on the left, or create
 a new one.` (no `+ New` → `Select a <thing> on the left.`). No button in it.
-- Settings-like surface: CATEGORIES are rail rows (Notifications, Appearance, Terminal, Keyboard,
-  API), opens on the first (`initialSelectedId`), right column is `ManageDialog.Pane` with no title
-  (the rail row names the page). New setting → existing category; new category is a design question.
+- Settings-like surface: CATEGORIES are rail rows (Notifications, Appearance, Terminal, Memory,
+  Keyboard, API), opens on the first (`initialSelectedId`), right column is `ManageDialog.Pane` with
+  no title (the rail row names the page). New setting → existing category; new category is a design question.
 - **One selected look.** Every list where ONE entry is the current one — rail rows, Settings
   categories, the page column — draws it the same way: the row markup (`.row` + `.rowSelect`) and
   `.row[data-selected='true']` (`--bg-surface` fill, `--border-strong` edge). Never a second
@@ -97,8 +97,8 @@ a new one.` (no `+ New` → `Select a <thing> on the left.`). No button in it.
 - **Delete is red at rest** (danger border/text, transparent), fills on hover/focus; `armed` (solid)
   only when armed. Looks live in `Button.module.css` only; use `<ManageDialog.Delete>`.
 - **Workspace Delete warning names EVERY cascaded store** (templates, shortcuts, tags, rules, goals, past
-  sessions, memory — main's `cascade()`). A new cascaded store owes a word there and in its test (UX-09).
-  Deleting the ACTIVE workspace re-points the focused view (`focusWorkspace`, UX-18).
+  sessions, memory — main's `cascade()`). A new cascaded store owes a word there and in its test
+  (UX-09). Deleting the ACTIVE workspace re-points the focused view (`focusWorkspace`, UX-18).
 - **Panel capped to viewport, FORM scrolls:** `.panel` `max-height: calc(100vh - 2 *
 var(--space-6))`, `.columns` `grid-template-rows: minmax(0, 1fr)` and its own `max-height:
   560px` (a long list or pane scrolls, it never makes the dialog taller; the Goals sheet lifts
