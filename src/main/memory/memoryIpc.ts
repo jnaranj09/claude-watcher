@@ -10,8 +10,9 @@
 //
 // Refusals pass through unchanged: `memory_not_found`, `memory_version_not_found`,
 // `memory_read_failed` and `store_write_failed` (the store already logged and reported it).
-// While memory is off (the file could not be opened, or the smoke test) every handler throws
-// `memory_unavailable`.
+// While memory is off (the file could not be opened, the smoke test, after quit) every handler but
+// `activity` throws `memory_unavailable`. `activity` reads the in-memory per-session record, which
+// needs no database: a session with nothing recorded answers an empty record.
 import {
   MEMORY_ERROR,
   MemoryActivityGetSchema,
@@ -31,7 +32,7 @@ import type { MemoryActivityLog } from './memoryActivity'
 import type { MemoryNames } from './memoryNames'
 import type { MemoryStore } from './memoryStore'
 
-/** Thrown by every handler while there is no store. */
+/** Thrown by every handler but `activity` while there is no store. */
 export const MEMORY_UNAVAILABLE = 'memory_unavailable'
 
 const NO_META: MemoryItem['meta'] = {
@@ -128,7 +129,6 @@ export function createMemoryIpcHandlers(deps: {
     },
     activity(raw) {
       const { sessionId } = MemoryActivityGetSchema.parse(raw)
-      requireStore() // memory off: no activity is kept either
       return activity.get(sessionId)
     }
   }

@@ -583,7 +583,8 @@ export type GoalsApi = typeof goalsApi
 // Memory — typed invoke wrappers over CH.memory* (spec 2026-11-11). The operator's dialog lists,
 // reads and changes items; main stamps the writer (operator), basis and origin, never the renderer.
 // `onChanged` is main's push after any change, whoever made it: it carries nothing, so the dialog
-// lists again. Every refusal is a code (`memory_unavailable` while memory is off).
+// lists again. Every refusal is a code (`memory_unavailable` while memory is off; `activity`
+// still answers).
 const memoryApi = {
   list(req: MemoryListRequest): Promise<MemoryListResult> {
     return ipcRenderer.invoke(CH.memoryList, req)

@@ -26,12 +26,23 @@ describe('memoryNameLookups', () => {
     expect(names.tagIdsByName('w3', 'infra')).toEqual(['t2'])
   })
 
-  it("finds the workspace's goals by exact name, any case", () => {
-    expect(names.goalIdsByName('w1', 'SHIP V2')).toEqual(['g1'])
+  it("finds the workspace's goals by part of the name, any case", () => {
+    expect(names.goalIdsByName('w1', ' SHIP V2 ')).toEqual(['g1', 'g3'])
+    expect(names.goalIdsByName('w1', 'docs')).toEqual(['g3'])
   })
 
-  it('finds nothing for a name that only starts the same', () => {
-    expect(names.goalIdsByName('w1', 'ship')).toEqual([])
+  it('finds no tag for a name that only starts the same', () => {
     expect(names.tagIdsByName('w1', 'infr')).toEqual([])
+  })
+
+  it('finds a goal for a name that only starts the same', () => {
+    expect(names.goalIdsByName('w1', 'ship')).toEqual(['g1', 'g3'])
+  })
+
+  it('finds nothing for an empty or blank name', () => {
+    expect(names.goalIdsByName('w1', '')).toEqual([])
+    expect(names.goalIdsByName('w1', '   ')).toEqual([])
+    expect(names.tagIdsByName('w1', '')).toEqual([])
+    expect(names.tagIdsByName('w1', '   ')).toEqual([])
   })
 })

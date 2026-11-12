@@ -186,7 +186,7 @@ export const CH = {
   // Memory (spec 2026-11-11) — the operator's view of what claude remembers (main-owned SQLite
   // file). Every invoke answers directly; a refusal is a code (`memory_not_found`,
   // `memory_version_not_found`, `memory_read_failed`, `store_write_failed`, `memory_unavailable`
-  // while memory is off). `memory:changed` is the PUSH after any change, whoever caused it: an
+  // while memory is off, except `memory:activity`, which reads an in-memory record). `memory:changed` is the PUSH after any change, whoever caused it: an
   // empty payload validated at source (sendMemoryChanged.ts); the renderer lists again.
   memoryList: 'memory:list',
   memoryGet: 'memory:get',

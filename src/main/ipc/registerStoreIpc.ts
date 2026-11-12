@@ -352,7 +352,7 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
 
   // Memory — register ONCE. Handler bodies live in memory/memoryIpc.ts (unit-tested); this only
   // binds them to CH.memory* channels. The store is read on every invoke: it may be null (memory
-  // off), and then every handler throws `memory_unavailable`. The `memory:changed` push is wired in
+  // off), and then every handler but `activity` throws `memory_unavailable`. The `memory:changed` push is wired in
   // index.ts on the store's own `onChange`, so a change by a session reaches the dialog too.
   function registerMemoryIpc(): void {
     const handlers = createMemoryIpcHandlers({

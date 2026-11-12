@@ -191,6 +191,18 @@ describe('setState, setPinned, restore', () => {
     expect(() => h.setPinned({ id, pinned: true, extra: 1 })).toThrow()
     expect(() => h.restore({ id, versionAt: NOW, extra: 1 })).toThrow()
   })
+
+  it('each throws memory_not_found for an unknown id, unchanged', () => {
+    const id = 'nope'
+    expect(() => h.setState({ id, state: 'stale' })).toThrow(MEMORY_ERROR.notFound)
+    expect(() => h.setPinned({ id, pinned: true })).toThrow(MEMORY_ERROR.notFound)
+    expect(() => h.restore({ id, versionAt: NOW })).toThrow(MEMORY_ERROR.notFound)
+  })
+
+  it('restore throws memory_version_not_found for a time no version has, unchanged', () => {
+    const id = create()
+    expect(() => h.restore({ id, versionAt: 1 })).toThrow(MEMORY_ERROR.versionNotFound)
+  })
 })
 
 describe('remove', () => {
@@ -220,13 +232,17 @@ describe('activity', () => {
     })
   })
 
+  it('answers an empty record for a session with nothing recorded', () => {
+    expect(h.activity({ sessionId: 's9' })).toEqual({ injected: null, entries: [] })
+  })
+
   it('refuses an extra key', () => {
     expect(() => h.activity({ sessionId: 's1', extra: 1 })).toThrow()
   })
 })
 
 describe('while memory is off (no store)', () => {
-  it('every handler throws memory_unavailable', () => {
+  it('every handler but activity throws memory_unavailable', () => {
     const off = createMemoryIpcHandlers({ store: () => null, names, activity })
     const id = { id: 'm1' }
     const calls: (() => unknown)[] = [
@@ -237,10 +253,20 @@ describe('while memory is off (no store)', () => {
       () => off.setState({ ...id, state: 'stale' }),
       () => off.setPinned({ ...id, pinned: true }),
       () => off.remove(id),
-      () => off.restore({ ...id, versionAt: NOW }),
-      () => off.activity({ sessionId: 's1' })
+      () => off.restore({ ...id, versionAt: NOW })
     ]
     for (const call of calls) expect(call).toThrow(MEMORY_UNAVAILABLE)
+  })
+
+  it('activity still answers from the in-memory record, and still parses its argument', () => {
+    const off = createMemoryIpcHandlers({ store: () => null, names, activity })
+    activity.injected('s1', { chars: 8, itemIds: ['m1'] })
+    expect(off.activity({ sessionId: 's1' })).toEqual({
+      injected: { tokens: 2, itemIds: ['m1'] },
+      entries: []
+    })
+    expect(off.activity({ sessionId: 's9' })).toEqual({ injected: null, entries: [] })
+    expect(() => off.activity({ sessionId: 's1', extra: 1 })).toThrow()
   })
 })
 
