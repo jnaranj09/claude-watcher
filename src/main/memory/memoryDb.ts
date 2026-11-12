@@ -200,18 +200,37 @@ function attemptOpen(file: string, log: (code: string) => void): Attempt {
   }
 }
 
-/** Renames the file and its side files to `<file>.corrupt-<now>[-wal|-shm]`; false when the
- *  file could not be moved aside (then nothing new is created over it). */
+/** Renames the side files, then the file, to `<file>.corrupt-<now>[-wal|-shm]`; false when the
+ *  set could not be moved aside, and then nothing new is created.
+ *  Invariant: on false, every rename that already happened has been undone (newest first), so
+ *  `<file>`, `<file>-wal` and `<file>-shm` hold what they held before. Only an undo that itself
+ *  throws breaks it; that is logged (`memory_db_backup_undo_failed`) and the backup names keep
+ *  the bytes. The main file moves last, so the original name never stands without its set. */
 function backUpCorrupt(file: string, now: number, log: (code: string) => void): boolean {
   const backup = `${file}.corrupt-${now}`
+  const moves = [
+    ...SIDE_FILES.filter((side) => existsSync(`${file}${side}`)).map((side) => ({
+      from: `${file}${side}`,
+      to: `${backup}${side}`
+    })),
+    { from: file, to: backup }
+  ]
+  const done: typeof moves = []
   try {
-    renameSync(file, backup)
-    for (const side of SIDE_FILES) {
-      if (existsSync(`${file}${side}`)) renameSync(`${file}${side}`, `${backup}${side}`)
+    for (const move of moves) {
+      renameSync(move.from, move.to)
+      done.push(move)
     }
     return true
   } catch {
     log('memory_db_read_failed')
+    for (const move of done.reverse()) {
+      try {
+        renameSync(move.to, move.from)
+      } catch {
+        log('memory_db_backup_undo_failed')
+      }
+    }
     return false
   }
 }

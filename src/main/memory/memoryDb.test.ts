@@ -1,6 +1,8 @@
 // The memory database module (spec 2026-11-11 memory §2): opens, migrates, fails safe.
 import {
   copyFileSync,
+  existsSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -143,6 +145,27 @@ describe('openMemoryDb', () => {
     expect(db.get('SELECT count(*) AS n FROM item', CountRow)).toEqual({ n: 0 })
     db.close()
   })
+
+  // A folder at one backup name makes that rename fail: before anything moved (-wal), after the
+  // -wal moved (-shm), or after both side files moved (the main file).
+  it.each(['-wal', '-shm', ''])(
+    'leaves a corrupt file and its side files in place when the %j backup rename fails',
+    (blocked) => {
+      writeFileSync(file, 'not a database')
+      writeFileSync(`${file}-wal`, 'wal bytes')
+      writeFileSync(`${file}-shm`, 'shm bytes')
+      const blocker = `${MEMORY_DB_FILE}.corrupt-1700000000000${blocked}`
+      mkdirSync(join(dir, blocker))
+      expect(openMemoryDb(file, deps)).toEqual({ ok: false, problem: 'read_failed' })
+      expect(readFileSync(file, 'utf8')).toBe('not a database')
+      expect(readFileSync(`${file}-wal`, 'utf8')).toBe('wal bytes')
+      // Its name only: the read-only version check rewrites the -shm (SQLite's WAL index, rebuilt
+      // from the -wal) before the backup runs; seen with SQLite 3.53.1.
+      expect(existsSync(`${file}-shm`)).toBe(true)
+      expect(readdirSync(dir).filter((n) => n.includes('.corrupt-'))).toEqual([blocker])
+      expect(lines).toEqual(['[claude-watcher][memory] code=memory_db_read_failed'])
+    }
+  )
 
   it('answers read_failed when the folder cannot be opened', () => {
     const open = openMemoryDb(join(dir, 'missing', MEMORY_DB_FILE), deps)
