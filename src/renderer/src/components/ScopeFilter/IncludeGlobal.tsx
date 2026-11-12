@@ -1,5 +1,5 @@
-// Include global (spec 2026-10-03 H) — beside a WORKSPACE scope in Templates, Shortcuts, Tags and
-// Rules: also list the global rows, which apply in that workspace too. ONE remembered choice
+// Include global (spec 2026-10-03 H) — beside a WORKSPACE scope in Templates, Shortcuts, Tags,
+// Rules and Memory: also list the global rows, which apply in that workspace too. ONE remembered choice
 // (`settings.includeGlobal`): unchecking it in Tags unchecks it in Templates, and it survives a
 // restart. Saved on change like every Settings control; a refused write is rolled back by
 // `persistSettingsPatch` and said in the dialog's error toast. Not rendered under All, Global or

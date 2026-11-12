@@ -91,6 +91,7 @@ export const ListRow = StoredRow.transform(
     id: r.id,
     kind: r.kind,
     head: r.head,
+    body: r.body,
     updatedAt: r.updated_at,
     basis: r.basis,
     state: r.state,

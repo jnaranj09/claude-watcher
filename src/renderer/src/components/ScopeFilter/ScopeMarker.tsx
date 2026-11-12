@@ -1,5 +1,5 @@
-// Where a config row LIVES (spec 2026-10-03 H) — on every row of Templates, Shortcuts, Tags and
-// Rules, in every scope, so the same row always looks the same, and a global row shown in a
+// Where a config row LIVES (spec 2026-10-03 H) — on every row of Templates, Shortcuts, Tags, Rules
+// and Memory, in every scope, so the same row always looks the same, and a global row shown in a
 // workspace view (Include global) is never mistaken for the workspace's own. The workspace's name
 // in its tint, `Global`, or `(no workspace)` when that workspace is gone.
 import type { JSX } from 'react'

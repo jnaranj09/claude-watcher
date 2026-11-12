@@ -4,12 +4,11 @@
 // History, or the placeholder. The list comes from main a page at a time (useMemoryList); an open
 // item is read whole (`window.memory.get`) and read again whenever main says memory changed,
 // without touching the draft being typed (the form keeps its own state, keyed by the item).
-import { useEffect, useState, type JSX, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type JSX, type ReactNode } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { MemoryGetResult } from '../../../../shared/ipc/contract'
 import type { MemoryItem, MemoryRow } from '../../../../shared/schemas/memory'
 import { FAVORITE_TERMS, MEMORY_TERMS } from '../../copy/terms'
-import { useAsyncAction } from '../../hooks/useAsyncAction'
 import { activeFilterCount, effectiveFilters, type SessionFilters } from '../../lib/sessionFilters'
 import { selectGoalsIn, useGoals } from '../../stores/goalsStore'
 import { selectIncludeGlobal, selectMemoryEnabled, useSettings } from '../../stores/settingsStore'
@@ -89,11 +88,24 @@ export function MemoryPage({
     filters: toMemoryFilters(shown, { tags: offeredTags, goals, showStale, now: now() })
   })
 
-  // The open item, read whole. Read again on main's push and after this dialog's own writes.
+  // The open item, read whole. Read again on main's push and after this dialog's own writes, and
+  // ONLY then: `actions` is a new object whenever App re-renders (it hands the dialog a new
+  // `onClose`), so the read effect reaches it through a ref and never lists it as a dependency.
   const selectedId = dialog.state.selectedId
   const [detail, setDetail] = useState<MemoryGetResult | null>(null)
   const [reads, setReads] = useState(0)
+  const actionsRef = useRef(actions)
+  useLayoutEffect(() => {
+    actionsRef.current = actions
+  })
+  // History belongs to the item it was opened on: any change of selection closes it (React's
+  // "adjust state while rendering" pattern, so no frame shows the old History on the new item).
   const [historyOf, setHistoryOf] = useState<string | null>(null)
+  const [historySelection, setHistorySelection] = useState(selectedId)
+  if (historySelection !== selectedId) {
+    setHistorySelection(selectedId)
+    setHistoryOf(null)
+  }
   useEffect(() => window.memory.onChanged(() => setReads((n) => n + 1)), [])
   useEffect(() => {
     if (selectedId === null) return
@@ -105,12 +117,12 @@ export function MemoryPage({
       })
       .catch((err: unknown) => {
         console.warn('[claude-watcher][memory] code=memory_get_failed')
-        if (live) actions.setError(memoryErrorCopy(err, MEMORY_COPY.loadFailed))
+        if (live) actionsRef.current.setError(memoryErrorCopy(err, MEMORY_COPY.loadFailed))
       })
     return () => {
       live = false
     }
-  }, [selectedId, reads, actions])
+  }, [selectedId, reads])
 
   const item = detail !== null && detail.item.id === selectedId ? detail.item : null
 
@@ -151,18 +163,29 @@ export function MemoryPage({
     refresh()
   }
 
-  // The row pin (owner: the pin is on the row, as Templates and Shortcuts pin). A refusal is the
+  // The row pin (owner: the pin is on the row, as Templates and Shortcuts pin). Busy per ROW: one
+  // pin in flight never holds the others, and the same row never runs twice. A refusal is the
   // dialog's error toast; the row keeps main's state.
-  const pinning = useAsyncAction(async (row: MemoryRow): Promise<void> => {
+  const [pinning, setPinning] = useState<ReadonlySet<string>>(new Set())
+  function togglePin(row: MemoryRow): void {
+    if (pinning.has(row.id)) return
+    setPinning((ids) => new Set(ids).add(row.id))
     actions.setError(null)
-    try {
-      await window.memory.setPinned(row.id, !row.pinned)
-      refresh()
-    } catch (err) {
-      console.warn('[claude-watcher][memory] code=memory_pin_failed')
-      actions.setError(memoryErrorCopy(err, FAVORITE_TERMS.updateFailed))
-    }
-  })
+    window.memory
+      .setPinned(row.id, !row.pinned)
+      .then(() => refresh())
+      .catch((err: unknown) => {
+        console.warn('[claude-watcher][memory] code=memory_pin_failed')
+        actions.setError(memoryErrorCopy(err, FAVORITE_TERMS.updateFailed))
+      })
+      .finally(() =>
+        setPinning((ids) => {
+          const next = new Set(ids)
+          next.delete(row.id)
+          return next
+        })
+      )
+  }
 
   const searching = trimmed !== '' || activeFilterCount(shown) > 0
   // Different nothings, different sentences (design.md). Memory off already says why nothing is
@@ -287,8 +310,8 @@ export function MemoryPage({
                   <FavoriteToggle
                     name={r.head}
                     favorite={r.pinned}
-                    busy={pinning.busy}
-                    onToggle={() => void pinning.run(r)}
+                    busy={pinning.has(r.id)}
+                    onToggle={() => togglePin(r)}
                     testId={`memory-pin-${r.id}`}
                   />
                 </ManageDialog.RowFavorite>
@@ -298,6 +321,11 @@ export function MemoryPage({
                       {r.head}
                     </span>
                     <ScopeMarker workspaceId={r.workspaceId} workspaces={workspaces} />
+                  </span>
+                  {/* The value (a fact: its body's first line), machine data in mono; the full
+                      text is the title. */}
+                  <span className={styles.rowValue} data-testid="memory-row-value" title={r.body}>
+                    {r.body.split('\n')[0]}
                   </span>
                   <span className={styles.rowMeta}>
                     <span className={styles.rowAge}>

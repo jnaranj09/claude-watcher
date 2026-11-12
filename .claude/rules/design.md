@@ -137,8 +137,9 @@ title.
 - **Include global** (spec 2026-10-03 H; reverses "strict filtering both ways", owner-approved
   2026-10-03): beside a WORKSPACE scope, an `Include global` checkbox (`ScopeFilter/IncludeGlobal`)
   also lists the global rows — what applies there. ONE remembered choice (`settings.includeGlobal`,
-  default on) for Templates / Shortcuts / Tags / Rules; saved on change, a refused write rolls back
-  and says so; not in the Settings dialog; not rendered under All / Global / `(no workspace)`.
+  default on) for Templates / Shortcuts / Tags / Rules / Memory; saved on change, a refused write
+  rolls back and says so; not in the Settings dialog; not rendered under All / Global /
+  `(no workspace)`.
   Workspace rows first, then global, one flat list (Rules keeps the saved RUN order). Global alone
   still shows only global rows. **Every row carries `ScopeMarker`** (its workspace in tint,
   `Global`, or `(no workspace)`), in every scope — that marker is what keeps a global row from
@@ -334,13 +335,13 @@ variant="toolbar">` + magnifier `icon`. Escape with text clears and stops; empty
   Launched (Today / Last 7 days / Last 30 days / On a day / Since a day). AND across types. The chip
   row is `components/FilterChips/FilterChips.tsx`, the ONE chip row (board, the Sessions pages' rail
   and the Memory rail; Memory adds Session, Updated and the value-less `Session deleted`, whose type
-  row turns it on and whose pill only removes). `+ Add filter` opens a type menu (types already on are not offered); each row is a
-  `Popover.Submenu` whose values open beside it, on the right unless they would leave the window
-  (`submenuSide`: the TYPE MENU's right edge + `SUBMENU_ROOM`, measured when a submenu opens), then
-  on the left. A pill reopens its values under itself; `×` removes the type. Tag and folder rows
-  are `menuitemcheckbox` and the list stays open while picking (a surface's `single` types are
-  `menuitemradio` and a pick closes); the Launched / Ended rows
-  (`On a day` / `Since a day` included) are `menuitemradio`, and a preset or a calendar day
+  row turns it on and whose pill only removes). `+ Add filter` opens a type menu (types already on
+  are not offered); each row is a `Popover.Submenu` whose values open beside it, on the right
+  unless they would leave the window (`submenuSide`: the TYPE MENU's right edge + `SUBMENU_ROOM`,
+  measured when a submenu opens), then on the left. A pill reopens its values under itself; `×`
+  removes the type. Tag and folder rows are `menuitemcheckbox` and the list stays open while
+  picking (a surface's `single` types are `menuitemradio` and a pick closes); the Launched / Ended
+  rows (`On a day` / `Since a day` included) are `menuitemradio`, and a preset or a calendar day
   closes. Opened from a KEY (Enter / Space on `+ Add filter` or a pill), the list focuses its
   first row, like the submenu's ArrowRight; a pointer open leaves focus on the trigger.
   ArrowDown / ArrowUp move between the rows of the focused menu (`Popover/menuArrows.ts`,
@@ -407,8 +408,8 @@ drops off the row; the task panel draws no such line.
 
 - Rows: `Settings` (sliders), `Shortcuts` (keyboard), `Tags ›` (`Manage tags` /
   `Manage rules`), `Memory` (bookmark), `Sessions ›` (clock; `Active sessions` / `Past sessions` /
-  `Templates` / `Import session`) ALWAYS LAST. New rows go before it. Icons: one line set (16 grid, 1.5 stroke,
-  14px) in a fixed-width slot; `›` at right; submenus still open LEFT.
+  `Templates` / `Import session`) ALWAYS LAST. New rows go before it. Icons: one line set (16 grid,
+  1.5 stroke, 14px) in a fixed-width slot; `›` at right; submenus still open LEFT.
 - Submenus are `Popover.Submenu` (`components/Popover/PopoverSubmenu.tsx`, side `left` here; the
   filter's type menu is its other caller): open LEFT, level with their row; hover opens, click
   OPENS (never toggles); ArrowRight opens and focuses the first row (of any `menuitem*` role),

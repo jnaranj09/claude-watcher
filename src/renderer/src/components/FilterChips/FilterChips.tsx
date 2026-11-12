@@ -67,7 +67,7 @@ export interface FilterChipsProps {
   onChange: (next: SessionFilters) => void
   /** Which types this surface offers, in pill order: board ['tag','folder','goal','launched'],
    *  Active ['tag','folder','launched'], Past ['tag','folder','launched','ended'], Memory its
-   *  filter fields' (`MemoryDialog/memoryFilters.ts`). */
+   *  filter fields' (`MemoryDialog/memoryFilterMap.ts`). */
   types: readonly FilterType[]
   /** Tags offered, in list order (global first, then the workspace's own). */
   tags: readonly Tag[]

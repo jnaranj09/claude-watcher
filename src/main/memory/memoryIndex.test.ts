@@ -62,6 +62,7 @@ function row(over: Partial<MemoryRow> = {}): MemoryRow {
     id: 'r1',
     kind: 'specific',
     head: 'deploy target',
+    body: 'staging',
     updatedAt: NOV_10,
     basis: 'observed',
     state: 'active',

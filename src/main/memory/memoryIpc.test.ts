@@ -6,7 +6,7 @@ import { MEMORY_ERROR, type MemoryText } from '../../shared/schemas/memory'
 import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 import { createMemoryActivity, type MemoryActivityLog } from './memoryActivity'
 import { openMemoryDb, type MemoryDb } from './memoryDb'
-import { createMemoryIpcHandlers, MEMORY_UNAVAILABLE, type MemoryIpcHandlers } from './memoryIpc'
+import { createMemoryIpcHandlers, type MemoryIpcHandlers } from './memoryIpc'
 import type { MemoryNames } from './memoryNames'
 import { createMemoryStore, type MemoryStore } from './memoryStore'
 
@@ -256,7 +256,7 @@ describe('while memory is off (no store)', () => {
       () => off.remove(id),
       () => off.restore({ ...id, versionAt: NOW })
     ]
-    for (const call of calls) expect(call).toThrow(MEMORY_UNAVAILABLE)
+    for (const call of calls) expect(call).toThrow(MEMORY_ERROR.unavailable)
   })
 
   it('activity still answers from the in-memory record, and still parses its argument', () => {

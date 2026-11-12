@@ -2,14 +2,10 @@
 // for are this dialog's own, in the app's voice). Copy maps from a CODE inside Electron's wrapped
 // rejection, never from its text (design.md Feedback). A .ts file: react-refresh allows only
 // component exports in a .tsx.
-import { MEMORY_ERROR, MEMORY_LIMITS } from '../../../../shared/schemas/memory'
+import { MEMORY_ERROR, MEMORY_LIMITS, type MemoryWriter } from '../../../../shared/schemas/memory'
 import { STORE_WRITE_FAILED } from '../../../../shared/schemas/storageHealth'
-import { HISTORY_TERMS } from '../../copy/terms'
+import { HISTORY_TERMS, MEMORY_TERMS } from '../../copy/terms'
 import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
-
-/** Main's refusal while it has no memory store (`MEMORY_UNAVAILABLE`, src/main/memory/memoryIpc.ts;
- *  `memoryCopy.test.ts` reads that file and pins the pair). */
-export const MEMORY_UNAVAILABLE = 'memory_unavailable'
 
 export const MEMORY_COPY = {
   saved: 'Memory saved.',
@@ -25,7 +21,8 @@ export const MEMORY_COPY = {
   placeholder: 'Select an item on the left, or create a new one.',
   loading: 'Loading…',
   offTitle: 'Memory is off.',
-  offDetail: 'Sessions start without it and save nothing. Turn it on in Settings, under Memory.',
+  // Names the Settings category and its row by their own word (`MEMORY_TERMS.label`, both).
+  offDetail: `Sessions start without it and save nothing. Turn it on in Settings, under ${MEMORY_TERMS.label}.`,
   showMore: 'Show more',
   search: 'Search',
   key: 'Key',
@@ -48,13 +45,22 @@ export const MEMORY_COPY = {
   stale: 'Stale',
   pickVersion: 'Pick a version to compare it with the text now.',
   currentVersion: 'This is the text now.',
-  reason: (why: string): string => `Reason: ${why}`
+  reason: (why: string): string => `Reason: ${why}`,
+  /** A History version's age and who wrote it: `2 d ago, by Claude`. */
+  versionWhen: (age: string, by: MemoryWriter): string => `${age}, by ${WRITER_WORD[by]}`
 } as const
+
+/** Who wrote a version, in plain words: a session's claude, the end-of-session save, the operator. */
+const WRITER_WORD: Readonly<Record<MemoryWriter, string>> = {
+  agent: 'Claude',
+  extract: 'Claude at session end',
+  operator: 'you'
+}
 
 const ERROR_COPY: Readonly<Record<string, string>> = {
   [MEMORY_ERROR.notFound]: 'That memory no longer exists.',
   [MEMORY_ERROR.versionNotFound]: HISTORY_TERMS.versionGone,
-  [MEMORY_UNAVAILABLE]: 'Memory is not available. Reopen the app to try again.',
+  [MEMORY_ERROR.unavailable]: 'Memory is not available. Reopen the app to try again.',
   [MEMORY_ERROR.readFailed]: MEMORY_COPY.loadFailed,
   [STORE_WRITE_FAILED]: STORE_WRITE_FAILED_COPY
 }

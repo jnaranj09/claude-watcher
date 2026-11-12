@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MEMORY_ERROR,
   MEMORY_LIMITS,
   MemoryActivitySchema,
   MemoryCreateSchema,
@@ -156,6 +157,7 @@ describe('memory records', () => {
         id: 'm1',
         kind: 'fact',
         head: 'Deploy',
+        body: 'make deploy',
         updatedAt: 1,
         basis: 'observed',
         state: 'stale',
@@ -167,6 +169,29 @@ describe('memory records', () => {
         originDeletedAt: 2
       }).success
     ).toBe(true)
+  })
+
+  it('a list row carries its current text', () => {
+    const row = {
+      id: 'm1',
+      kind: 'specific',
+      head: 'port',
+      updatedAt: 1,
+      basis: 'observed',
+      state: 'active',
+      pinned: false,
+      workspaceId: null,
+      folder: null,
+      sessionName: null,
+      tagIds: [],
+      originDeletedAt: null
+    }
+    expect(MemoryRowSchema.safeParse(row).success).toBe(false)
+    expect(MemoryRowSchema.safeParse({ ...row, body: '9281' }).success).toBe(true)
+  })
+
+  it('MEMORY_ERROR names the code main throws while it has no store', () => {
+    expect(MEMORY_ERROR.unavailable).toBe('memory_unavailable')
   })
 
   it('parses a version', () => {

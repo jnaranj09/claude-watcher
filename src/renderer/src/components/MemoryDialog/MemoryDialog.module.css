@@ -3,7 +3,7 @@
    footer and every button are ManageDialog.module.css (.claude/rules/design.md). Text on the
    raised panel is --text-secondary, never --text-muted. */
 
-/* name + where it lives / age · basis + markers. `min-width: 0` on every flex level, or the
+/* name + where it lives / value / age · basis + markers. `min-width: 0` on every flex level, or the
    ellipsis never engages. */
 .rowMain {
   flex: 1;
@@ -25,6 +25,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* The value line: one mono line that ends in `…` (a fact body can be 2,000 characters), at the
+   meta size, as Past sessions' mono row line (a theme's larger mono size would make rows grow). */
+.rowValue {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-meta);
 }
 .rowMeta {
   display: flex;

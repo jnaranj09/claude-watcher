@@ -1,9 +1,7 @@
 // Memory's refusal copy: mapped from the code inside Electron's wrapped rejection, never from the
-// message; and the one code the renderer cannot import from main is pinned to main's file.
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+// message.
 import { describe, it, expect } from 'vitest'
-import { MEMORY_UNAVAILABLE, memoryErrorCopy } from './memoryCopy'
+import { memoryErrorCopy } from './memoryCopy'
 import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 
 const wrapped = (code: string): Error =>
@@ -24,12 +22,5 @@ describe('memoryErrorCopy', () => {
     expect(memoryErrorCopy(new Error('disk on fire at /home/x'), 'Could not save memory.')).toBe(
       'Could not save memory.'
     )
-  })
-})
-
-describe('memory_unavailable — the code main throws while it has no store', () => {
-  it('is the token src/main/memory/memoryIpc.ts throws', () => {
-    const main = readFileSync(join(process.cwd(), 'src/main/memory/memoryIpc.ts'), 'utf8')
-    expect(main).toContain(`export const MEMORY_UNAVAILABLE = '${MEMORY_UNAVAILABLE}'`)
   })
 })

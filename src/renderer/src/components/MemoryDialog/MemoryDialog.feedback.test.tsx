@@ -11,6 +11,8 @@ import { settingsStore } from '../../stores/settingsStore'
 import { toastStore } from '../../stores/toastStore'
 import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 import { dialogToast } from '../../test/toasts'
+import { deferred } from '../../test/deferred'
+import type { MemoryItem } from '../../../../shared/schemas/memory'
 import {
   MEMORY_NOW,
   installMemoryBridge,
@@ -154,6 +156,43 @@ describe('MemoryDialog — stale and pin', () => {
     )
     await openItem()
     await userEvent.click(screen.getByRole('button', { name: 'Pin API port' }))
+    expect(dialogToast('memory')).toMatchObject({
+      kind: 'error',
+      title: 'That memory no longer exists.'
+    })
+  })
+})
+
+describe('MemoryDialog — more results', () => {
+  it('one pin in flight leaves the other rows pins usable', async () => {
+    bridge.items = [specificItem(), specificItem({ id: 'm2', key: 'Deploy command' })]
+    const held = deferred<MemoryItem>()
+    bridge.setPinned.mockImplementationOnce(() => held.promise)
+    await openItem()
+    await userEvent.click(screen.getByRole('button', { name: 'Pin API port' }))
+    expect(screen.getByRole('button', { name: 'Pin API port' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Pin Deploy command' })).toBeEnabled()
+    await act(async () => held.resolve(specificItem({ pinned: true })))
+  })
+
+  it('Restore this version says Restored.', async () => {
+    bridge.versions.m1 = [
+      { at: MEMORY_NOW - 1000, by: 'operator', reason: null, head: 'API port', body: '9282' },
+      { at: MEMORY_NOW - 2000, by: 'agent', reason: null, head: 'API port', body: '9281' }
+    ]
+    await openItem()
+    await userEvent.click(screen.getByRole('button', { name: 'History' }))
+    await userEvent.click(screen.getAllByRole('radio')[1] as HTMLElement)
+    await userEvent.click(screen.getByRole('button', { name: 'Restore this version' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm restore' }))
+    expect(dialogToast('memory')).toMatchObject({ kind: 'success', title: 'Restored.' })
+  })
+
+  it('Mark stale on an item main no longer holds shows the mapped copy', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await openItem()
+    bridge.items = []
+    await userEvent.click(screen.getByRole('button', { name: 'Mark stale' }))
     expect(dialogToast('memory')).toMatchObject({
       kind: 'error',
       title: 'That memory no longer exists.'

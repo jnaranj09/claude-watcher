@@ -178,7 +178,7 @@ export const SettingsSchema = z.object({
   // Terminal Copy/Paste menu click. Additive on v1, same `.default()` reasoning as above.
   terminalMenuTrigger: TerminalMenuTriggerSchema.default(DEFAULT_TERMINAL_MENU_TRIGGER),
   // Include global (spec 2026-10-03 H): in a workspace view of Templates / Shortcuts / Tags /
-  // Rules, also list the global rows. ONE remembered choice shared by every list that offers it.
+  // Rules / Memory, also list the global rows. ONE remembered choice shared by every list that offers it.
   // Additive on v1, same `.default()` reasoning as above; on by default — "what applies to me here".
   includeGlobal: z.boolean().default(true),
   // Sessions rail collapsed to icons (owner, 2026-10-15). One value for every workspace: it is

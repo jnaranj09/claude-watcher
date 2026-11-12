@@ -32,9 +32,6 @@ import type { MemoryActivityLog } from './memoryActivity'
 import type { MemoryNames } from './memoryNames'
 import type { MemoryStore } from './memoryStore'
 
-/** Thrown by every handler but `activity` while there is no store. */
-export const MEMORY_UNAVAILABLE = 'memory_unavailable'
-
 const NO_META: MemoryItem['meta'] = {
   folder: null,
   sessionName: null,
@@ -65,7 +62,8 @@ export function createMemoryIpcHandlers(deps: {
 
   function requireStore(): MemoryStore {
     const found = deps.store()
-    if (found === null) throw new Error(MEMORY_UNAVAILABLE)
+    // Every handler but `activity` while there is no store.
+    if (found === null) throw new Error(MEMORY_ERROR.unavailable)
     return found
   }
 

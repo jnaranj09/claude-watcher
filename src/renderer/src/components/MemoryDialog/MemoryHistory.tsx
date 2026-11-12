@@ -86,7 +86,7 @@ export function MemoryHistory({
       <div className={styles.versions} role="radiogroup" aria-label={HISTORY_TERMS.history}>
         {versions.map((v, index) => {
           const firstLine = v.body.split('\n')[0] ?? ''
-          const when = `${relativeEnded(v.at, now())}, ${v.by}`
+          const when = MEMORY_COPY.versionWhen(relativeEnded(v.at, now()), v.by)
           return (
             <label key={`${v.at}-${index}`} className={styles.version}>
               <Radio

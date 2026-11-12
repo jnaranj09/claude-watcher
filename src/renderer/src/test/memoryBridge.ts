@@ -78,6 +78,7 @@ export function rowOf(item: MemoryItem): MemoryRow {
     id: item.id,
     kind: item.kind,
     head: head(item),
+    body: text(item),
     updatedAt: item.updatedAt,
     basis: item.basis,
     state: item.state,
@@ -105,10 +106,14 @@ export interface MemoryBridge {
   onChanged: Mock<(cb: () => void) => () => void>
 }
 
-function found(bridge: MemoryBridge, id: string): MemoryItem {
+/** Main's wrapped rejection for an id it does not hold. */
+const NOT_FOUND = (): Error =>
+  new Error("Error invoking remote method 'memory': Error: memory_not_found")
+
+/** The item, or a REJECTED promise (as the real bridge answers), never a synchronous throw. */
+function withItem<T>(bridge: MemoryBridge, id: string, then: (item: MemoryItem) => T): Promise<T> {
   const item = bridge.items.find((i) => i.id === id)
-  if (item === undefined) throw new Error('memory_not_found')
-  return item
+  return item === undefined ? Promise.reject(NOT_FOUND()) : Promise.resolve(then(item))
 }
 
 function replace(bridge: MemoryBridge, next: MemoryItem): MemoryItem {
@@ -128,10 +133,10 @@ export function installMemoryBridge(items: MemoryItem[]): MemoryBridge {
         total: rows.length
       })
     }),
-    get: vi.fn((id: string) => {
-      try {
-        const item = found(bridge, id)
-        const versions = bridge.versions[id] ?? [
+    get: vi.fn((id: string) =>
+      withItem(bridge, id, (item) => ({
+        item,
+        versions: bridge.versions[id] ?? [
           {
             at: item.updatedAt,
             by: item.origin.by,
@@ -140,11 +145,8 @@ export function installMemoryBridge(items: MemoryItem[]): MemoryBridge {
             body: text(item)
           }
         ]
-        return Promise.resolve({ item, versions })
-      } catch (err) {
-        return Promise.reject(err)
-      }
-    }),
+      }))
+    ),
     create: vi.fn((req: MemoryCreateRequest) => {
       const item: MemoryItem =
         req.text.kind === 'specific'
@@ -165,21 +167,22 @@ export function installMemoryBridge(items: MemoryItem[]): MemoryBridge {
       bridge.items = [item, ...bridge.items]
       return Promise.resolve(item)
     }),
-    edit: vi.fn((req: MemoryEditRequest) => {
-      const item = found(bridge, req.id)
-      return Promise.resolve(replace(bridge, { ...item, ...req.text, check: req.check }))
-    }),
+    edit: vi.fn((req: MemoryEditRequest) =>
+      withItem(bridge, req.id, (item) =>
+        replace(bridge, { ...item, ...req.text, check: req.check })
+      )
+    ),
     setState: vi.fn((id: string, state: MemoryItem['state']) =>
-      Promise.resolve(replace(bridge, { ...found(bridge, id), state }))
+      withItem(bridge, id, (item) => replace(bridge, { ...item, state }))
     ),
     setPinned: vi.fn((id: string, pinned: boolean) =>
-      Promise.resolve(replace(bridge, { ...found(bridge, id), pinned }))
+      withItem(bridge, id, (item) => replace(bridge, { ...item, pinned }))
     ),
     remove: vi.fn((id: string) => {
       bridge.items = bridge.items.filter((i) => i.id !== id)
       return Promise.resolve()
     }),
-    restore: vi.fn((id: string) => Promise.resolve(found(bridge, id))),
+    restore: vi.fn((id: string) => withItem(bridge, id, (item) => item)),
     activity: vi.fn(() => Promise.reject(new Error('not used'))),
     onChanged: vi.fn(() => () => {})
   }

@@ -123,6 +123,14 @@ describe('query', () => {
     expect(heads('   ')).toEqual(['a'])
   })
 
+  it('a fact row carries its current body', () => {
+    add({ kind: 'fact', title: 'deploy', body: 'migrate first\nthen restart' })
+    expect(
+      store.search(scope, { kind: 'fact', query: null, filters: {}, offset: 0, limit: 5 }, ctx)
+        .rows[0]?.body
+    ).toBe('migrate first\nthen restart')
+  })
+
   it('finds the current text, not an old version', () => {
     const { id } = add(specific('port', '9280'))
     store.edit(id, { text: specific('port', '9281'), check: null }, 'agent', null)
@@ -211,6 +219,7 @@ describe('scope, kind, stale and pages', () => {
       id: 'm1',
       kind: 'specific',
       head: 'port',
+      body: '9280',
       updatedAt: NOW + 1000,
       basis: 'stated',
       state: 'active',
@@ -380,6 +389,12 @@ describe('indexRows', () => {
     add(specific('upper below'), { folder: '/work/App/src' })
     add(specific('above'), { folder: '/work' })
     expect(store.indexRows('w1', '/work/app').specificsHere.map((r) => r.head)).toEqual(['above'])
+  })
+
+  it('a specific here carries its current value', () => {
+    const { id } = add(specific('port', '9280'), { folder: '/work/app' })
+    store.edit(id, { text: specific('port', '9281'), check: null }, 'agent', null)
+    expect(store.indexRows('w1', '/work/app').specificsHere.map((r) => r.body)).toEqual(['9281'])
   })
 
   it('the root folder is above every folder', () => {

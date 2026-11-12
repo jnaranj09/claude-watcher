@@ -2,7 +2,9 @@
 // pages of 100 (`Show more` asks for the next), loaded again on main's `onChanged` push (a session
 // saving in the background, or this dialog's own write) and on `reload()`. A reload asks for every
 // page shown so far, so the list never shrinks under the operator. A changed request (scope, page,
-// search, filters) starts again at one page. An answer for an older request is dropped.
+// search, filters) starts again at one page, and the rows on screen stay until it answers (a
+// search keystroke never blanks the list or drops the open row). An answer for an older request
+// is dropped.
 //
 // It also reads the folders and session names the Folder and Session filters offer: the newest
 // page of the scope with no search and no filters (stale items included), so a filter that is on
@@ -121,13 +123,13 @@ export function useMemoryList(q: MemoryListQuery): MemoryList {
     }
   }, [facetKey, generation])
 
-  const current = loaded !== null && loaded.key === key ? loaded : null
-  const rows = current?.rows ?? []
+  // The last answer, whatever request it was for: the rows stay until the new request answers.
+  const rows = loaded?.rows ?? []
   return {
     rows,
-    total: current?.total ?? 0,
-    loaded: current !== null,
-    loadFailed: current?.failed === true,
+    total: loaded?.total ?? 0,
+    loaded: loaded !== null,
+    loadFailed: loaded?.failed === true,
     more: () => setPaging({ key, pages: pages + 1 }),
     reload: () => setGeneration((n) => n + 1),
     folders: distinct([...facets, ...rows].map((r) => r.folder)),

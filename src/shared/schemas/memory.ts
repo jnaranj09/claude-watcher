@@ -27,11 +27,13 @@ export const MEMORY_LIMITS = {
 
 /** Codes the memory store throws (the renderer maps them to copy, never the message).
  *  `notFound` / `versionNotFound` are refusals; `readFailed` is a read the database failed (the
- *  caller shows it; a write that fails throws `STORE_WRITE_FAILED` instead). */
+ *  caller shows it; a write that fails throws `STORE_WRITE_FAILED` instead); `unavailable` is
+ *  every IPC handler but `activity` while main has no memory store (`memoryIpc.ts`). */
 export const MEMORY_ERROR = {
   notFound: 'memory_not_found',
   versionNotFound: 'memory_version_not_found',
-  readFailed: 'memory_read_failed'
+  readFailed: 'memory_read_failed',
+  unavailable: 'memory_unavailable'
 } as const
 
 /** Not `.uuid()` — existence is the store's call (`memory_not_found`). */
@@ -113,12 +115,14 @@ export const MemoryItemSchema = z.discriminatedUnion('kind', [
 ])
 export type MemoryItem = z.infer<typeof MemoryItemSchema>
 
-/** One list line. `head` is a specific's key or a fact's title. */
+/** One list line. `head` is a specific's key or a fact's title; `body` its current value or body
+ *  (the newest version's text, the same `MemoryVersion.body` holds). */
 export const MemoryRowSchema = z
   .object({
     id: IdSchema,
     kind: KindSchema,
     head: z.string(),
+    body: z.string(),
     updatedAt: z.number(),
     basis: BasisSchema,
     state: StateSchema,
