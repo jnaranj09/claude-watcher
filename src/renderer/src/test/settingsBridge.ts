@@ -33,7 +33,8 @@ export function mergedSettings(patch: SettingsPatch): Settings {
     includeGlobal: patch.includeGlobal ?? DEFAULT_SETTINGS.includeGlobal,
     railCollapsed: patch.railCollapsed ?? DEFAULT_SETTINGS.railCollapsed,
     showAllTagsByWorkspace: patch.showAllTagsByWorkspace ?? DEFAULT_SETTINGS.showAllTagsByWorkspace,
-    windowSize: patch.windowSize !== undefined ? patch.windowSize : DEFAULT_SETTINGS.windowSize
+    windowSize: patch.windowSize !== undefined ? patch.windowSize : DEFAULT_SETTINGS.windowSize,
+    memoryEnabled: patch.memoryEnabled ?? DEFAULT_SETTINGS.memoryEnabled
   }
 }
 

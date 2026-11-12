@@ -33,7 +33,9 @@ export const STORE_NAMES = [
   // Context's file history (spec 2026-10-18 §3): <userData>/claude-watcher-file-history.
   'file_history',
   // A goal's `GOALS.md` in its project folder (spec 2026-10-29): only a failure no goal can show.
-  'goals_file'
+  'goals_file',
+  // The memory database (spec 2026-11-11): <userData>/claude-watcher-memory.sqlite.
+  'memory'
 ] as const
 export const STORAGE_PROBLEM_CODES = [
   'corrupt_reset',

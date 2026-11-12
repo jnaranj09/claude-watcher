@@ -20,7 +20,8 @@ import {
   selectIncludeGlobal,
   selectRailCollapsed,
   selectShowAllTagsByWorkspace,
-  selectTerminalMenuTrigger
+  selectTerminalMenuTrigger,
+  selectMemoryEnabled
 } from './settingsStore'
 import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
 
@@ -53,7 +54,8 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
       includeGlobal: true,
       railCollapsed: false,
       showAllTagsByWorkspace: {},
-      windowSize: null
+      windowSize: null,
+      memoryEnabled: true
     })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
@@ -98,6 +100,15 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
     store.getState().hydrate(DEFAULT_SETTINGS)
     expect(selectRailCollapsed(store.getState())).toBe(false)
     expect(selectShowAllTagsByWorkspace(store.getState())).toEqual({})
+  })
+
+  it('memoryEnabled: hydrate and applyPatch carry it', () => {
+    const store = createSettingsStore()
+    expect(selectMemoryEnabled(store.getState())).toBe(true)
+    store.getState().applyPatch({ memoryEnabled: false })
+    expect(selectMemoryEnabled(store.getState())).toBe(false)
+    store.getState().hydrate(DEFAULT_SETTINGS)
+    expect(selectMemoryEnabled(store.getState())).toBe(true)
   })
 
   it('an empty patch is a no-op', () => {

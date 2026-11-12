@@ -188,7 +188,10 @@ export const SettingsSchema = z.object({
   showAllTagsByWorkspace: ShowAllTagsByWorkspaceSchema.default({}),
   // Main window size. Written by MAIN only (window/windowSize.ts); null = never saved, so the
   // window opens at its built-in size. Additive on v1, same `.default()` reasoning as above.
-  windowSize: WindowSizeSchema.nullable().default(null)
+  windowSize: WindowSizeSchema.nullable().default(null),
+  // Memory (spec 2026-11-11): the master switch — off means no memory tools, no injection, no
+  // extraction. Additive on v1, same `.default()` reasoning as above: on for an older file.
+  memoryEnabled: z.boolean().default(true)
 })
 
 /** The settings type — INFERRED from the schema (one source of truth). */
@@ -223,7 +226,8 @@ export const SettingsPatchSchema = z
     includeGlobal: z.boolean(),
     railCollapsed: z.boolean(),
     showAllTagsByWorkspace: ShowAllTagsByWorkspaceSchema,
-    windowSize: WindowSizeSchema.nullable()
+    windowSize: WindowSizeSchema.nullable(),
+    memoryEnabled: z.boolean()
   })
   .partial()
 
@@ -251,7 +255,8 @@ export const DEFAULT_SETTINGS: Settings = {
   includeGlobal: true,
   railCollapsed: false,
   showAllTagsByWorkspace: {},
-  windowSize: null
+  windowSize: null,
+  memoryEnabled: true
 }
 
 /**

@@ -14,7 +14,8 @@ const STORE_LABEL: Record<StoreName, string> = {
   past_sessions: 'past sessions',
   bridge_mod: 'Claude mod',
   file_history: 'file history',
-  goals_file: 'GOALS.md'
+  goals_file: 'GOALS.md',
+  memory: 'Memory'
 }
 
 /** The bridge mod's install failed (spec 2026-10-18 §1.2): new sessions launch without it, and

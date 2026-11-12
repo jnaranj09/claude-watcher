@@ -59,6 +59,8 @@ export interface SettingsState {
   railCollapsed: boolean
   /** Rail "Show all tags" — workspace id → on (a missing key is off). */
   showAllTagsByWorkspace: Readonly<Record<string, true>>
+  /** Memory — the master switch (default ON). Main reads its own copy; this drives Settings. */
+  memoryEnabled: boolean
   /** Action feedback (spec 2026-09-29 §2.1) — the last Settings MAIN returned (DEFAULT_SETTINGS
    *  before the first load). A refused write rolls the projection back to it. */
   authoritative: Settings
@@ -95,6 +97,7 @@ export function createSettingsStore(): SettingsStoreApi {
     includeGlobal: DEFAULT_SETTINGS.includeGlobal,
     railCollapsed: DEFAULT_SETTINGS.railCollapsed,
     showAllTagsByWorkspace: DEFAULT_SETTINGS.showAllTagsByWorkspace,
+    memoryEnabled: DEFAULT_SETTINGS.memoryEnabled,
     authoritative: DEFAULT_SETTINGS,
 
     hydrate: (settings) => {
@@ -115,6 +118,7 @@ export function createSettingsStore(): SettingsStoreApi {
         includeGlobal: settings.includeGlobal,
         railCollapsed: settings.railCollapsed,
         showAllTagsByWorkspace: settings.showAllTagsByWorkspace,
+        memoryEnabled: settings.memoryEnabled,
         authoritative: settings
       })
     },
@@ -149,7 +153,8 @@ export function createSettingsStore(): SettingsStoreApi {
         ...(patch.railCollapsed !== undefined ? { railCollapsed: patch.railCollapsed } : {}),
         ...(patch.showAllTagsByWorkspace !== undefined
           ? { showAllTagsByWorkspace: patch.showAllTagsByWorkspace }
-          : {})
+          : {}),
+        ...(patch.memoryEnabled !== undefined ? { memoryEnabled: patch.memoryEnabled } : {})
       })
     }
   }))
@@ -161,6 +166,8 @@ export function createSettingsStore(): SettingsStoreApi {
 
 /** The live sound toggle (primitive — safe without useShallow). */
 export const selectSoundEnabled = (state: SettingsState): boolean => state.soundEnabled
+/** Memory — the live master switch (primitive). */
+export const selectMemoryEnabled = (state: SettingsState): boolean => state.memoryEnabled
 /** UX-13 — the live desktop-popup toggle (primitive). */
 export const selectNotificationsEnabled = (state: SettingsState): boolean =>
   state.notificationsEnabled

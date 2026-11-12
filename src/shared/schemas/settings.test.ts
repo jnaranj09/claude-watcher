@@ -56,7 +56,8 @@ describe('SettingsSchema — versioned, our-shape, fail-closed (AC-4/5/6)', () =
       includeGlobal: true,
       railCollapsed: false,
       showAllTagsByWorkspace: {},
-      windowSize: null
+      windowSize: null,
+      memoryEnabled: true
     }
     const parsed = parseSettings(valid)
     expect(parsed).toEqual(valid)
@@ -526,5 +527,19 @@ describe('rail and window choices — additive on v1 (owner 2026-10-15)', () => 
       p({ windowSize: { width: 1200, height: WINDOW_SIZE_MAX + 1, maximized: false } }).success
     ).toBe(false)
     expect(p({ windowSize: { width: 1200.5, height: 800, maximized: false } }).success).toBe(false)
+  })
+})
+
+describe('memoryEnabled — additive on v1', () => {
+  it('a settings file written before this key loads with memory on', () => {
+    const { memoryEnabled: _m, ...without } = DEFAULT_SETTINGS
+    void _m
+    expect(SettingsSchema.parse(without).memoryEnabled).toBe(true)
+  })
+
+  it('a patch carries it with NO default', () => {
+    expect(SettingsPatchSchema.parse({ memoryEnabled: false })).toEqual({ memoryEnabled: false })
+    expect(SettingsPatchSchema.parse({ soundEnabled: true })).toEqual({ soundEnabled: true })
+    expect(SettingsPatchSchema.safeParse({ memoryEnabled: 'yes' }).success).toBe(false)
   })
 })
