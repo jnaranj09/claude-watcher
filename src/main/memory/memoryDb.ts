@@ -2,8 +2,9 @@
 // file, creates and migrates the tables, and fails safe: a corrupt file (not a database, or
 // damaged past its header: `PRAGMA quick_check` at open) is renamed (kept, never deleted) and an
 // empty one starts; a file it cannot open, or one a newer app wrote, is refused
-// without a write. Every row it hands out goes through a Zod schema. A SQLite error can carry text
-// from the database, so logs carry `code=` only, never an error or a message.
+// without a write. Every row it hands out goes through a Zod schema; one that fails is logged by
+// path and issue code. A SQLite error can carry text from the database, so logs carry `code=`
+// only, never an error or a message.
 import { existsSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -98,18 +99,19 @@ function isCorrupt(e: unknown): boolean {
   return code === SQLITE_CORRUPT || code === SQLITE_NOTADB
 }
 
-function parseRow<T>(schema: z.ZodType<T>, row: unknown): T {
+/** A row that fails its schema is logged (path and code only: the row is operator text) and
+ *  thrown with the same code, which the store turns into a failed read or write. */
+function parseRow<T>(schema: z.ZodType<T>, row: unknown, log: (code: string) => void): T {
   const parsed = schema.safeParse(row)
   if (parsed.success) return parsed.data
-  // Path and code only: the row is operator text.
   const issue = parsed.error.issues[0]
-  throw new Error(
-    `code=memory_db_row_invalid path=${issue?.path.join('.') ?? ''} issue=${issue?.code ?? ''}`
-  )
+  const code = `memory_db_row_invalid path=${issue?.path.join('.') ?? ''} issue=${issue?.code ?? ''}`
+  log(code)
+  throw new Error(`code=${code}`)
 }
 
-function userVersion(raw: DatabaseSync): number {
-  return parseRow(UserVersionRow, raw.prepare('PRAGMA user_version').get()).user_version
+function userVersion(raw: DatabaseSync, log: (code: string) => void): number {
+  return parseRow(UserVersionRow, raw.prepare('PRAGMA user_version').get(), log).user_version
 }
 
 const QuickCheckRow = z.object({ quick_check: z.literal('ok') })
@@ -120,11 +122,11 @@ const QuickCheckRow = z.object({ quick_check: z.literal('ok') })
  *  were). Answers `user_version`, or `'corrupt'` when `PRAGMA quick_check` throws (a page past the
  *  header is damaged: SQLITE_CORRUPT, which `attemptOpen` turns into a backup) or answers anything
  *  but one `ok` row. A newer file is not checked: it is refused untouched, never backed up. */
-function inspectOnDisk(file: string): number | 'corrupt' {
+function inspectOnDisk(file: string, log: (code: string) => void): number | 'corrupt' {
   if (file === IN_MEMORY || !existsSync(file)) return 0
   const probe = new DatabaseSync(file, { readOnly: true })
   try {
-    const version = userVersion(probe)
+    const version = userVersion(probe, log)
     if (version > MEMORY_SCHEMA_VERSION) return version
     const rows = probe.prepare('PRAGMA quick_check').all()
     const healthy = rows.length === 1 && QuickCheckRow.safeParse(rows[0]).success
@@ -134,7 +136,7 @@ function inspectOnDisk(file: string): number | 'corrupt' {
   }
 }
 
-function migrate(raw: DatabaseSync, from: number): void {
+function migrate(raw: DatabaseSync, from: number, log: (code: string) => void): void {
   if (from === MEMORY_SCHEMA_VERSION) return
   raw.exec('BEGIN IMMEDIATE')
   try {
@@ -150,10 +152,11 @@ function migrate(raw: DatabaseSync, from: number): void {
     throw e
   }
   // A migration is checked after it runs (spec §2).
-  if (userVersion(raw) !== MEMORY_SCHEMA_VERSION) throw new Error('code=memory_db_migration_check')
+  if (userVersion(raw, log) !== MEMORY_SCHEMA_VERSION)
+    throw new Error('code=memory_db_migration_check')
 }
 
-function wrap(raw: DatabaseSync): MemoryDb {
+function wrap(raw: DatabaseSync, log: (code: string) => void): MemoryDb {
   return {
     run: (sql, params = []) => {
       raw.prepare(sql).run(...params)
@@ -162,10 +165,10 @@ function wrap(raw: DatabaseSync): MemoryDb {
       raw
         .prepare(sql)
         .all(...params)
-        .map((row) => parseRow(schema, row)),
+        .map((row) => parseRow(schema, row, log)),
     get: (sql, schema, params = []) => {
       const row = raw.prepare(sql).get(...params)
-      return row === undefined ? null : parseRow(schema, row)
+      return row === undefined ? null : parseRow(schema, row, log)
     },
     transaction: (work) => {
       raw.exec('BEGIN IMMEDIATE')
@@ -190,7 +193,7 @@ function attemptOpen(file: string, log: (code: string) => void): Attempt {
   try {
     // Read before any write: switching journal_mode or migrating would touch a newer file, and a
     // damaged one must be backed up as it is.
-    const onDisk = inspectOnDisk(file)
+    const onDisk = inspectOnDisk(file, log)
     if (onDisk === 'corrupt') return 'corrupt'
     if (onDisk > MEMORY_SCHEMA_VERSION) {
       log('memory_db_newer_version')
@@ -199,7 +202,7 @@ function attemptOpen(file: string, log: (code: string) => void): Attempt {
     const raw = new DatabaseSync(file)
     let kept = false
     try {
-      const from = userVersion(raw)
+      const from = userVersion(raw, log)
       // Another writer between the probe and this open: still refuse before any write.
       if (from > MEMORY_SCHEMA_VERSION) {
         log('memory_db_newer_version')
@@ -207,9 +210,9 @@ function attemptOpen(file: string, log: (code: string) => void): Attempt {
       }
       raw.exec('PRAGMA journal_mode = WAL')
       raw.exec('PRAGMA foreign_keys = ON')
-      migrate(raw, from)
+      migrate(raw, from, log)
       kept = true
-      return { ok: true, db: wrap(raw), problem: null }
+      return { ok: true, db: wrap(raw, log), problem: null }
     } finally {
       if (!kept) raw.close()
     }

@@ -124,6 +124,16 @@ describe('openMemoryDb', () => {
     db.close()
   })
 
+  it('logs the path and code of a row that fails its schema, never its value', () => {
+    const db = openOk(':memory:')
+    lines = []
+    expect(() => db.all("SELECT 'secret text' AS n", CountRow)).toThrow()
+    expect(lines).toEqual([
+      '[claude-watcher][memory] code=memory_db_row_invalid path=n issue=invalid_type'
+    ])
+    db.close()
+  })
+
   it('backs a corrupt file up and starts empty', () => {
     writeFileSync(file, 'not a database')
     writeFileSync(`${file}-wal`, 'side file')
