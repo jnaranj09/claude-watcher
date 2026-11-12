@@ -102,7 +102,8 @@ For everything else, decide, record it, and continue.
 - **Type, never submit.** Shortcuts, the expander and the API's template prompt never press Enter
   for the operator, except where the API passes the prompt as claude's positional argument.
 - **Every exit is Archive or Delete.** Archive is the default: it is reversible and has no
-  confirm. Delete is explicit: red, with a confirm, and keeps nothing.
+  confirm. Delete is explicit: red, with a confirm, and keeps nothing, except the memory items
+  the session saved: they stay, marked `Session deleted` (owner, 2026-11-11).
 - **Delete cascades or is blocked.** "Deleted workspace should delete … anything related to it or
   block its deletion." Things link by **id, never by name** ("Renaming a workspace shouldn't affect
   things tied to it").
@@ -251,7 +252,8 @@ them:
   - Use plain `node:http`, not a framework.
   - Build small in-house primitives (toasts, popovers) instead of a UI kit.
   - Pin any new dependency exactly and turn off its telemetry.
-  - No database, and no second native module next to node-pty.
+  - No second native module next to node-pty. No database, except Electron's built-in
+    `node:sqlite` for memory (owner, 2026-11-11; §12).
 - **Pin to what was tested.** The claude version floor is "the version we tested". Do not bump
   the floor unless a new flag needs it.
 - **Clean code that is easy to maintain** was a standing order: "autonomously make sure the code
@@ -458,7 +460,9 @@ yet. Prefer turning prose-only rules into sensors.
 ## 6. Data and persistence taste
 
 - Each new domain gets its **own main-owned file** (`claude-watcher-<thing>.json`, the
-  `persistedBlob` pattern). It never goes inside the settings blob.
+  `persistedBlob` pattern). It never goes inside the settings blob. A domain may own a SQLite
+  file instead (memory: `claude-watcher-memory.db`), opened by ONE wrapper module, the only
+  importer of `node:sqlite` (`memory/memoryDb.ts`), which Zod-parses every row it hands out.
 - **Adding a field:** use `.default()` or `.nullable().default(null)` and **keep the version**.
   Bump the version only together with a real migration that is validated after it runs. Patch
   schemas never carry defaults. Stored files strip unknown keys rather than reject them, so a
@@ -680,6 +684,7 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 | The app never writes an operator's file                                                             | Context's `Restore` writes an instruction file the operator picked (current copy kept first; only a `.md` file a live session loaded) | Owner 2026-10-18: get an old version of a file back                                                          |
 | The app never writes into an operator's project                                                     | A goal's `Save to GOALS.md` keeps `<goal folder>/GOALS.md` (export only; only a file with the app's header; no write at startup)      | Owner 2026-10-29: commit a goal and its tasks with the project, like `IdeasBoard.md`                         |
 | A goal's folder is optional (goal → workspace folder → picker)                                      | A new goal needs a folder (create opens the picker); a goal's sessions start in it only; Daily tasks keep the fallback                | Owner 2026-10-29                                                                                             |
+| No database (JSON files only)                                                                       | Memory uses Electron's built-in SQLite (`node:sqlite`); still no second native module                                                 | Metadata filters and text search over items; owner 2026-11-11                                                |
 
 ## 13. Rejected — don't propose these again
 

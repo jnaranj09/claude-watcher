@@ -76,7 +76,7 @@ a new one.` (no `+ New` → `Select a <thing> on the left.`). No button in it.
   "selected" style (a bar, a tint, bold text) for another list. Hover is the shared `.row` hover
   (the whole row, pin and checkbox included).
 - **Page column** (spec 2026-10-03 C): a dialog with SIBLING pages (Sessions: Active · Past ·
-  Templates · Import; Tags: Tags · Rules) puts them in `ManageDialog.Pages` at the far left —
+  Templates · Import; Tags: Tags · Rules; Memory: Specifics · Facts) puts them in `ManageDialog.Pages` at the far left —
   `pages | rail | form`, or `pages | form` with no list. Text rows, a `nav` with
   `aria-current="page"`; its rows ARE rail rows, so the current page has the one selected look
   (above), the same as a Settings category. Never tabs, never a second dialog. The dialog owns the
@@ -90,7 +90,7 @@ a new one.` (no `+ New` → `Select a <thing> on the left.`). No button in it.
 - **Row actions only inside `ManageDialog.RowActions`** (fixed-width, revealed on hover/focus), and
   never one the form owns (Delete, rename). The row itself selects. One exception: the favorite
   pin, `ManageDialog.RowFavorite` (before the select button, always visible — its state is
-  information).
+  information). Memory's pin is this same pin on the row, never in the form (owner's pick).
 - **Destructive actions in the footer, left of primary**: one `flex-end` row `[Delete] [Save]`.
 - **Arm in place:** `Delete` → `Confirm delete`, `variant="danger"` → `armed`. Blur disarms; Escape
   disarms and STOPS (doesn't close the dialog). Never a second Cancel/Confirm pair.
@@ -633,7 +633,7 @@ that area, never cite it as precedent.
 16. **Prevent errors over explaining them** (Nielsen 5): make the wrong state impossible; a button
     never runs twice.
 17. **Reversible = instant, irreversible = confirm.** Archive has no confirm; Delete is red, confirms,
-    keeps nothing. A confirm on everything teaches people to click through it. Gap: no `Undo` on the
+    keeps nothing (but the session's memory items, marked `Session deleted`). A confirm on everything teaches people to click through it. Gap: no `Undo` on the
     Archive toast.
 18. **Always a way out** (Nielsen 3): Esc / Cancel / Back from every state; a background event
     never takes the view.

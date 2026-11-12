@@ -9,6 +9,8 @@ paths:
   - 'src/main/index.ts'
   - 'src/main/ipc/**'
   - 'src/main/window/**'
+  - 'src/main/memory/**'
+  - 'src/main/mcp/**'
   - 'src/shared/launch/**'
   - 'src/shared/schemas/hookEvent.ts'
   - 'src/shared/schemas/session.ts'
@@ -123,6 +125,38 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   checks, launches one hidden session per row, then clears it (a refusal keeps it). A planner
   resumed (Past sessions, or the dead pane's Resume) has no goal launch and comes back without its
   tools (known limit); a dead-pane Reopen keeps it.
+- **Memory (spec 2026-11-11, phase 1):** every actual spawn (new, resume, Reopen) calls
+  `memorySpawnExtras` (`memory/memoryLaunch.ts`), all or nothing: with `settings.memoryEnabled`
+  (read at each spawn), the hook port ours (SEC-6) and the database open, the session gets its
+  own bearer token, a `--mcp-config` file for `claude-watcher-memory`, the six tools in
+  `--allowedTools` (search, get, browse, save, update, mark stale: no delete, no pin), the index
+  block (`memory/memoryIndex.ts`: rules of use, pinned items, the folder's specifics, capped at
+  `MEMORY_LIMITS.indexChars`) and the env `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` (claude's own auto
+  memory off) + `CLAUDE_WATCHER_MEMORY=1` (for the operator's own hooks). `pty/spawnExtras.ts`
+  joins it with goals: one `--append-system-prompt` (`QUESTION_FORMAT_PROMPT`, the task block,
+  then the index), one `--mcp-config` flag (goals file first), one comma-joined `--allowedTools`.
+  A launch never fails for memory: any throw leaves no token or file, logs
+  `code=memory_launch_failed`, and the session starts as if memory were off (auto memory
+  included). A Reopen drops the replaced id's memory token and file first, even with memory off.
+  Served at `MEMORY_MCP_PATH` (`/mcp/memory`) on the hook listener by the shared
+  `mcp/mcpEndpoint.ts`, behind the same guards as `/mcp/goals`; a POST to any other `/mcp/` path
+  is 404. Memory tokens are their own store (`mcp/sessionTokens.ts`): neither server's bearer
+  opens the other's path. Its config files share `<userData>/mcp/`, and the goals start sweep
+  clears both. A tool sees the calling LIVE session's workspace plus global items (no tool takes
+  a workspace id; an item outside answers `memory_not_found`); a save is `inferred`, origin
+  `agent` + that session; an update appends a version, never overwrites. Memory off, no store or
+  session not live → `Memory is not available.` (logged as `code=memory_not_available`: an error
+  outcome may carry a log `code`, which the endpoint logs instead of its text). `/clear` moves
+  the token, the file, the activity record (kept in RAM; Context's `Memory` page reads it through
+  `memory:activity`, with or without the mod's report) and the origin of the items the session
+  saved (`window/cardState.ts`; the items last, guarded: `code=memory_rebind_failed`); a removed
+  card drops token, file and activity, never the items. A
+  deleted session (Past sessions `Forget`, or a card's `Delete`) keeps its items, marked
+  `Session deleted` (`pastSessions.ts` `onRemove` → `markSessionDeletedInMemory`); a workspace
+  delete's cascade deletes them. Memory text (key, value, title, body, check, reason, query)
+  never reaches a log, a notification, the API or an attention event (logs carry `code=` only).
+  SMOKE opens no database (memory is off); its memory check writes into a temporary folder, never
+  userData.
 - **Missing folder refused before anything registers** (UX-11): `launchService.launch` takes a
   required `isDirectory`, throws `folder_missing` (in-app: a toast over the name prompt "That folder
   no longer exists."; API: 409 before the 503s). Dead-pane Reopen not checked. Hook server unbound → API 503

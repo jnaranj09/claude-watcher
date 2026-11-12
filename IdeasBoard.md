@@ -1,7 +1,7 @@
 ---
 title: 'Ideas board'
 description: 'This file lists new Feature ideas, fixes and changes for the project. They are here because they havent been implemented yet. It also tracks their status. When an feature is implemented or rejected it is simply removed from the file. If an idea needs expanding or additional info, the item below should point to an external file to keep this one just a list'
-last_modified: 2026-10-20
+last_modified: 2026-11-12
 allowed_statuses: [pending_review, approved, in_progress]
 allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 ---
@@ -30,6 +30,19 @@ allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 - **Goals: a global setting for `mark_task_done`**: The operator chooses whether sessions may close their tasks on every launch. A global default (Settings) could preset that choice. Decide whether a per-launch choice still overrides it. `pending_review` `low_effort`
 - **A resumed planner keeps its tools**: A planner resumed from Past sessions or the dead pane comes back without its goal tools (it has no goal launch). Record the goal on the past-session record so a resume re-mints the token and config like a fresh planner. `pending_review` `medium_effort`
 - **Proposal version so Accept never checks a newer proposal**: Accept sends the task ids the operator saw; if the planner replaces its proposal meanwhile, Accept checks against the newer one. A proposal version or nonce on the view and on `goals:decide-proposal` would refuse the stale Accept. `pending_review` `low_effort`
+- **Memory phase 2 (extraction, open work as Goals tasks)**: Main extracts specifics, facts, episodes and commands from a session's transcript at set moments (checkpoints and the end, headless `claude -p`), with a quote check; open work becomes Goals tasks (`task_report`, the Goals sheet lines); feedback and catch-up; the settings `Memory checkpoint`, `Save open work as tasks` and `Memory model`. Spec: `docs/superpowers/specs/2026-11-11-memory-design.md` (Phases, §4, §6, §7). `pending_review` `large_effort`
+- **Memory phase 3 (recall through the bridge mod)**: A live system-prompt section, per-prompt recall, recall at use, and a `/remember` command, through the bridge mod. This ends the mod's "it never changes claude" rule. Spec: `docs/superpowers/specs/2026-11-11-memory-design.md` (Phases, §5). `pending_review` `large_effort`
+- **Memory: export to a vault**: Write memory items out to a notes vault. Parked in the memory spec (`docs/superpowers/specs/2026-11-11-memory-design.md`, Out of scope). `pending_review` `medium_effort`
+- **Memory: consolidation ("dreaming")**: Merge and tidy items in the background, shown as a diff the operator accepts. Spec: `docs/superpowers/specs/2026-11-11-memory-design.md` (Out of scope). `pending_review` `high_effort`
+- **Memory: "may be done" flags from commits or file changes**: Flag an item or task as possibly done when the folder's commits or files change. Spec: `docs/superpowers/specs/2026-11-11-memory-design.md` (Out of scope). `pending_review` `medium_effort`
+- **Memory: propose a rule-file line from a correction**: When the operator corrects claude, propose a line for an instruction file. Spec: `docs/superpowers/specs/2026-11-11-memory-design.md` (Out of scope). `pending_review` `medium_effort`
+- **Memory: pull-count hints**: Show how often an item was used ("never used in 60 days") to help the operator prune. Spec: `docs/superpowers/specs/2026-11-11-memory-design.md` (Out of scope). `pending_review` `low_effort`
+- **Memory: embeddings**: Search by meaning as well as by words. Spec: `docs/superpowers/specs/2026-11-11-memory-design.md` (Out of scope). `pending_review` `high_effort`
+- **Memory: recovery after the app itself is killed hard**: Recover more than phase 2's catch-up does when the app is killed. Spec: `docs/superpowers/specs/2026-11-11-memory-design.md` (Out of scope). `pending_review` `medium_effort`
+- **A neutral tone for `Callout`**: `Callout` has only `success` and `danger`, so the Memory dialog's "Memory is off." notice is red although nothing failed. A neutral tone would fit a notice like it. `pending_review` `low_effort`
+- **Every folder and session name for the Memory filters**: The Memory dialog's Folder and Session filters offer the values found in the scope's newest 100 items and the rows already shown, so an older value may not be offered. An endpoint that lists every folder and session name would offer them all. `pending_review` `low_effort`
+- **A line diff in Memory's History**: History shows what a restore changes as a whole-text swap (the text now removed, the picked version added); a line-by-line diff would show only the lines that differ. `pending_review` `low_effort`
+- **Integrity check of the memory database at open**: A file that passes the version check and then hits corruption while it is opened read-write may lose its `-wal` before the backup is made. An integrity check at open, before any write, would catch it first. `pending_review` `medium_effort`
 
 ---
 

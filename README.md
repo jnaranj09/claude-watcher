@@ -122,8 +122,8 @@ Every card, and the bar above a focused session, carries two buttons:
 
 - **Archive** — stops the session and keeps it in **Past sessions**. No confirm: it is
   reversible.
-- **Delete** — asks first, then stops the session and keeps nothing. Claude's own files are
-  never touched.
+- **Delete** — asks first, then stops the session and keeps nothing, except what it saved to
+  memory, which stays marked `Session deleted`. Claude's own files are never touched.
 
 A session that ends any other way — `/exit`, `Ctrl+C` twice, claude exiting, quitting the app,
 closing the window — is archived too. A session is also on record while it runs, so even a crash
@@ -191,8 +191,8 @@ Every install starts with a **Default** workspace, which cannot be deleted. The 
 lists the other workspaces to switch to, then **Manage workspaces**: a name, a color, and an
 optional default folder for its `+ New session → Pick a folder` picker. **A workspace with any
 running session cannot be deleted**; the dialog tells you to stop or move the sessions first.
-Deleting an allowed (empty) workspace also deletes every template, shortcut, tag and rule scoped
-to it, and its past sessions.
+Deleting an allowed (empty) workspace also deletes every template, shortcut, tag, rule and goal
+scoped to it, its past sessions and its memory.
 
 Move an existing session to another workspace from its card's move affordance, without stopping
 it.

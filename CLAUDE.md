@@ -12,9 +12,7 @@ how the owner decides, default answers, reversed decisions not to revive, when t
 names the sections it applied on its `Taste:` line (hook-checked). Unattended runs decide by it
 and tag their own picks `[AGENT]` in the spec.
 
-## Never commit (`.gitignore`) — this repo is PUBLIC
-
-Planning records hold home paths, work email and internal names:
+## Never commit (`.gitignore`) — PUBLIC repo; records hold home paths, work email, internal names
 
 - `docs/superpowers/` (specs/plans — write there, never `git add`; a skill step saying "commit the
   spec" stops at the write), `_bmad-output/`, `_bmad/`, `.claude/skills/` (one tracked file under
@@ -27,7 +25,6 @@ Planning records hold home paths, work email and internal names:
 `npm run dev` (HMR) · `build` (typecheck + bundle) · `build:dir` (packaged) · `typecheck` ·
 `lint` · `format` · `test` / `test:watch` (Vitest) · `test:e2e` (Playwright-Electron) ·
 `smoke` (after `build:dir`, or `smoke:packaged`) · release: `.claude/rules/release.md`.
-
 Single test — Vitest projects `unit` (jsdom), `shared-node`, `main-unit`, `zone-berlin` (node):
 `npx vitest run <file>` · `npx vitest run --project main-unit -t "desync"`.
 
@@ -43,7 +40,6 @@ Single test — Vitest projects `unit` (jsdom), `shared-node`, `main-unit`, `zon
 
 **Visual changes:** tests cannot see CSS. `npm run build`, then drive the built app
 (`tests/drive/driveApp.mjs`) — recipe in `.claude/rules/run-app.md`.
-
 **Gates:** `typecheck / lint / test / build`. Changes touching node-pty / preload / packaging also
 need `build:dir` + `smoke` (proves node-pty survives packaging — load-bearing).
 
@@ -89,9 +85,8 @@ selectors → components. Renderer never invents/mutates session truth.
 ## Native session engine
 
 Hooks own every status transition; identity is minted at launch (`--session-id`), never `pid`;
-every exit is archived or deleted with a reason; min claude version is checked at launch. Full
-rules: `.claude/rules/session-engine.md` (loads with `src/main/` engine files; read it before
-touching hooks, pty, lifecycle, past sessions or `/clear` rebind).
+every exit is archived or deleted with a reason; min claude version is checked at launch. Read
+`.claude/rules/session-engine.md` before touching hooks, pty, lifecycle, past sessions, `/clear`.
 
 - **Naming:** NEW code uses `claude-watcher` (files, stores, log prefixes like
   `[claude-watcher][templates]`). Existing `c9watch` dirs/`CH.watch*`/`[c9watch]` logs/
@@ -101,6 +96,12 @@ touching hooks, pty, lifecycle, past sessions or `/clear` rebind).
 ## Goals (`src/main/goals/`; rules: `.claude/rules/session-engine.md`)
 
 `claude-watcher-goals.json`; MCP on the HOOK listener `/mcp/goals` (SEC-6); tokens memory-only.
+
+## Memory (`src/main/memory/`; rules: `.claude/rules/session-engine.md`)
+
+`claude-watcher-memory.db` (`node:sqlite`, imported by `memory/memoryDb.ts` only); items global
+or per workspace; MCP `/mcp/memory` (own tokens); the agent never deletes or pins; memory text
+is sensitive. Memory on → spawn env `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, `CLAUDE_WATCHER_MEMORY=1`.
 
 ## Workspaces
 
@@ -188,8 +189,7 @@ open dialog. `Esc to return` shows only while focus is outside.
   (duplication ≤ 0.5%, `.jscpd.json`).
 - Guard tests in `tests/main/`: layers, comment-only `catch` allow-list, per-file `as` budget
   (both lists only shrink). `.only` fails Vitest and Playwright.
-- `code-reviewer` subagent: fresh reviewer re-runs the gate and fault-injects every guard
-  (reverting it must turn a test red).
+- `code-reviewer` subagent: re-runs the gate, fault-injects every guard (revert → a test red).
 
 ## Versions (don't bump in passing)
 
