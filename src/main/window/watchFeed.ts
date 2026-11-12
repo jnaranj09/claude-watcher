@@ -64,8 +64,7 @@ import type { GoalsStore } from '../persistence/goals'
 import type { GoalTokens, Grant } from '../goals/mcp/goalTokens'
 import type { Proposals } from '../goals/proposals'
 import type { McpConfigs } from '../goals/mcp/mcpConfigFile'
-import { mcpRoute, type McpEndpoint } from '../mcp/mcpEndpoint'
-import { GOALS_MCP_PATH, MEMORY_MCP_PATH } from '../hooks/hookContract'
+import { appMcpRoutes, type McpEndpoint } from '../mcp/mcpEndpoint'
 import type { MemoryMcp } from '../memory/memoryLaunch'
 import type { MemoryActivityLog } from '../memory/memoryActivity'
 import type { MemoryStore } from '../memory/memoryStore'
@@ -947,12 +946,11 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
           },
           prompt
         ),
-      // The app's MCP endpoints, each behind its own per-launch bearer tokens: the goals server
-      // and the memory server (a bearer of one never opens the other).
-      mcpRoutes: [
-        mcpRoute(GOALS_MCP_PATH, goalMcp.endpoint, (line) => console.warn(line)),
-        mcpRoute(MEMORY_MCP_PATH, memoryMcp.endpoint, (line) => console.warn(line))
-      ],
+      // The app's MCP endpoints (mcp/mcpEndpoint.ts `appMcpRoutes`), each behind its own
+      // per-launch bearer tokens.
+      mcpRoutes: appMcpRoutes({ goals: goalMcp.endpoint, memory: memoryMcp.endpoint }, (line) =>
+        console.warn(line)
+      ),
       log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`),
       // SEC-6 / UX-05 — only a bind THIS process made lets a spawn carry `--settings`.
       onListening: () => serverHealth.hookBound(),

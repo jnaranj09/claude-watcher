@@ -63,7 +63,7 @@ import type { ClaudeVersion } from '../../shared/launch/claudeVersion'
 import type { LaunchBoardSeam } from '../window/watchFeed'
 import type { GoalLaunch, GoalSpawnExtras } from '../goals/goalLaunch'
 import type { MemorySpawnExtras } from '../memory/memoryLaunch'
-import { spawnCommandFields } from '../pty/spawnExtras'
+import { spawnExtras } from '../pty/spawnExtras'
 import type { TrustedIpc } from './trustedIpc'
 import { boardWorkspaceOf } from './boardWorkspaceOf'
 
@@ -313,12 +313,14 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     const goal = goalSpawnExtras(sessionId, goalLaunch, resume, previousSessionId)
     // Memory: the folder's index, the memory tools and claude's own auto memory off for this
     // launch, or nothing at all (memory off, hook port not ours, database closed, a failure).
-    const memory = memorySpawnExtras(
-      sessionId,
-      { cwd: launch.cwd, workspaceId: launch.workspaceId ?? activeWorkspaceId() },
-      previousSessionId
-    )
-    Object.assign(env, memory.env)
+    // Joined with goals, with the child env, in pty/spawnExtras.ts.
+    const extras = spawnExtras({
+      goal,
+      memory: (target) => memorySpawnExtras(sessionId, target, previousSessionId),
+      launch,
+      activeWorkspaceId,
+      env
+    })
 
     return {
       file: SHELL,
@@ -338,7 +340,7 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
           displayName,
           hookSettingsPath: hookSettingsPathForSpawn(),
           pluginDir,
-          ...spawnCommandFields(goal, memory),
+          ...extras.fields,
           model: flags.model,
           permissionMode: flags.permissionMode,
           effort: flags.effort,
@@ -351,7 +353,7 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
           resume
         })
       ],
-      env
+      env: extras.env
     }
   }
 

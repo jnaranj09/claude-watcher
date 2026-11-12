@@ -301,7 +301,7 @@ describe('createPastSessionsStore — archive / get / remove', () => {
     expect(store.remove('s1')).toEqual([])
     expect(store.remove('never')).toEqual([])
   })
-  it('removing a past record marks that session deleted in memory, a workspace cascade does not', () => {
+  it('a Forget calls onRemove for its id; a workspace cascade never calls onRemove (it reports through onDropped)', () => {
     const onRemove = vi.fn<(sessionId: string) => void>()
     const store = createPastSessionsStore({ onRemove })
     store.archive(ROW)
@@ -324,6 +324,50 @@ describe('createPastSessionsStore — archive / get / remove', () => {
     expect(() => store.remove('s1')).toThrow()
     expect(store.get('s1')).not.toBeNull()
     expect(onRemove).not.toHaveBeenCalled()
+  })
+  it('a workspace cascade reports the ids it removed through onDropped, once its write is done', () => {
+    const { blobStore, current } = fakeBlob()
+    const seen: unknown[] = []
+    const store = createPastSessionsStore({
+      blobStore,
+      onDropped: (ids) => seen.push([...ids], current())
+    })
+    store.archive(ROW)
+    store.archive({ ...ROW, id: 's2', workspaceId: 'w1' })
+    store.removeByWorkspace('w1')
+    expect(seen[0]).toEqual(['s2'])
+    expect(seen[1]).toMatchObject({ sessions: [{ id: 's1' }] })
+  })
+  it('a workspace cascade that removes no record reports nothing', () => {
+    const onDropped = vi.fn<(ids: readonly string[]) => void>()
+    const store = createPastSessionsStore({ onDropped })
+    store.archive(ROW)
+    store.removeByWorkspace('w1')
+    expect(onDropped).not.toHaveBeenCalled()
+  })
+  it('a record the cap evicts is reported through onDropped, once its write is done', () => {
+    const { blobStore, current } = fakeBlob()
+    const seen: unknown[] = []
+    const store = createPastSessionsStore({
+      blobStore,
+      onDropped: (ids) => seen.push([...ids], current())
+    })
+    for (let i = 0; i < PAST_SESSIONS_MAX; i++) store.archive({ ...ROW, id: `s${i}`, endedAt: i })
+    expect(seen).toEqual([])
+    store.archive({ ...ROW, id: 'newest', endedAt: PAST_SESSIONS_MAX })
+    expect(seen[0]).toEqual(['s0'])
+    expect(JSON.stringify(seen[1])).not.toContain('"s0"')
+  })
+  it('records the cap evicts at load are reported through onDropped', () => {
+    const sessions = Array.from({ length: PAST_SESSIONS_MAX + 2 }, (_, i) => ({
+      ...ROW,
+      id: `s${i}`,
+      endedAt: i
+    }))
+    const { blobStore } = fakeBlob({ version: 1, sessions })
+    const onDropped = vi.fn<(ids: readonly string[]) => void>()
+    createPastSessionsStore({ blobStore, onDropped })
+    expect(onDropped.mock.calls).toEqual([[['s1', 's0']]])
   })
   it('removeByWorkspace cascades only that workspace and reports the count', () => {
     const store = createPastSessionsStore()

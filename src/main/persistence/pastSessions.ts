@@ -42,9 +42,15 @@ export interface PastSessionsStoreOptions {
   /** Memory (spec 2026-11-11): a session the operator deleted (a Forget, or a card's Delete, which
    *  drops its record) keeps its memory items, marked `Session deleted`. Called after every
    *  `remove` the disk kept, known id or not (a card deleted before its first prompt has no
-   *  record); never by `removeByWorkspace` (the cascade deletes those items). Must not throw:
-   *  index.ts wires `markSessionDeletedInMemory`. */
+   *  record); never by `removeByWorkspace` or the cap (see `onDropped`). Must not throw:
+   *  index.ts wires `markSessionsDeletedInMemory`. */
   onRemove?: (sessionId: string) => void
+  /** Memory: the ids of records that left WITHOUT a Forget, once their write is done: a workspace
+   *  cascade's (the cascade deleted that workspace's items first, so only global ones are left to
+   *  mark) and the cap's evictions (at load too). Their sessions' items are marked
+   *  `Session deleted`, like a Forget's. Never called with no id. Must not throw: index.ts wires
+   *  `markSessionsDeletedInMemory`. */
+  onDropped?: (sessionIds: readonly string[]) => void
 }
 
 export interface PastSessionsStore {
@@ -67,7 +73,8 @@ export interface PastSessionsStore {
   /** Idempotent. Returns the new list. */
   remove(id: string): PastSession[]
   /** Workspaces — delete every record in `workspaceId`. Called ONLY by the workspaces store's
-   *  cascade, after a delete was allowed. Returns how many were removed. */
+   *  cascade, after a delete was allowed. Returns how many were removed; their ids go to
+   *  `onDropped`. */
   removeByWorkspace(workspaceId: string): number
 }
 
@@ -112,8 +119,9 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   if (recovered > 0) log(`${LOG_PREFIX} code=past_sessions_recovered_live count=${recovered}`)
   if (skipped > 0) log(`${LOG_PREFIX} code=past_sessions_no_transcript_skipped count=${skipped}`)
   if (hidden > 0) log(`${LOG_PREFIX} code=past_sessions_hidden_unknown_workspace count=${hidden}`)
-  trim()
+  const evictedAtLoad = trim()
   persistOrReport()
+  dropped(evictedAtLoad)
 
   /** False only when claude surely has no transcript for the record. An ENDED record like that
    *  stays (Open answers `transcript_missing`, UX-08); only an archive and a crash-leftover live
@@ -150,6 +158,11 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
     if (!persist()) report('write_failed')
   }
 
+  /** Records that left without a Forget, told after their write (`onDropped`). */
+  function dropped(ids: readonly string[]): void {
+    if (ids.length > 0) options.onDropped?.(ids)
+  }
+
   function list(): PastSession[] {
     return all().filter((r) => r.live !== true && workspaceExists(r.workspaceId))
   }
@@ -164,8 +177,8 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
    *  is a session still running, and evicting it would lose it the moment the app dies. A HIDDEN
    *  one (UX-03, its workspace is gone) is not counted — a row the dialog cannot show must not
    *  evict one it can — and has its own `PAST_SESSIONS_HIDDEN_MAX`, oldest dropped, so the file
-   *  stays bounded. */
-  function trim(): void {
+   *  stays bounded. Returns the ids it dropped. */
+  function trim(): string[] {
     const endedRecords = all().filter((r) => r.live !== true)
     const visible = endedRecords.filter((r) => workspaceExists(r.workspaceId))
     const hiddenRecords = endedRecords.filter((r) => !workspaceExists(r.workspaceId))
@@ -179,6 +192,7 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
     if (staleHidden.length > 0) {
       log(`${LOG_PREFIX} code=past_sessions_hidden_trimmed count=${staleHidden.length}`)
     }
+    return [...staleVisible, ...staleHidden].map((r) => r.id)
   }
 
   /** The new record, keeping the transcript path an earlier write learned: the hook that
@@ -200,8 +214,9 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
       return list()
     }
     byId.set(record.id, next)
-    trim()
+    const evicted = trim()
     persistOrReport()
+    dropped(evicted)
     return list()
   }
 
@@ -227,15 +242,16 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   }
 
   function removeByWorkspace(workspaceId: string): number {
-    let removed = 0
+    const removed: string[] = []
     for (const [id, record] of byId) {
       if (record.workspaceId === workspaceId) {
         byId.delete(id)
-        removed += 1
+        removed.push(id)
       }
     }
-    if (removed > 0) persistOrReport()
-    return removed
+    if (removed.length > 0) persistOrReport()
+    dropped(removed)
+    return removed.length
   }
 
   return { list, get, archive, markLive, dropLive, remove, removeByWorkspace }

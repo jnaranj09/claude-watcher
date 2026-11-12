@@ -14,6 +14,7 @@
 // Logs carry `[claude-watcher][<area>] route=mcp`, the rpc method when it is one we serve (else
 // `other`), and a `code=`: never a token, a header value, a tool's arguments or its result.
 import { z } from 'zod'
+import { GOALS_MCP_PATH, MEMORY_MCP_PATH } from '../hooks/hookContract'
 
 /** Newest first; an unknown requested version gets the first. */
 const SUPPORTED_PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26'] as const
@@ -186,7 +187,8 @@ export interface McpRoute {
   log(line: string): void
 }
 
-/** The hook server's route for `endpoint` at `path`, logging through `log`. */
+/** The hook server's route for `endpoint` at `path`, logging through `log`. The app builds its
+ *  routes through `appMcpRoutes`; the export is kept for this function's own tests. */
 export function mcpRoute<G>(
   path: string,
   endpoint: McpEndpoint<G>,
@@ -201,4 +203,16 @@ export function mcpRoute<G>(
     },
     log: (line) => log(`[claude-watcher][${endpoint.area}] ${line}`)
   }
+}
+
+/** Every MCP route the hook listener serves: the goals server, then the memory server, each behind
+ *  its own bearer tokens (a bearer of one never opens the other). */
+export function appMcpRoutes<G, M>(
+  endpoints: { goals: McpEndpoint<G>; memory: McpEndpoint<M> },
+  log: (line: string) => void
+): McpRoute[] {
+  return [
+    mcpRoute(GOALS_MCP_PATH, endpoints.goals, log),
+    mcpRoute(MEMORY_MCP_PATH, endpoints.memory, log)
+  ]
 }

@@ -7,7 +7,14 @@ import { createGoalsStore, type GoalsStore } from '../persistence/goals'
 import { createGoalTokens, type Grant } from '../goals/mcp/goalTokens'
 import { createMcpTools } from '../goals/mcp/mcpTools'
 import { MCP_SERVER_NAME } from '../goals/mcp/mcpConfigFile'
-import { createMcpEndpoint, handleMcpRequest, mcpRoute, type McpEndpoint } from './mcpEndpoint'
+import {
+  appMcpRoutes,
+  createMcpEndpoint,
+  handleMcpRequest,
+  mcpRoute,
+  type McpEndpoint
+} from './mcpEndpoint'
+import { GOALS_MCP_PATH, MEMORY_MCP_PATH } from '../hooks/hookContract'
 import { createProposals } from '../goals/proposals'
 
 function seed(): { store: GoalsStore; t1: string; t2: string } {
@@ -414,6 +421,31 @@ describe('mcpRoute', () => {
     const log = vi.fn()
     mcpRoute('/mcp/goals', stub(), log).log('route=mcp code=unauthorized')
     expect(log).toHaveBeenCalledWith('[claude-watcher][goals] route=mcp code=unauthorized')
+  })
+})
+
+describe('appMcpRoutes', () => {
+  const endpoint = (area: string, bearer: string): McpEndpoint<string> => ({
+    area,
+    resolve: vi.fn((header: string | undefined) => (header === `Bearer ${bearer}` ? area : null)),
+    handle: vi.fn(() => null)
+  })
+
+  it('serves the goals server and the memory server, each at its own path', () => {
+    const routes = appMcpRoutes(
+      { goals: endpoint('goals', 'g'), memory: endpoint('memory', 'm') },
+      () => {}
+    )
+    expect(routes.map((r) => r.path)).toEqual([GOALS_MCP_PATH, MEMORY_MCP_PATH])
+  })
+
+  it("the memory path opens with the memory server's bearer only, and hands it the body", () => {
+    const memory = endpoint('memory', 'm')
+    const routes = appMcpRoutes({ goals: endpoint('goals', 'g'), memory }, () => {})
+    const route = routes.find((r) => r.path === MEMORY_MCP_PATH)
+    expect(route?.open('Bearer g')).toBeNull()
+    route?.open('Bearer m')?.({ jsonrpc: '2.0', id: 1, method: 'ping' })
+    expect(memory.handle).toHaveBeenCalledWith({ jsonrpc: '2.0', id: 1, method: 'ping' }, 'memory')
   })
 })
 

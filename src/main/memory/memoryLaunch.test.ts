@@ -25,7 +25,7 @@ import {
   NO_MEMORY_EXTRAS,
   createMemoryMcp,
   liveSessionMeta,
-  markSessionDeletedInMemory,
+  markSessionsDeletedInMemory,
   memorySpawnExtras,
   type MemorySpawnDeps
 } from './memoryLaunch'
@@ -387,7 +387,7 @@ describe('liveSessionMeta', () => {
   })
 })
 
-describe('markSessionDeletedInMemory', () => {
+describe('markSessionsDeletedInMemory', () => {
   it("marks the session's items deleted and keeps them", () => {
     const store = openStore()
     const item = store.add({
@@ -405,12 +405,31 @@ describe('markSessionDeletedInMemory', () => {
         taskIds: []
       }
     })
-    markSessionDeletedInMemory(
+    markSessionsDeletedInMemory(
       () => store,
-      's1',
+      ['s1'],
       () => undefined
     )
     expect(store.get(item.id)?.originDeletedAt).toBe(NOW)
+  })
+
+  it('marks each session of a list, and a failed one does not stop the next', () => {
+    const lines: string[] = []
+    const store = openStore()
+    const marked: string[] = []
+    const markOne = store.markSessionDeleted
+    store.markSessionDeleted = (id) => {
+      if (id === 'bad') throw new Error('store_write_failed')
+      marked.push(id)
+      return markOne(id)
+    }
+    markSessionsDeletedInMemory(
+      () => store,
+      ['s1', 'bad', 's2'],
+      (line) => lines.push(line)
+    )
+    expect(marked).toEqual(['s1', 's2'])
+    expect(lines).toEqual(['[claude-watcher][memory] code=memory_mark_deleted_failed'])
   })
 
   it('a memory failure is logged by code and never thrown', () => {
@@ -420,9 +439,9 @@ describe('markSessionDeletedInMemory', () => {
       throw new Error('store_write_failed')
     }
     expect(() =>
-      markSessionDeletedInMemory(
+      markSessionsDeletedInMemory(
         () => store,
-        's1',
+        ['s1'],
         (line) => lines.push(line)
       )
     ).not.toThrow()
@@ -431,9 +450,9 @@ describe('markSessionDeletedInMemory', () => {
 
   it('does nothing while memory is off', () => {
     expect(() =>
-      markSessionDeletedInMemory(
+      markSessionsDeletedInMemory(
         () => null,
-        's1',
+        ['s1'],
         () => undefined
       )
     ).not.toThrow()

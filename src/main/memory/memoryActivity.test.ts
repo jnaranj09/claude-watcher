@@ -1,5 +1,5 @@
 // The per-session record of what memory was injected, pulled and saved (spec 2026-11-11 memory).
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { MemoryActivity } from '../../shared/schemas/memory'
 import { createMemoryActivity } from './memoryActivity'
 
@@ -72,5 +72,45 @@ describe('memory activity', () => {
     log.record('s1', entry(1))
     log.forget('s1')
     expect(log.get('s1')).toEqual({ injected: null, entries: [] })
+  })
+
+  it('tells its listeners of an index sent, an entry, a rebind and a forget', () => {
+    const log = createMemoryActivity()
+    const listener = vi.fn()
+    log.onChange(listener)
+    log.injected('s1', { chars: 8, itemIds: ['a'] })
+    log.record('s1', entry(1))
+    log.rebind('s1', 's2')
+    log.forget('s2')
+    expect(listener).toHaveBeenCalledTimes(4)
+  })
+
+  it('a read, a rebind of an unknown session and a forget of one tell nobody', () => {
+    const log = createMemoryActivity()
+    const listener = vi.fn()
+    log.onChange(listener)
+    log.get('s1')
+    log.rebind('ghost', 'new')
+    log.forget('ghost')
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('stops telling a listener after it unsubscribes', () => {
+    const log = createMemoryActivity()
+    const listener = vi.fn()
+    log.onChange(listener)()
+    log.record('s1', entry(1))
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('a listener that throws is logged by code and the entry stands', () => {
+    const lines: string[] = []
+    const log = createMemoryActivity((line) => lines.push(line))
+    log.onChange(() => {
+      throw new Error('secret text')
+    })
+    log.record('s1', entry(1))
+    expect(log.get('s1').entries).toEqual([entry(1)])
+    expect(lines).toEqual(['[claude-watcher][memory] code=memory_activity_listener_failed'])
   })
 })

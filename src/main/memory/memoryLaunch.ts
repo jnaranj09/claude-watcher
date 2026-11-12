@@ -15,7 +15,7 @@
 // instance has no `clearStale` (a second sweep could only delete live files).
 //
 // The `/clear` rebind and the card drop live in `window/cardState.ts`; a removed past record marks
-// the session's items `Session deleted` (`markSessionDeletedInMemory`). Memory text never reaches
+// the session's items `Session deleted` (`markSessionsDeletedInMemory`). Memory text never reaches
 // a log here: lines carry `code=` only.
 import type { Session } from '../../shared/schemas/session'
 import type { StorageProblemCode } from '../../shared/schemas/storageHealth'
@@ -200,12 +200,15 @@ export function memoryStep(log: (line: string) => void, code: string, step: () =
   }
 }
 
-/** A deleted session (a past record removed, or a card deleted): its items stay, marked
- *  `Session deleted`. Nothing while memory is off; never throws. */
-export function markSessionDeletedInMemory(
+/** Deleted sessions (a past record forgotten, a card deleted, or a record a workspace cascade or
+ *  the cap dropped): their items stay, marked `Session deleted`. Each id is its own step, so one
+ *  failure does not stop the rest. Nothing while memory is off; never throws. */
+export function markSessionsDeletedInMemory(
   store: () => Pick<MemoryStore, 'markSessionDeleted'> | null,
-  sessionId: string,
+  sessionIds: readonly string[],
   log: (line: string) => void
 ): void {
-  memoryStep(log, 'memory_mark_deleted_failed', () => store()?.markSessionDeleted(sessionId))
+  for (const sessionId of sessionIds) {
+    memoryStep(log, 'memory_mark_deleted_failed', () => store()?.markSessionDeleted(sessionId))
+  }
 }

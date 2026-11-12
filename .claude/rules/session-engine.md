@@ -136,7 +136,9 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   the env `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` (claude's own auto
   memory off) + `CLAUDE_WATCHER_MEMORY=1` (for the operator's own hooks). `pty/spawnExtras.ts`
   joins it with goals: one `--append-system-prompt` (`QUESTION_FORMAT_PROMPT`, the task block,
-  then the index), one `--mcp-config` flag (goals file first), one comma-joined `--allowedTools`.
+  then the index), one `--mcp-config` flag (goals file first), one comma-joined `--allowedTools`;
+  it also asks memory for the launch's workspace (main's active one when it names none) and
+  builds the child env (memory's two vars only while memory is on).
   A launch never fails for memory: any throw leaves no token or file, logs
   `code=memory_launch_failed`, and the session starts as if memory were off (auto memory
   included). A Reopen drops the replaced id's memory token and file first, even with memory off.
@@ -153,12 +155,16 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   session not live → `Memory is not available.` (logged as `code=memory_not_available`: an error
   outcome may carry a log `code`, which the endpoint logs instead of its text). `/clear` moves
   the token, the file, the activity record (kept in RAM; Context's `Memory` page reads it through
-  `memory:activity`, with or without the mod's report) and the origin of the items the session
+  `memory:activity`, with or without the mod's report, and lists again on `memory:changed`, which
+  a store change and an activity change both push: `memoryStartup.ts`) and the origin of the items the session
   saved (`window/cardState.ts`; the items last, guarded: `code=memory_rebind_failed`); a removed
   card drops token, file and activity, never the items. A
   deleted session (Past sessions `Forget`, or a card's `Delete`) keeps its items, marked
-  `Session deleted` (`pastSessions.ts` `onRemove` → `markSessionDeletedInMemory`); a workspace
-  delete's cascade deletes them. Memory text (key, value, title, body, check, reason, query)
+  `Session deleted` (`pastSessions.ts` `onRemove` → `markSessionsDeletedInMemory`), and so does a
+  session whose record left without one: a workspace cascade's (its workspace items are already
+  deleted, memory runs first in `persistence/workspaceCascade.ts`, so only its global items are
+  marked) or the 200 cap's (`onDropped`). A workspace delete's cascade deletes the workspace's
+  items. Memory text (key, value, title, body, check, reason, query)
   never reaches a log, a notification, the API or an attention event (logs carry `code=` only).
   SMOKE opens no database (memory is off); its memory check writes into a temporary folder, never
   userData.

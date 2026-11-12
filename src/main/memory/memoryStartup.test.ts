@@ -6,8 +6,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import type { StorageReporter } from '../persistence/persistedBlob'
+import { createMemoryActivity, type MemoryActivityLog } from './memoryActivity'
 import { MEMORY_DB_FILE } from './memoryDb'
 import { openMemory } from './memoryStartup'
+import type { MemoryAdd } from './memoryStore'
 
 const NOW = 1_762_800_000_000
 
@@ -15,8 +17,12 @@ let dir: string
 let file: string
 let report: Mock<StorageReporter>
 let lines: string[]
+let activity: MemoryActivityLog
+let pushes: number
 
 beforeEach(() => {
+  activity = createMemoryActivity()
+  pushes = 0
   dir = mkdtempSync(join(tmpdir(), 'claude-watcher-memory-start-'))
   file = join(dir, MEMORY_DB_FILE)
   report = vi.fn<StorageReporter>()
@@ -37,8 +43,21 @@ function open(smoke = false, at = file): ReturnType<typeof openMemory> {
     report,
     log: (line) => {
       lines.push(line)
+    },
+    activity,
+    onChange: () => {
+      pushes += 1
     }
   })
+}
+
+const PORT_ITEM: MemoryAdd = {
+  text: { kind: 'specific', key: 'API port', value: '9280' },
+  workspaceId: 'w1',
+  check: null,
+  basis: 'stated',
+  origin: { by: 'operator', sessionId: null },
+  meta: { folder: null, sessionName: null, tagIds: [], templateId: null, goalId: null, taskIds: [] }
 }
 
 describe('openMemory', () => {
@@ -71,6 +90,28 @@ describe('openMemory', () => {
     const memory = open(false, join(dir, 'missing-folder', MEMORY_DB_FILE))
     expect(memory).toBeNull()
     expect(report).toHaveBeenCalledWith('read_failed')
+  })
+})
+
+describe('the memory:changed push', () => {
+  it('a store change pushes', () => {
+    const memory = open()
+    memory?.store.add(PORT_ITEM)
+    expect(pushes).toBe(1)
+    memory?.close()
+  })
+
+  it('an activity change pushes (a pull changes no stored item)', () => {
+    const memory = open()
+    activity.record('s1', { at: NOW, action: 'pulled', tool: 'memory_get', itemId: 'm1' })
+    expect(pushes).toBe(1)
+    memory?.close()
+  })
+
+  it('memory off pushes nothing for an activity change', () => {
+    expect(open(true)).toBeNull()
+    activity.record('s1', { at: NOW, action: 'pulled', tool: 'memory_get', itemId: 'm1' })
+    expect(pushes).toBe(0)
   })
 })
 

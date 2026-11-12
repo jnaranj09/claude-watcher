@@ -20,6 +20,7 @@ import { createSettingsStore, type SettingsStore } from './persistence/settings'
 import { createElectronSettingsBlobStore } from './persistence/electronSettingsBlobStore'
 import { DEFAULT_SETTINGS } from '../shared/schemas/settings'
 import { createWorkspacesStore, type WorkspacesStore } from './persistence/workspaces'
+import { cascadeWorkspaceDelete } from './persistence/workspaceCascade'
 import { createElectronWorkspacesBlobStore } from './persistence/electronWorkspacesBlobStore'
 import {
   createTemplatesStore,
@@ -57,7 +58,7 @@ import type { MemoryStore } from './memory/memoryStore'
 import {
   createMemoryMcp,
   liveSessionMeta,
-  markSessionDeletedInMemory,
+  markSessionsDeletedInMemory,
   memorySpawnExtras
 } from './memory/memoryLaunch'
 import { goalSpawnExtras } from './goals/goalLaunch'
@@ -480,20 +481,24 @@ function isSessionLive(sessionId: string): boolean {
   return false
 }
 
-/** Workspaces — the scoped-config cascade. Runs ONLY after a delete was allowed and committed.
- *  Late-bound on purpose: the workspaces store is constructed before templates, shortcuts, tags
- *  and rules exist. */
+/** Workspaces — the scoped-config cascade (persistence/workspaceCascade.ts). Runs ONLY after a
+ *  delete was allowed and committed. Late-bound on purpose: the workspaces store is constructed
+ *  before templates, shortcuts, tags and rules exist. */
 function cascade(workspaceId: string): void {
-  templatesStore?.removeByWorkspace(workspaceId)
-  shortcutsStore?.removeByWorkspace(workspaceId)
-  tagsStore?.removeByWorkspace(workspaceId)
-  rulesStore?.removeByWorkspace(workspaceId)
-  goalsStore?.removeByWorkspace(workspaceId)
-  memory?.removeByWorkspace(workspaceId) // never throws: the delete is already committed
-  pastSessionsStore?.removeByWorkspace(workspaceId) // D-9 — records are tied by workspace id
-  // A deleted workspace had no live cards (W-6), so this cancels nothing today; it keeps the
-  // timers honest if that guard ever loosens.
-  for (const engine of ruleEngines.values()) engine.onRulesRemoved()
+  cascadeWorkspaceDelete(workspaceId, {
+    templates: templatesStore,
+    shortcuts: shortcutsStore,
+    tags: tagsStore,
+    rules: rulesStore,
+    goals: goalsStore,
+    memory,
+    pastSessions: pastSessionsStore,
+    // A deleted workspace had no live cards (W-6), so this cancels nothing today; it keeps the
+    // timers honest if that guard ever loosens.
+    onRulesRemoved: () => {
+      for (const engine of ruleEngines.values()) engine.onRulesRemoved()
+    }
+  })
 }
 
 // Session templates — same lifecycle as settingsStore (needs app-ready for electron-store).
@@ -560,7 +565,7 @@ function requireGoalsStore(): GoalsStore {
 // quit closed it. The activity record (what memory did per session) is memory only. A memory
 // filter names tags and goals; the lookups read the stores live.
 let memory: OpenedMemory | null = null
-const memoryActivity = createMemoryActivity()
+const memoryActivity = createMemoryActivity((line) => console.warn(line))
 const memoryNames = memoryNameLookups({
   tags: () => tagsStore?.list() ?? [],
   goals: () => goalsStore?.view().goals ?? []
@@ -585,9 +590,14 @@ const memoryMcp = createMemoryMcp({
   now: () => Date.now(),
   log: (line) => console.warn(line)
 })
-/** A deleted session's memory items stay, marked `Session deleted` (pastSessions.ts `onRemove`). */
-const markMemorySessionDeleted = (sessionId: string): void =>
-  markSessionDeletedInMemory(memoryStore, sessionId, (line) => console.warn(line))
+/** A deleted session's memory items stay, marked `Session deleted` (pastSessions.ts `onRemove`
+ *  for a Forget or a card's Delete, `onDropped` for a record a cascade or the cap dropped). */
+const markMemorySessionsDeleted = (sessionIds: readonly string[]): void =>
+  markSessionsDeletedInMemory(memoryStore, sessionIds, (line) => console.warn(line))
+const pastSessionsMemory = {
+  onRemove: (sessionId: string): void => markMemorySessionsDeleted([sessionId]),
+  onDropped: markMemorySessionsDeleted
+}
 /** The memory push: any change, whoever made it, tells every window to list again. */
 function pushMemoryChanged(): void {
   for (const win of BrowserWindow.getAllWindows()) sendMemoryChanged(win.webContents)
@@ -1076,9 +1086,10 @@ app
       now: () => Date.now(),
       newId: randomUUID,
       report: storageHealth.reporterFor('memory'),
-      log: (line) => console.warn(line)
+      log: (line) => console.warn(line),
+      activity: memoryActivity,
+      onChange: pushMemoryChanged
     })
-    memory?.store.onChange(pushMemoryChanged)
     registerMemoryIpc()
 
     try {
@@ -1107,7 +1118,7 @@ app
             workspaceExists,
             hasTranscript: archiveHasTranscript,
             report: storageHealth.reporterFor('past_sessions'),
-            onRemove: markMemorySessionDeleted
+            ...pastSessionsMemory
           })
     } catch {
       // Code ONLY — never the error: a SyntaxError message quotes file content, and a record
@@ -1119,7 +1130,7 @@ app
       pastSessionsStore = createPastSessionsStore({
         workspaceExists,
         hasTranscript: archiveHasTranscript,
-        onRemove: markMemorySessionDeleted
+        ...pastSessionsMemory
       })
     }
     registerPastSessionsIpc()
