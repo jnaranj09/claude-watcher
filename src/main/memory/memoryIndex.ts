@@ -1,7 +1,7 @@
 // The memory block a launched session gets in its system prompt: fixed rules of use, the pinned
-// items, and the specifics saved for the session's folder, capped at `MEMORY_LIMITS.indexChars`.
-// It states dates, not facts: memory is a record of what was seen. Memory text is sensitive: this
-// module logs nothing.
+// items (up to `MEMORY_LIMITS.indexCeilingChars`), and the specifics saved for the session's
+// folder, capped at `MEMORY_LIMITS.indexChars`. It states dates, not facts: memory is a record of
+// what was seen. Memory text is sensitive: this module logs nothing.
 import { MEMORY_LIMITS, type MemoryItem, type MemoryRow } from '../../shared/schemas/memory'
 import { formatDay } from './formatDay'
 
@@ -36,9 +36,11 @@ function folderLine(row: MemoryRow): string {
 }
 
 /**
- * The rules of use and every pinned line are always sent, even over the cap. Folder lines are
- * added newest first while the whole text (the last `<n> more` line included) stays within the
- * cap. `itemIds` lists exactly the items that got a line.
+ * The rules of use are always sent. Pinned lines are added newest first while the whole text
+ * stays within `ceilingChars` (they may pass the cap); the ones left out are counted in a last
+ * `<n> more pinned` line of their section. Folder lines are added newest first while the whole
+ * text (the last `<n> more` line included) stays within `capChars`, so a pinned section over the
+ * cap leaves no room for them. `itemIds` lists exactly the items that got a line.
  */
 export function buildMemoryIndex(
   input: {
@@ -46,27 +48,42 @@ export function buildMemoryIndex(
     specificsHere: readonly MemoryRow[]
     more: number
   },
-  capChars: number = MEMORY_LIMITS.indexChars
+  capChars: number = MEMORY_LIMITS.indexChars,
+  ceilingChars: number = MEMORY_LIMITS.indexCeilingChars
 ): { text: string; itemIds: string[] } {
-  const base =
-    input.pinned.length === 0
-      ? MEMORY_RULES_OF_USE
-      : [MEMORY_RULES_OF_USE, '', PINNED_HEADING, ...input.pinned.map(pinnedLine)].join('\n')
+  const pinnedNewest = [...input.pinned].sort((a, b) => b.updatedAt - a.updatedAt)
+  const pinnedLines = pinnedNewest.map(pinnedLine)
   const newestFirst = [...input.specificsHere].sort((a, b) => b.updatedAt - a.updatedAt)
 
-  const moreLine = (n: number): string[] => (n > 0 ? [`${n} more; use memory_search`] : [])
-  const assemble = (count: number): string => {
-    const lines = newestFirst.slice(0, count).map(folderLine)
-    const folder = count > 0 ? ['', FOLDER_HEADING, ...lines] : []
-    const left = newestFirst.length - count + input.more
-    return [base, ...folder, ...moreLine(left)].join('\n')
+  const countLine = (n: number, what: string): string[] =>
+    n > 0 ? [`${n} ${what}; use memory_search`] : []
+  const assemble = (pinnedCount: number, folderCount: number): string => {
+    const pinned =
+      pinnedNewest.length === 0
+        ? []
+        : [
+            '',
+            PINNED_HEADING,
+            ...pinnedLines.slice(0, pinnedCount),
+            ...countLine(pinnedNewest.length - pinnedCount, 'more pinned')
+          ]
+    const lines = newestFirst.slice(0, folderCount).map(folderLine)
+    const folder = folderCount > 0 ? ['', FOLDER_HEADING, ...lines] : []
+    const left = newestFirst.length - folderCount + input.more
+    return [MEMORY_RULES_OF_USE, ...pinned, ...folder, ...countLine(left, 'more')].join('\n')
   }
 
+  let pinnedCount = 0
+  while (pinnedCount < pinnedNewest.length && assemble(pinnedCount + 1, 0).length <= ceilingChars)
+    pinnedCount++
   let count = 0
-  while (count < newestFirst.length && assemble(count + 1).length <= capChars) count++
+  while (count < newestFirst.length && assemble(pinnedCount, count + 1).length <= capChars) count++
 
   return {
-    text: assemble(count),
-    itemIds: [...input.pinned.map((p) => p.id), ...newestFirst.slice(0, count).map((r) => r.id)]
+    text: assemble(pinnedCount, count),
+    itemIds: [
+      ...pinnedNewest.slice(0, pinnedCount).map((p) => p.id),
+      ...newestFirst.slice(0, count).map((r) => r.id)
+    ]
   }
 }

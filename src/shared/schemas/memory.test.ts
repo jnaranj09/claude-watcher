@@ -22,6 +22,22 @@ const create = (text: unknown, check: string | null = null): unknown => ({
 })
 
 describe('memory text limits', () => {
+  it("MEMORY_LIMITS holds the spec's numbers", () => {
+    expect(MEMORY_LIMITS).toEqual({
+      specificKey: 120,
+      specificValue: 500,
+      factTitle: 120,
+      factBody: 2000,
+      check: 300,
+      reason: 200,
+      query: 200,
+      searchLimit: 20,
+      listLimit: 100,
+      indexChars: 6000,
+      indexCeilingChars: 24_000
+    })
+  })
+
   it('accepts a specific and a fact', () => {
     expect(MemoryCreateSchema.safeParse(create(specific)).success).toBe(true)
     expect(MemoryCreateSchema.safeParse(create(fact)).success).toBe(true)

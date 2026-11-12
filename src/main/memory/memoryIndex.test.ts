@@ -185,7 +185,7 @@ describe('buildMemoryIndex', () => {
     expect(out.text.length).toBeLessThanOrEqual(cap)
   })
 
-  it('pinned items alone over the cap are all sent, with no folder section', () => {
+  it('pinned items over the cap but under the ceiling are all sent, with no folder section', () => {
     const pinned = Array.from({ length: 12 }, (_, i) =>
       specific({ id: `p-${i}`, key: `key-${i}`, value: 'v'.repeat(500) })
     )
@@ -200,5 +200,42 @@ describe('buildMemoryIndex', () => {
       out.text.includes('## Specifics for this folder'),
       lastLine(out.text)
     ]).toEqual([true, 12, false, '1 more; use memory_search'])
+  })
+
+  it('100 pinned full-length facts stay within the hard ceiling and count the pinned left out', () => {
+    const pinned = Array.from({ length: 100 }, (_, i) =>
+      fact({ id: `p-${i}`, title: `fact ${i}`, body: 'b'.repeat(2000), updatedAt: NOV_11 - i })
+    )
+    const out = buildMemoryIndex({ pinned, specificsHere: [], more: 0 })
+    const sent = out.itemIds.length
+    expect([
+      out.text.length <= MEMORY_LIMITS.indexCeilingChars,
+      sent > 0 && sent < 100,
+      out.text.startsWith(rules),
+      lastLine(out.text)
+    ]).toEqual([true, true, true, `${100 - sent} more pinned; use memory_search`])
+  })
+
+  it('pinned lines left out by the ceiling are the oldest, and itemIds lists only those sent', () => {
+    const pinned = Array.from({ length: 100 }, (_, i) =>
+      fact({ id: `p-${i}`, title: `fact ${i}`, body: 'b'.repeat(2000), updatedAt: NOV_10 + i })
+    )
+    const out = buildMemoryIndex({ pinned, specificsHere: [], more: 0 })
+    const sent = out.itemIds.length
+    expect(out.itemIds).toEqual(Array.from({ length: sent }, (_, i) => `p-${99 - i}`))
+    expect(out.text.split('\n').filter((l) => l.startsWith('- fact '))).toHaveLength(sent)
+  })
+
+  it('the more-pinned line ends the pinned section, before the folder count', () => {
+    const pinned = Array.from({ length: 100 }, (_, i) =>
+      fact({ id: `p-${i}`, title: `fact ${i}`, body: 'b'.repeat(2000), updatedAt: NOV_11 - i })
+    )
+    const out = buildMemoryIndex({ pinned, specificsHere: [row()], more: 0 })
+    const sent = out.itemIds.length
+    expect(out.text.split('\n').slice(-2)).toEqual([
+      `${100 - sent} more pinned; use memory_search`,
+      '1 more; use memory_search'
+    ])
+    expect(out.text.length).toBeLessThanOrEqual(MEMORY_LIMITS.indexCeilingChars)
   })
 })

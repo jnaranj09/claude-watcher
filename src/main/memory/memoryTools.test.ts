@@ -237,7 +237,9 @@ describe('memory tools: arguments', () => {
       { id: 'm1', kind: 'specific', key: 'k', value: 'v', reason: 'x'.repeat(201) }
     ],
     ['memory_mark_stale', { id: 'm1' }],
-    ['memory_mark_stale', { id: 'm1', reason: 'r', extra: 1 }]
+    ['memory_mark_stale', { id: 'm1', reason: 'r', extra: 1 }],
+    ['memory_search', { query: '\u0000' }],
+    ['memory_search', { query: 'a\u0000b' }]
   ])('%s with %j is invalid params', (name, args) => {
     expect(call(name, args)).toEqual({ kind: 'invalid_params' })
   })

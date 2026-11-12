@@ -22,7 +22,10 @@ export const MEMORY_LIMITS = {
   query: 200,
   searchLimit: 20,
   listLimit: 100,
-  indexChars: 6000
+  indexChars: 6000,
+  /** The index's hard ceiling: pinned lines may pass `indexChars`, never this (the index rides
+   *  one argv string, and Linux caps one at 128 KiB). */
+  indexCeilingChars: 24_000
 } as const
 
 /** Codes the memory store throws (the renderer maps them to copy, never the message).

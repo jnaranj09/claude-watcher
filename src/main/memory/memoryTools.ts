@@ -22,6 +22,7 @@ import {
   MEMORY_LIMITS,
   MemoryCreateSchema,
   MemoryGetSchema,
+  MemoryListSchema,
   MemoryTextSchema,
   type MemoryItem
 } from '../../shared/schemas/memory'
@@ -76,7 +77,9 @@ const ReasonSchema = z
   .min(1)
   .max(MEMORY_LIMITS.reason)
   .refine((v) => !hasControlChar(v), { error: 'must not contain control characters' })
-const QuerySchema = z.string().trim().min(1).max(MEMORY_LIMITS.query)
+/** The list request's own `query` (trimmed, one line, no control character: SQLite never sees
+ *  one, so a bad query is `invalid_params`, not a failed read). */
+const QuerySchema = MemoryListSchema.shape.query.unwrap()
 /** The create request's own `check` (trimmed, one line, null = none). */
 const CheckSchema = MemoryCreateSchema.shape.check
 const IdSchema = MemoryGetSchema.shape.id

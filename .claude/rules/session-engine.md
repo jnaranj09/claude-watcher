@@ -130,8 +130,10 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   (read at each spawn), the hook port ours (SEC-6) and the database open, the session gets its
   own bearer token, a `--mcp-config` file for `claude-watcher-memory`, the six tools in
   `--allowedTools` (search, get, browse, save, update, mark stale: no delete, no pin), the index
-  block (`memory/memoryIndex.ts`: rules of use, pinned items, the folder's specifics, capped at
-  `MEMORY_LIMITS.indexChars`) and the env `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` (claude's own auto
+  block (`memory/memoryIndex.ts`: rules of use; pinned items newest first, which may pass the cap
+  but never `MEMORY_LIMITS.indexCeilingChars` (the block rides one argv string; the rest are
+  counted, `<n> more pinned`); the folder's specifics, capped at `MEMORY_LIMITS.indexChars`) and
+  the env `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` (claude's own auto
   memory off) + `CLAUDE_WATCHER_MEMORY=1` (for the operator's own hooks). `pty/spawnExtras.ts`
   joins it with goals: one `--append-system-prompt` (`QUESTION_FORMAT_PROMPT`, the task block,
   then the index), one `--mcp-config` flag (goals file first), one comma-joined `--allowedTools`.
