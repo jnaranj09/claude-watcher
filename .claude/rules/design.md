@@ -471,11 +471,13 @@ Copy mapped from a CODE (`includes` — Electron wraps rejections), never `error
 until `maintainability.md` rule 3's guard lands; then copy maps from `ipcErrorCode(err)`.
 
 - **Callout (`components/Callout`, spec `2026-10-01-feedback-callout-design.md`) is the ONE in-page
-  message.** Tinted box (`--success-fill`/`--danger-fill`), 1px tinted border, 3px `--success`/
-  `--danger` left bar, icon disc drawn in CSS (text = the words), `--text-primary` title, optional
-  `detail` (`--text-secondary`) and `action`. `size="block"` (a field or pane error, small forms,
-  banners) or `"compact"` (one line: the expander). Success `role="status"`, danger `role="alert"`;
-  `announce={false}` inside something already live (dead pane).
+  message.** Tinted box (`--success-fill`/`--danger-fill`/`--info-fill`), 1px tinted border, 3px
+  `--success`/`--danger`/`--info` left bar, icon disc drawn in CSS (text = the words),
+  `--text-primary` title, optional `detail` (`--text-secondary`) and `action`. `size="block"` (a
+  field or pane error, small forms, banners) or `"compact"` (one line: the expander). Success and
+  info `role="status"`, danger `role="alert"`; `announce={false}` inside something already live
+  (dead pane). `tone="info"` (light blue, owner 2026-11-12) is the neutral tone: a standing state
+  the operator chose or should know (`Memory is off.`), never a result and never an error.
 - A dialog's success toast lasts the toast time (`TOAST_MS`); its error stays until the next
   action, a ✕ or the dialog closing. Success copy names the THING (`Rule deleted.`,
   `Session forgotten.`), never a typed value. Green = `--success`; themes override it (Paper: dark green — `#a6e3a1` on white fails 3:1).

@@ -166,6 +166,22 @@
           "type": "string",
           "maxLength": 500
         },
+        "info": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "text-on-info": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "info-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "info-border": {
+          "type": "string",
+          "maxLength": 500
+        },
         "focus-ring": {
           "type": "string",
           "maxLength": 500

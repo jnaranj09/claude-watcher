@@ -498,6 +498,9 @@ button[data-manage-close][data-variant] {
 [data-callout][data-callout-tone='danger'] {
   border-left-color: var(--danger-border);
 }
+[data-callout][data-callout-tone='info'] {
+  border-left-color: var(--info-border);
+}
 [data-callout][data-callout-size='compact'] {
   font-size: 12px;
   font-weight: 600;

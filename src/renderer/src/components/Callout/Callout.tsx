@@ -1,11 +1,13 @@
 // The ONE in-page feedback message (spec 2026-10-01-feedback-callout-design.md): a tinted box with
 // a coloured left bar, an icon disc and the words. Success is a polite status, danger an alert.
+// `info` (owner, 2026-11-12) is the neutral tone, also a status: a standing state the operator
+// chose ("Memory is off."), never a result.
 // The icon is drawn in CSS, so the element's text is exactly what it says (tests and screen
 // readers read the words, never a glyph). No className: layout goes on a wrapper.
 import type { JSX, ReactNode } from 'react'
 import styles from './Callout.module.css'
 
-export type CalloutTone = 'success' | 'danger'
+export type CalloutTone = 'success' | 'danger' | 'info'
 export type CalloutSize = 'block' | 'compact'
 
 export function Callout({

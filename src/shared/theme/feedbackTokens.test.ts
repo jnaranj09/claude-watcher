@@ -1,6 +1,7 @@
-// Feedback callout tokens (spec 2026-10-01-feedback-callout-design.md). The fills mix the tone over
-// the theme's raised surface (a theme may pin a plain hex instead); text, the icon disc and its
-// glyph must stay readable on them, in the defaults and in Paper (a light theme).
+// Feedback callout tokens (spec 2026-10-01-feedback-callout-design.md; the neutral `info` tone:
+// owner, 2026-11-12). The fills mix the tone over the theme's raised surface (a theme may pin a
+// plain hex instead); text, the icon disc and its glyph must stay readable on them, in the
+// defaults and in Paper (a light theme).
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
@@ -46,9 +47,9 @@ const THEMES: ReadonlyArray<readonly [string, Record<string, string>]> = [
 
 describe('feedback tokens', () => {
   for (const [name, t] of THEMES) {
-    it(`${name}: text, the icon disc and its glyph stay readable on both fills`, () => {
+    it(`${name}: text, the icon disc and its glyph stay readable on every fill`, () => {
       const surface = t['bg-surface-raised'] ?? ''
-      for (const tone of ['success', 'danger'] as const) {
+      for (const tone of ['success', 'danger', 'info'] as const) {
         const fill = resolve(t[`${tone}-fill`] ?? '', surface)
         const disc = t[tone] ?? ''
         expect(contrast(t['text-primary'] ?? '', fill), `${tone} text`).toBeGreaterThanOrEqual(4.5)

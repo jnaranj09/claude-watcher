@@ -279,7 +279,7 @@ export function MemoryPage({
         <ManageDialog.List size="wide">
           {!memoryOn && (
             <Callout
-              tone="danger"
+              tone="info"
               title={MEMORY_COPY.offTitle}
               detail={MEMORY_COPY.offDetail}
               testId="memory-off"

@@ -113,12 +113,15 @@ describe('MemoryDialog — empty, failed and off', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('memory off: a Callout says so and names the Settings row', async () => {
+  it('memory off: a neutral Callout says so and names the Settings row', async () => {
     act(() => settingsStore.getState().applyPatch({ memoryEnabled: false }))
     bridge = installMemoryBridge([])
     await open()
     const off = screen.getByTestId('memory-off')
     expect(off).toHaveTextContent('Memory is off.')
+    // Off is the operator's choice, not an error: never the red alert.
+    expect(off).toHaveAttribute('data-callout-tone', 'info')
+    expect(off).toHaveAttribute('role', 'status')
     expect(off).toHaveTextContent('Turn it on in Settings, under Memory.')
     expect(
       screen.queryByText('Nothing saved yet. Memory fills as sessions run.')

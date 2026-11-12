@@ -1,5 +1,6 @@
 // The feedback callout (spec 2026-10-01-feedback-callout-design.md): one in-page message for a
-// success or an error. Its text is the words only — the icon is drawn in CSS.
+// success, an error or a neutral note (`info`). Its text is the words only — the icon is drawn in
+// CSS.
 import { describe, it, expect, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -19,9 +20,13 @@ function root(): HTMLElement {
 }
 
 describe('Callout', () => {
-  it('success is a status, danger an alert; announce={false} drops the role', () => {
+  it('success and info are a status, danger an alert; announce={false} drops the role', () => {
     r = renderComponent(<Callout tone="success" title="Saved." />)
     expect(root().getAttribute('role')).toBe('status')
+    r.unmount()
+    r = renderComponent(<Callout tone="info" title="Memory is off." />)
+    expect(root().getAttribute('role')).toBe('status')
+    expect(root().dataset.calloutTone).toBe('info')
     r.unmount()
     r = renderComponent(<Callout tone="danger" title="No." />)
     expect(root().getAttribute('role')).toBe('alert')
@@ -50,13 +55,16 @@ describe('Callout', () => {
     expect(root().textContent).toBe('TDA')
   })
 
-  it('the stylesheet draws the bar, the tinted fill, both glyphs, and honours reduced motion', () => {
+  it('the stylesheet draws the bar, the tinted fill, each glyph, and honours reduced motion', () => {
     const css = readFileSync(join(__dirname, 'Callout.module.css'), 'utf8')
     expect(css).toMatch(/border-left:\s*3px solid var\(--callout-bar\)/)
     expect(css).toMatch(/--callout-fill:\s*var\(--success-fill\)/)
     expect(css).toMatch(/--callout-fill:\s*var\(--danger-fill\)/)
+    expect(css).toMatch(/--callout-fill:\s*var\(--info-fill\)/)
+    expect(css).toMatch(/--callout-bar:\s*var\(--info\)/)
     expect(css).toMatch(/content:\s*'✓'/)
     expect(css).toMatch(/content:\s*'!'/)
+    expect(css).toMatch(/content:\s*'i'/)
     expect(css).toMatch(/prefers-reduced-motion:\s*reduce/)
   })
 })

@@ -25,6 +25,12 @@
   --callout-border: var(--danger-border);
   --callout-ink: var(--text-on-danger);
 }
+.callout[data-callout-tone='info'] {
+  --callout-bar: var(--info);
+  --callout-fill: var(--info-fill);
+  --callout-border: var(--info-border);
+  --callout-ink: var(--text-on-info);
+}
 
 .block {
   padding: var(--inset-item-y) var(--inset-item-x);
@@ -61,6 +67,9 @@
 }
 .callout[data-callout-tone='danger'] .icon::before {
   content: '!';
+}
+.callout[data-callout-tone='info'] .icon::before {
+  content: 'i';
 }
 
 .body {

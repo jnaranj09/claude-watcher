@@ -617,7 +617,8 @@ describe('docs/themes/examples', () => {
       ['text-primary', 'needs-you'], // the dark digit on the gold count (spec: Assumed)
       ['text-on-lit', 'text-primary'], // primary button and lit toggle: white on ink
       ['text-on-danger', 'danger'],
-      ['text-on-success', 'success']
+      ['text-on-success', 'success'],
+      ['text-on-info', 'info']
     ]
     for (const [ink, fill] of pairs) {
       expect(

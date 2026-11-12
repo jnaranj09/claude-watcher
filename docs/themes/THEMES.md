@@ -108,6 +108,10 @@ Every token is a CSS custom property (`--bg-base`, `--rounded-md`, …). Set any
 | `success-border` | Success callout border | `color-mix(in srgb, #a6e3a1 35%, var(--bg-surface-raised))` |
 | `danger-fill` | Error callout fill | `color-mix(in srgb, #db4b4b 10%, var(--bg-surface-raised))` |
 | `danger-border` | Error callout border | `color-mix(in srgb, #db4b4b 40%, var(--bg-surface-raised))` |
+| `info` | Neutral callout bar and icon disc | `#89b4fa` |
+| `text-on-info` | The i on the neutral disc | `#11111b` |
+| `info-fill` | Neutral callout fill | `color-mix(in srgb, #89b4fa 10%, var(--bg-surface-raised))` |
+| `info-border` | Neutral callout border | `color-mix(in srgb, #89b4fa 35%, var(--bg-surface-raised))` |
 | `focus-ring` | The keyboard focus outline on every control | `rgba(255,255,255,0.55)` |
 | `focus-ring-width` | Width of the keyboard focus outline | `1px` |
 | `tag-slate-fill` | Slate tag chip fill (opaque, composited over bg-surface) | `#373739` |

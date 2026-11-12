@@ -70,6 +70,11 @@
   --success-border: color-mix(in srgb, #a6e3a1 35%, var(--bg-surface-raised));
   --danger-fill: color-mix(in srgb, #db4b4b 10%, var(--bg-surface-raised));
   --danger-border: color-mix(in srgb, #db4b4b 40%, var(--bg-surface-raised));
+  /* The neutral callout (owner, 2026-11-12): light blue, its own token (see tokens.ts). */
+  --info: #89b4fa;
+  --text-on-info: #11111b;
+  --info-fill: color-mix(in srgb, #89b4fa 10%, var(--bg-surface-raised));
+  --info-border: color-mix(in srgb, #89b4fa 35%, var(--bg-surface-raised));
   --focus-ring: rgba(255, 255, 255, 0.55);
   --focus-ring-width: 1px;
 

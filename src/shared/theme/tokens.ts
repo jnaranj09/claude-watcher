@@ -91,6 +91,13 @@ export const TOKENS = {
   'success-border': 'color-mix(in srgb, #a6e3a1 35%, var(--bg-surface-raised))',
   'danger-fill': 'color-mix(in srgb, #db4b4b 10%, var(--bg-surface-raised))',
   'danger-border': 'color-mix(in srgb, #db4b4b 40%, var(--bg-surface-raised))',
+  /* The neutral callout (owner, 2026-11-12): a state the operator chose, not a result ("Memory is
+   * off."). Light blue; its own token, equal to `working` only by default, so a theme may move
+   * either one alone. `text-on-info` is the `i` on the blue disc. */
+  info: '#89b4fa',
+  'text-on-info': '#11111b',
+  'info-fill': 'color-mix(in srgb, #89b4fa 10%, var(--bg-surface-raised))',
+  'info-border': 'color-mix(in srgb, #89b4fa 35%, var(--bg-surface-raised))',
   'focus-ring': 'rgba(255,255,255,0.55)',
   'focus-ring-width': '1px',
 
