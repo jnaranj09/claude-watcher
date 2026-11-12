@@ -22,24 +22,33 @@ export interface SqlClause {
 const NOTHING: SqlClause = { sql: '0', params: [] }
 
 /** Escapes LIKE's wildcards and the escape character itself; pair with `ESCAPE '\'`. */
-export function likeEscape(text: string): string {
+function likeEscape(text: string): string {
   return text.replace(/[\\%_]/g, (c) => `\\${c}`)
 }
 
+function withoutTrailingSlash(folder: string): string {
+  return folder.replace(/\/+$/, '')
+}
+
 /** `column` is `folder` or anywhere under it, on a path boundary (`/a/b` holds `/a/b/c`, not
- *  `/a/bc`). A trailing slash is ignored; the root `/` holds every absolute path. */
+ *  `/a/bc`), compared exactly: case counts, and `%` or `_` are plain characters (no LIKE). A
+ *  trailing slash is ignored; the root `/` holds every absolute path. */
 export function folderAtOrUnder(column: string, folder: string): SqlClause {
-  const base = folder.replace(/\/+$/, '')
+  const base = withoutTrailingSlash(folder)
+  const prefix = `${base}/`
   return {
-    sql: `(${column} = ? OR ${column} LIKE ? ESCAPE '\\')`,
-    params: [base === '' ? '/' : base, `${likeEscape(base)}/%`]
+    sql: `(${column} = ? OR substr(${column}, 1, length(?)) = ?)`,
+    params: [base === '' ? '/' : base, prefix, prefix]
   }
 }
 
-/** `column` is a folder that holds `folder` (an ancestor, on a path boundary). */
+/** `column` is a folder that holds `folder` (an ancestor, on a path boundary, exact case). */
 export function folderAbove(column: string, folder: string): SqlClause {
-  const escaped = `replace(replace(replace(rtrim(${column}, '/'), '\\', '\\\\'), '%', '\\%'), '_', '\\_')`
-  return { sql: `(? LIKE ${escaped} || '/%' ESCAPE '\\')`, params: [folder.replace(/\/+$/, '')] }
+  const parent = `rtrim(${column}, '/')`
+  return {
+    sql: `(substr(?, 1, length(${parent}) + 1) = ${parent} || '/')`,
+    params: [withoutTrailingSlash(folder)]
+  }
 }
 
 function idsIn(expression: string, ids: readonly string[]): SqlClause {

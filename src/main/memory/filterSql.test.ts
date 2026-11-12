@@ -11,19 +11,31 @@ const ctx: FilterContext = {
 const noFolder: FilterContext = { ...ctx, sessionFolder: null }
 
 describe('FILTER_SQL', () => {
-  it('a folder matches itself or below it, with %, _ and the escape character escaped', () => {
+  it('a folder is compared exactly, with no LIKE pattern', () => {
     expect(FILTER_SQL.folder('/w/100%_a\\b', ctx)).toEqual({
-      sql: "(item.folder = ? OR item.folder LIKE ? ESCAPE '\\')",
-      params: ['/w/100%_a\\b', '/w/100\\%\\_a\\\\b/%']
+      sql: '(item.folder = ? OR substr(item.folder, 1, length(?)) = ?)',
+      params: ['/w/100%_a\\b', '/w/100%_a\\b/', '/w/100%_a\\b/']
     })
   })
 
   it('a folder with a trailing slash matches the same folder', () => {
-    expect(FILTER_SQL.folder('/work/app/', ctx)?.params).toEqual(['/work/app', '/work/app/%'])
+    expect(FILTER_SQL.folder('/work/app/', ctx)?.params).toEqual([
+      '/work/app',
+      '/work/app/',
+      '/work/app/'
+    ])
+  })
+
+  it('the root folder is itself and every absolute path under it', () => {
+    expect(FILTER_SQL.folder('/', ctx)?.params).toEqual(['/', '/', '/'])
   })
 
   it('"here" is the session folder', () => {
-    expect(FILTER_SQL.folder('here', ctx)?.params).toEqual(['/work/app', '/work/app/%'])
+    expect(FILTER_SQL.folder('here', ctx)?.params).toEqual([
+      '/work/app',
+      '/work/app/',
+      '/work/app/'
+    ])
   })
 
   it('"here" with no session folder matches nothing', () => {

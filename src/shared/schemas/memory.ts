@@ -25,10 +25,13 @@ export const MEMORY_LIMITS = {
   indexChars: 6000
 } as const
 
-/** Refusal codes of the memory store (the renderer maps them to copy, never the message). */
+/** Codes the memory store throws (the renderer maps them to copy, never the message).
+ *  `notFound` / `versionNotFound` are refusals; `readFailed` is a read the database failed (the
+ *  caller shows it; a write that fails throws `STORE_WRITE_FAILED` instead). */
 export const MEMORY_ERROR = {
   notFound: 'memory_not_found',
-  versionNotFound: 'memory_version_not_found'
+  versionNotFound: 'memory_version_not_found',
+  readFailed: 'memory_read_failed'
 } as const
 
 /** Not `.uuid()` — existence is the store's call (`memory_not_found`). */

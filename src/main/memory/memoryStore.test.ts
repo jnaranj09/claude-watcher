@@ -179,6 +179,16 @@ describe('versions', () => {
     ])
   })
 
+  it('setState to the state the item has appends nothing and keeps its date', () => {
+    const { id } = store.add(input(PORT))
+    clock += 1000
+    expect(store.setState(id, 'active', 'agent', 'still right')).toMatchObject({
+      state: 'active',
+      updatedAt: NOW
+    })
+    expect(store.versions(id)).toHaveLength(1)
+  })
+
   it('setPinned changes the pin without a version', () => {
     const { id } = store.add(input(PORT))
     expect(store.setPinned(id, true).pinned).toBe(true)
@@ -274,15 +284,21 @@ describe('onChange', () => {
     store.markSessionDeleted('s1')
     store.rebindSession('s1', 's2')
     store.remove(id)
+    store.add(input(PORT))
     store.removeByWorkspace('w1')
-    expect(listener).toHaveBeenCalledTimes(9)
+    expect(listener).toHaveBeenCalledTimes(10)
   })
 
-  it('a rebind that changed no row does not fire', () => {
+  it.each<[string, (s: MemoryStore) => unknown]>([
+    ['rebindSession', (s) => s.rebindSession('nobody', 's2')],
+    ['removeByWorkspace', (s) => s.removeByWorkspace('w-none')],
+    ['markSessionDeleted', (s) => s.markSessionDeleted('nobody')],
+    ['setState to the same state', (s) => s.setState('m1', 'active', 'agent', null)]
+  ])('%s that changed no row does not fire', (_name, call) => {
     store.add(input(PORT))
     const listener = vi.fn()
     store.onChange(listener)
-    store.rebindSession('nobody', 's2')
+    call(store)
     expect(listener).not.toHaveBeenCalled()
   })
 
@@ -359,11 +375,12 @@ describe('SQLite failures', () => {
         )
     ]
   ])(
-    'a failed %s throws, reports read_failed and logs a code with no database text',
+    'a failed %s throws readFailed, logs a code with no database text and reports nothing',
     (_name, call) => {
       store.add(input(PORT))
-      expect(() => call(makeStore(unreadableDb()))).toThrow('memory_read_failed')
-      expect(report).toHaveBeenCalledWith('read_failed')
+      expect(() => call(makeStore(unreadableDb()))).toThrow(MEMORY_ERROR.readFailed)
+      // Storage health's read_failed says the file did not open; this one did.
+      expect(report).not.toHaveBeenCalled()
       expect(lines).toEqual(['[claude-watcher][memory] code=memory_read_failed'])
     }
   )
@@ -371,6 +388,38 @@ describe('SQLite failures', () => {
   it('a row that fails its schema is a failed read, not a missing item', () => {
     store.add(input(PORT))
     db.run(`UPDATE item SET meta = '{"sessionName":5}' WHERE id = 'm1'`)
-    expect(() => store.get('m1')).toThrow('memory_read_failed')
+    expect(() => store.get('m1')).toThrow(MEMORY_ERROR.readFailed)
+  })
+
+  it('a read that fails inside a write is a failed write, rolled back', () => {
+    const { id } = store.add(input(PORT))
+    // setPinned reads, updates, then reads again: the second read fails after the update ran.
+    let reads = 0
+    const failing = makeStore({
+      ...db,
+      get: (sql, schema, params) => {
+        reads += 1
+        if (reads > 1) throw new Error(`database disk image is malformed ${SECRET}`)
+        return db.get(sql, schema, params)
+      }
+    })
+    const listener = vi.fn()
+    failing.onChange(listener)
+    expect(() => failing.setPinned(id, true)).toThrow(STORE_WRITE_FAILED)
+    expect([store.get(id)?.pinned, listener.mock.calls.length]).toEqual([false, 0])
+    expect(report).toHaveBeenCalledWith('write_failed')
+    expect(lines).toEqual(['[claude-watcher][memory] code=memory_write_failed'])
+  })
+
+  it('a readFailed code thrown inside a write is still a failed write', () => {
+    const throwsReadFailed: MemoryDb = {
+      ...db,
+      get: () => {
+        throw new Error(MEMORY_ERROR.readFailed)
+      }
+    }
+    store.add(input(PORT))
+    expect(() => makeStore(throwsReadFailed).setPinned('m1', true)).toThrow(STORE_WRITE_FAILED)
+    expect(report).toHaveBeenCalledWith('write_failed')
   })
 })

@@ -43,12 +43,15 @@ const SIDE_FILES: readonly string[] = ['-wal', '-shm']
 
 /** `MIGRATIONS[n]` takes a file from `user_version` n to n + 1, inside one transaction.
  *  `item` holds what lists filter on as real columns and the rest in `meta` (JSON: sessionName,
- *  tagIds, templateId, goalId, taskIds). The text lives in `version` (newest = current); the two
- *  FTS5 indexes hold the current head (key/title) and body (value/body) and are written in the
- *  same transaction as the row. */
+ *  tagIds, templateId, goalId, taskIds). The text lives in `version` (newest = current, `seq`
+ *  breaks a tie on `at`); the two FTS5 indexes hold the current head (key/title) and body
+ *  (value/body) under the item's `rid` as their rowid, and are written in the same transaction as
+ *  the row. `rid` and `seq` are explicit INTEGER PRIMARY KEYs: VACUUM may renumber an implicit
+ *  rowid, and the indexes must keep pointing at their item. */
 const MIGRATIONS: readonly string[] = [
   `CREATE TABLE item (
-     id TEXT PRIMARY KEY,
+     rid INTEGER PRIMARY KEY,
+     id TEXT NOT NULL UNIQUE,
      kind TEXT NOT NULL CHECK (kind IN ('specific', 'fact')),
      workspace_id TEXT,
      state TEXT NOT NULL CHECK (state IN ('active', 'stale')),
@@ -66,6 +69,7 @@ const MIGRATIONS: readonly string[] = [
    ) STRICT;
    CREATE INDEX item_scope ON item (workspace_id, kind, state, updated_at);
    CREATE TABLE version (
+     seq INTEGER PRIMARY KEY,
      item_id TEXT NOT NULL REFERENCES item (id) ON DELETE CASCADE,
      at INTEGER NOT NULL,
      by TEXT NOT NULL CHECK (by IN ('agent', 'extract', 'operator')),
@@ -277,7 +281,8 @@ export function memorySmokeCheck(dir: string): { pass: boolean } {
       )
       for (const index of ['item_words', 'item_trigram']) {
         db.run(
-          `INSERT INTO ${index} (item_id, head, body) VALUES (?, 'smoke harbour', 'port 9281')`,
+          `INSERT INTO ${index} (rowid, item_id, head, body)
+           SELECT rid, id, 'smoke harbour', 'port 9281' FROM item WHERE id = ?`,
           [SMOKE_ID]
         )
       }

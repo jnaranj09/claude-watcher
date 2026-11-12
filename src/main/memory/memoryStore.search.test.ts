@@ -137,6 +137,18 @@ describe('query', () => {
 })
 
 describe('scope, kind, stale and pages', () => {
+  it('a text query keeps to the scope', () => {
+    add(specific('port', '9281'))
+    add(specific('their port', '9281'), { workspaceId: 'w2' })
+    expect(search('9281')).toMatchObject({ total: 1, rows: [{ head: 'port' }] })
+  })
+
+  it('a trigram-only query keeps to the scope', () => {
+    add(specific('mine', 'v2.1.304'))
+    add(specific('theirs', 'v2.1.304'), { workspaceId: 'w2' })
+    expect(heads('1.30')).toEqual(['mine'])
+  })
+
   it('scope is the workspace plus global when asked', () => {
     add(specific('mine'))
     add(specific('global'), { workspaceId: null })
@@ -223,9 +235,21 @@ describe('filters', () => {
   it('a folder with % and _ in its name matches only itself', () => {
     add(specific('a'), { folder: '/work/100%_done' })
     add(specific('b'), { folder: '/work/100x_done' })
-    // Below a look-alike folder: only an unescaped LIKE pattern reaches it.
+    // Below a look-alike folder: only a wildcard pattern match reaches it.
     add(specific('c'), { folder: '/work/100x_done/src' })
     expect(heads(null, { folder: '/work/100%_done' })).toEqual(['a'])
+  })
+
+  it('a folder matches by exact case', () => {
+    add(specific('lower'), { folder: '/work/app/x' })
+    add(specific('upper'), { folder: '/work/App/x' })
+    expect(heads(null, { folder: '/work/App' })).toEqual(['upper'])
+  })
+
+  it('the root folder matches every absolute folder', () => {
+    add(specific('a'), { folder: '/a' })
+    add(specific('b'), { folder: '/b/c' })
+    expect(heads(null, { folder: '/' })).toEqual(['b', 'a'])
   })
 
   it('"here" is the session folder', () => {
@@ -341,6 +365,26 @@ describe('indexRows', () => {
     for (let i = 0; i < 52; i++) add(specific(`k${i}`), { folder: '/work/app' })
     const out = store.indexRows('w1', '/work/app')
     expect([out.specificsHere.length, out.specificsHere[0]?.head, out.more]).toEqual([50, 'k51', 2])
+  })
+
+  it('specificsHere keeps to the workspace and global', () => {
+    add(specific('mine'), { folder: '/work/app' })
+    add(specific('global'), { folder: '/work/app', workspaceId: null })
+    add(specific('theirs'), { folder: '/work/app', workspaceId: 'w2' })
+    const out = store.indexRows('w1', '/work/app')
+    expect([out.specificsHere.map((r) => r.head), out.more]).toEqual([['global', 'mine'], 0])
+  })
+
+  it('specificsHere matches folders above and below by exact case', () => {
+    add(specific('upper above'), { folder: '/Work' })
+    add(specific('upper below'), { folder: '/work/App/src' })
+    add(specific('above'), { folder: '/work' })
+    expect(store.indexRows('w1', '/work/app').specificsHere.map((r) => r.head)).toEqual(['above'])
+  })
+
+  it('the root folder is above every folder', () => {
+    add(specific('root'), { folder: '/' })
+    expect(store.indexRows('w1', '/work/app').specificsHere.map((r) => r.head)).toEqual(['root'])
   })
 
   it('a pinned item is listed once, under pinned', () => {
