@@ -45,4 +45,9 @@ describe('memoryNameLookups', () => {
     expect(names.tagIdsByName('w1', '')).toEqual([])
     expect(names.tagIdsByName('w1', '   ')).toEqual([])
   })
+
+  it('names a tag by its id, and a deleted tag by nothing', () => {
+    expect(names.tagName('t3')).toBe('Infra')
+    expect(names.tagName('gone')).toBeNull()
+  })
 })

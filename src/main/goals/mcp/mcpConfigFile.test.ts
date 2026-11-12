@@ -58,7 +58,7 @@ describe('mcp config file', () => {
     const a = writeMcpConfig(userData, MCP_SERVER_NAME, 'a', URL)
     const b = writeMcpConfig(userData, MCP_SERVER_NAME, 'b', URL)
     expect(a).not.toBe(b)
-    removeMcpConfig(a, () => {})
+    removeMcpConfig(a, 'goals', () => {})
     expect(existsSync(a)).toBe(false)
     expect(existsSync(b)).toBe(true)
   })
@@ -70,6 +70,7 @@ describe('mcp configs per session', () => {
     const configs = createMcpConfigs({
       dir: () => userData,
       serverName: MCP_SERVER_NAME,
+      area: 'goals',
       log: () => {},
       report: () => {}
     })
@@ -86,6 +87,7 @@ describe('mcp configs per session', () => {
     const configs = createMcpConfigs({
       dir: () => userData,
       serverName: MCP_SERVER_NAME,
+      area: 'goals',
       log: () => {},
       report: () => {}
     })
@@ -105,6 +107,7 @@ describe('mcp configs per session', () => {
     const configs = createMcpConfigs({
       dir: () => userData,
       serverName: MCP_SERVER_NAME,
+      area: 'goals',
       log: (l) => lines.push(l),
       report: (code) => reported.push(code)
     })
@@ -113,12 +116,28 @@ describe('mcp configs per session', () => {
     expect(reported).toEqual(['write_failed'])
   })
 
+  it("another server's instance logs a refused write under its own area", () => {
+    const userData = tempDir()
+    writeFileSync(join(userData, 'mcp'), 'not a folder')
+    const lines: string[] = []
+    const configs = createMcpConfigs({
+      dir: () => userData,
+      serverName: 'claude-watcher-memory',
+      area: 'memory',
+      log: (l) => lines.push(l),
+      report: () => {}
+    })
+    expect(configs.write('sess-a', 'secret-token', URL)).toBeNull()
+    expect(lines).toEqual(['[claude-watcher][memory] code=mcp_config_write_failed'])
+  })
+
   it('clearStale removes the files a previous run left (their tokens died with it)', () => {
     const userData = tempDir()
     const leftover = writeMcpConfig(userData, MCP_SERVER_NAME, 'old', URL)
     const configs = createMcpConfigs({
       dir: () => userData,
       serverName: MCP_SERVER_NAME,
+      area: 'goals',
       log: () => {},
       report: () => {}
     })
@@ -132,6 +151,7 @@ describe('mcp configs per session', () => {
     createMcpConfigs({
       dir: () => userData,
       serverName: MCP_SERVER_NAME,
+      area: 'goals',
       log: (l) => lines.push(l),
       report: () => {}
     }).clearStale()

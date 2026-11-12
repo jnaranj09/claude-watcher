@@ -1,6 +1,7 @@
 // What a card carries beside the reducer, and must follow when the card moves (`/clear` re-keys
 // it) or leaves: its pending rename, its Context setup (spec 2026-10-18 §7), and its goal task
-// links, MCP token and `--mcp-config` file (spec 2026-10-19 goals).
+// links, MCP token and `--mcp-config` file (spec 2026-10-19 goals), and its memory token, config
+// file, activity record and the origin of the items it saved (spec 2026-11-11 memory).
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -10,6 +11,13 @@ import { createGoalsStore } from '../persistence/goals'
 import { createGoalTokens } from '../goals/mcp/goalTokens'
 import { MCP_SERVER_NAME, createMcpConfigs } from '../goals/mcp/mcpConfigFile'
 import { createProposals } from '../goals/proposals'
+import { MEMORY_MCP_PATH, MEMORY_MCP_URL } from '../hooks/hookContract'
+import { mcpRoute } from '../mcp/mcpEndpoint'
+import { createMemoryActivity } from '../memory/memoryActivity'
+import { openMemoryDb } from '../memory/memoryDb'
+import { createMemoryMcp } from '../memory/memoryLaunch'
+import { createMemoryStore, type MemoryStore } from '../memory/memoryStore'
+import type { MemorySessionMeta } from '../memory/memoryTools'
 
 type Rebind = (oldId: string, newId: string) => void
 type Forget = (id: string) => void
@@ -33,9 +41,37 @@ function deps(): Parameters<typeof moveCardState>[0] & {
   tokens: ReturnType<typeof createGoalTokens>
   proposals: ReturnType<typeof createProposals>
   mcpConfigs: ReturnType<typeof createMcpConfigs>
+  memoryMcp: ReturnType<typeof createMemoryMcp>
+  memoryTokens: ReturnType<typeof createMemoryMcp>['tokens']
+  memoryActivity: ReturnType<typeof createMemoryActivity>
+  memoryStore: MemoryStore
+  lines: string[]
 } {
   const userData = mkdtempSync(join(tmpdir(), 'cw-card-'))
   dir = userData
+  const open = openMemoryDb(':memory:', { now: () => 1, log: () => {} })
+  if (!open.ok) throw new Error('open failed')
+  let n = 0
+  const memoryStore = createMemoryStore({
+    db: open.db,
+    now: () => 1,
+    newId: () => `m${++n}`,
+    report: () => {},
+    log: () => {}
+  })
+  const memoryActivity = createMemoryActivity()
+  const memoryMcp = createMemoryMcp({
+    dir: () => userData,
+    report: () => {},
+    enabled: () => true,
+    store: () => memoryStore,
+    session: (id) => (id === 'old' || id === 'new' ? LIVE : null),
+    names: { tagIdsByName: () => [], tagName: () => null, goalIdsByName: () => [] },
+    activity: memoryActivity,
+    now: () => 1,
+    log: () => {}
+  })
+  const lines: string[] = []
   return {
     pendingTitles: { rebind: vi.fn<Rebind>(), forget: vi.fn<Forget>() },
     sessionSetup: { rebind: vi.fn<Rebind>(), forget: vi.fn<Forget>() },
@@ -45,10 +81,29 @@ function deps(): Parameters<typeof moveCardState>[0] & {
     mcpConfigs: createMcpConfigs({
       dir: () => userData,
       serverName: MCP_SERVER_NAME,
+      area: 'goals',
       log: () => {},
       report: () => {}
-    })
+    }),
+    memoryMcp,
+    memoryTokens: memoryMcp.tokens,
+    memoryConfigs: memoryMcp.configs,
+    memoryActivity,
+    memoryStore,
+    lines,
+    log: (line) => lines.push(line)
   }
+}
+
+/** A live session the memory tools can see, under either id of a /clear. */
+const LIVE: MemorySessionMeta = {
+  workspaceId: 'w1',
+  folder: '/work/acme',
+  sessionName: 'build',
+  tagIds: [],
+  templateId: null,
+  goalId: null,
+  taskIds: []
 }
 
 describe('card state', () => {
@@ -114,5 +169,81 @@ describe('card state', () => {
     d.goals.linkMany([task], 'gone')
     dropCardState(d, 'gone')
     expect(d.goals.tasksForSession('gone').map((t) => t.id)).toEqual([task])
+  })
+
+  it('a /clear moves the token, the config, the activity and the items to the new id', () => {
+    const d = deps()
+    const token = d.memoryTokens.mint({ sessionId: 'old' })
+    const path = d.memoryMcp.configs.write('old', token, MEMORY_MCP_URL) ?? ''
+    d.memoryActivity.injected('old', { chars: 40, itemIds: [] })
+    const route = mcpRoute(MEMORY_MCP_PATH, d.memoryMcp.endpoint, () => {})
+    const save = (key: string): unknown =>
+      route.open(`Bearer ${token}`)?.({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'memory_save',
+          arguments: { kind: 'specific', key, value: '4242', scope: 'workspace' }
+        }
+      })
+    save('before clear')
+
+    moveCardState(d, 'old', 'new')
+
+    // The same claude keeps its loaded config: the same token now calls as the new id.
+    expect(d.memoryTokens.resolve(token)).toEqual({ sessionId: 'new' })
+    save('after clear')
+    const origins = ['m1', 'm2'].map((id) => d.memoryStore.get(id)?.origin.sessionId)
+    expect(origins).toEqual(['new', 'new'])
+    expect(d.memoryActivity.get('new').injected).not.toBeNull()
+    expect(d.memoryActivity.get('old').injected).toBeNull()
+    dropCardState(d, 'old')
+    expect(existsSync(path)).toBe(true)
+    dropCardState(d, 'new')
+    expect(existsSync(path)).toBe(false)
+  })
+
+  it('a removed card revokes its memory token and forgets its activity, and keeps its items', () => {
+    const d = deps()
+    const token = d.memoryTokens.mint({ sessionId: 'gone' })
+    d.memoryActivity.injected('gone', { chars: 40, itemIds: [] })
+    const item = d.memoryStore.add({
+      text: { kind: 'specific', key: 'k', value: 'v' },
+      workspaceId: 'w1',
+      check: null,
+      basis: 'stated',
+      origin: { by: 'agent', sessionId: 'gone' },
+      meta: {
+        folder: null,
+        sessionName: null,
+        tagIds: [],
+        templateId: null,
+        goalId: null,
+        taskIds: []
+      }
+    })
+    dropCardState(d, 'gone')
+    expect(d.memoryTokens.resolve(token)).toBeNull()
+    expect(d.memoryActivity.get('gone').injected).toBeNull()
+    expect(d.memoryStore.get(item.id)?.origin.sessionId).toBe('gone')
+  })
+
+  it('a memory failure on /clear is logged by code and the rest of the card still moves', () => {
+    const d = deps()
+    d.memoryStore.rebindSession = () => {
+      throw new Error('store_write_failed')
+    }
+    const token = d.memoryTokens.mint({ sessionId: 'old' })
+    expect(() => moveCardState(d, 'old', 'new')).not.toThrow()
+    expect(d.memoryTokens.resolve(token)).toEqual({ sessionId: 'new' })
+    expect(d.pendingTitles.rebind).toHaveBeenCalledWith('old', 'new')
+    expect(d.lines).toEqual(['[claude-watcher][memory] code=memory_rebind_failed'])
+  })
+
+  it('a /clear while memory is off moves the rest of the card', () => {
+    const d = { ...deps(), memoryStore: null }
+    expect(() => moveCardState(d, 'old', 'new')).not.toThrow()
+    expect(d.sessionSetup.rebind).toHaveBeenCalledWith('old', 'new')
   })
 })

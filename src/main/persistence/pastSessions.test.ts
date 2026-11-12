@@ -301,6 +301,30 @@ describe('createPastSessionsStore — archive / get / remove', () => {
     expect(store.remove('s1')).toEqual([])
     expect(store.remove('never')).toEqual([])
   })
+  it('removing a past record marks that session deleted in memory, a workspace cascade does not', () => {
+    const onRemove = vi.fn<(sessionId: string) => void>()
+    const store = createPastSessionsStore({ onRemove })
+    store.archive(ROW)
+    store.archive({ ...ROW, id: 's2', workspaceId: 'w1' })
+    store.remove('s1')
+    // A card deleted before its first prompt has no record, and its items are still its own.
+    store.remove('never')
+    expect(onRemove.mock.calls).toEqual([['s1'], ['never']])
+    store.removeByWorkspace('w1')
+    expect(onRemove.mock.calls).toEqual([['s1'], ['never']])
+  })
+  it('a remove the disk refuses keeps the record and tells memory nothing', () => {
+    const onRemove = vi.fn<(sessionId: string) => void>()
+    const { blobStore } = fakeBlob()
+    const store = createPastSessionsStore({ blobStore, onRemove })
+    store.archive(ROW)
+    blobStore.write = () => {
+      throw new Error('disk full')
+    }
+    expect(() => store.remove('s1')).toThrow()
+    expect(store.get('s1')).not.toBeNull()
+    expect(onRemove).not.toHaveBeenCalled()
+  })
   it('removeByWorkspace cascades only that workspace and reports the count', () => {
     const store = createPastSessionsStore()
     store.archive(ROW)

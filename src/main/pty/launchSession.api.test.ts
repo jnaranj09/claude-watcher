@@ -37,7 +37,16 @@ describe('programmatic API — the initial prompt and the workspace ride the rec
     const { svc, spawn } = makeService()
     svc.launch({ cwd: '/w', name: 'n', initialPrompt: 'do HT-1', workspaceId: 'ws-9' })
     const minted = svc.mintSpawn('t-1')
-    expect(spawn).toHaveBeenCalledWith('sess-1', 'n', NO_LAUNCH_FLAGS, 'do HT-1', false, null, null)
+    expect(spawn).toHaveBeenCalledWith(
+      'sess-1',
+      'n',
+      NO_LAUNCH_FLAGS,
+      'do HT-1',
+      false,
+      null,
+      null,
+      { cwd: '/w', workspaceId: 'ws-9' }
+    )
     expect(minted?.initialPrompt).toBe('do HT-1')
     expect(minted?.workspaceId).toBe('ws-9')
   })
@@ -54,7 +63,8 @@ describe('programmatic API — the initial prompt and the workspace ride the rec
       'do HT-1',
       false,
       null,
-      'sess-1'
+      'sess-1',
+      { cwd: '/w', workspaceId: null }
     )
   })
 })
@@ -153,7 +163,8 @@ describe('past sessions — resume and launchedAt', () => {
       null,
       true,
       null,
-      null
+      null,
+      { cwd: '/c', workspaceId: null }
     )
     expect(launchedSet.has('sess-A')).toBe(true)
     // A dead-pane Reopen re-resumes the SAME conversation, never a fresh id.
@@ -194,7 +205,8 @@ describe('past sessions — resume and launchedAt', () => {
       null,
       true,
       null,
-      'sess-B'
+      'sess-B',
+      { cwd: '/c', workspaceId: null }
     )
   })
 
@@ -225,7 +237,8 @@ describe('past sessions — resume and launchedAt', () => {
       null,
       true,
       null,
-      null
+      null,
+      { cwd: '/c', workspaceId: null }
     )
     expect(minted?.displayName).toBe('renamed later') // the card is born with the same name
 
@@ -238,7 +251,8 @@ describe('past sessions — resume and launchedAt', () => {
       null,
       true,
       null,
-      'sess-A'
+      'sess-A',
+      { cwd: '/c', workspaceId: null }
     )
   })
 
@@ -264,7 +278,8 @@ describe('past sessions — resume and launchedAt', () => {
       null,
       false,
       null,
-      null
+      null,
+      { cwd: '/c', workspaceId: null }
     )
   })
 
@@ -302,7 +317,10 @@ describe('past sessions — resume and launchedAt', () => {
     expect(minted?.sessionId).toBe('fresh')
     expect(minted?.resume).toBeNull()
     expect(minted?.launchedAt).toBe(5)
-    expect(spawn).toHaveBeenLastCalledWith('fresh', 'n', NO_LAUNCH_FLAGS, null, false, null, null)
+    expect(spawn).toHaveBeenLastCalledWith('fresh', 'n', NO_LAUNCH_FLAGS, null, false, null, null, {
+      cwd: '/c',
+      workspaceId: null
+    })
     expect(svc.peekSpawnOverride(terminalId)?.launchedAt).toBe(5)
   })
 })

@@ -30,6 +30,7 @@ import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 import type { McpToolDef, McpToolOutcome, McpTools } from '../mcp/mcpEndpoint'
 import { formatDay } from './formatDay'
 import type { MemoryActivityLog } from './memoryActivity'
+import type { MemoryNames } from './memoryNames'
 import type { FilterContext, MemoryScope, MemoryStore } from './memoryStore'
 
 export type MemoryGrant = { sessionId: string }
@@ -251,11 +252,7 @@ export function createMemoryTools(deps: {
   store: () => MemoryStore | null
   /** null = not a live session. */
   session: (sessionId: string) => MemorySessionMeta | null
-  names: {
-    tagIdsByName(workspaceId: string, name: string): string[]
-    tagName(id: string): string | null
-    goalIdsByName(workspaceId: string, name: string): string[]
-  }
+  names: MemoryNames
   activity: Pick<MemoryActivityLog, 'record'>
   now: () => number
   log: (line: string) => void

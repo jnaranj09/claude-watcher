@@ -65,7 +65,10 @@ import type { GoalTokens, Grant } from '../goals/mcp/goalTokens'
 import type { Proposals } from '../goals/proposals'
 import type { McpConfigs } from '../goals/mcp/mcpConfigFile'
 import { mcpRoute, type McpEndpoint } from '../mcp/mcpEndpoint'
-import { GOALS_MCP_PATH } from '../hooks/hookContract'
+import { GOALS_MCP_PATH, MEMORY_MCP_PATH } from '../hooks/hookContract'
+import type { MemoryMcp } from '../memory/memoryLaunch'
+import type { MemoryActivityLog } from '../memory/memoryActivity'
+import type { MemoryStore } from '../memory/memoryStore'
 import type { TerminalManager } from '../pty/terminalManager'
 import type { ShellCompanionRegistry } from '../pty/shellCompanion'
 import type { ProcessSessionSource } from '../pty/claudeSessionFile'
@@ -115,6 +118,9 @@ export interface LaunchBoardSeam {
   hasSessionsInWorkspace(workspaceId: string): boolean
   /** Past sessions — is this id a live card on THIS window's board? Read-only. */
   hasSession(sessionId: string): boolean
+  /** Memory — the live card for this id on THIS window's board, or undefined. Read-only; the
+   *  memory tools stamp what they save from it (memory/memoryLaunch.ts `liveSessionMeta`). */
+  sessionOf(sessionId: string): Session | undefined
   /** Story 6.3 removal, now with the exit's REASON (D-3): `archive` snapshots the card into the
    *  past-sessions store BEFORE it goes; `delete` drops any record. Idempotent either way. */
   removeLaunched(sessionId: string, reason: RemovalReason): void
@@ -188,6 +194,12 @@ export interface WatchFeedDeps {
     configs: McpConfigs
     endpoint: McpEndpoint<Grant>
   }
+  /** Memory (spec 2026-11-11): the memory server's tokens, config files and endpoint (each
+   *  window's hook listener serves it), the activity record, and the store (null while memory is
+   *  off), all of which follow a card on `/clear`. */
+  memoryMcp: MemoryMcp
+  memoryActivity: MemoryActivityLog
+  getMemoryStore: () => MemoryStore | null
 }
 
 export interface WatchFeed {
@@ -221,7 +233,10 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
     rulesSnapshot,
     apiLog,
     getGoalsStore,
-    goalMcp
+    goalMcp,
+    memoryMcp,
+    memoryActivity,
+    getMemoryStore
   } = deps
 
   // Transcript watchers — per-window handles, disposed in teardownWatchFeed so no fs watch
@@ -506,7 +521,12 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       goals: getGoalsStore(),
       tokens: goalMcp.tokens,
       proposals: goalMcp.proposals,
-      mcpConfigs: goalMcp.configs
+      mcpConfigs: goalMcp.configs,
+      memoryTokens: memoryMcp.tokens,
+      memoryConfigs: memoryMcp.configs,
+      memoryActivity,
+      memoryStore: getMemoryStore(),
+      log: (line) => console.warn(line)
     })
 
     /** D-3 — the ONE removal chokepoint for this window. Reads the card BEFORE the reducer drops
@@ -524,7 +544,8 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
         sessionId,
         stored
       )
-      // A removed card can have no pending rename to push, no setup to show, and no live MCP token.
+      // A removed card can have no pending rename to push, no setup to show, no live MCP token and
+      // no memory activity (its memory items stay).
       dropCardState(cardStateDeps(), sessionId)
       reducer.applyHookStatus(sessionId, { kind: 'removed' }).forEach(handleDelta)
     }
@@ -540,6 +561,7 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
         return false
       },
       hasSession: (sessionId) => reducer.snapshotMap().has(sessionId),
+      sessionOf: (sessionId) => reducer.snapshotMap().get(sessionId),
       // Story 6.3 — the fast stop/exit removal rides the HOOK-REMOVAL reducer path (REUSE,
       // not a new reducer API): applyHookStatus(id, removed) deletes the session + emits
       // `session.removed`, and the delta takes the SAME handleDelta chokepoint (tracker →
@@ -747,8 +769,8 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       // D-10 — a rename waiting for the next prompt follows the card to its new id, or the next
       // prompt's read-back reverts it to claude's stale title (pendingTitles.ts `rebind`).
       // Context's setup follows the card too; the mod's next report arrives under the new id. So do
-      // its goal task links, its MCP token (the same claude keeps its loaded config) and a
-      // planner's proposal.
+      // its goal task links, its MCP tokens (the same claude keeps its loaded configs), a
+      // planner's proposal, its memory activity and the origin of the memory items it saved.
       moveCardState(cardStateDeps(), oldSessionId, newSessionId)
       sendLaunchCorrelated(wc, terminalId, newSessionId)
       // R8 — tell an API stream on the OLD id where the card went, BEFORE its removal: the stream
@@ -925,8 +947,12 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
           },
           prompt
         ),
-      // The app's MCP endpoints, each behind its own per-launch bearer tokens: the goals server.
-      mcpRoutes: [mcpRoute(GOALS_MCP_PATH, goalMcp.endpoint, (line) => console.warn(line))],
+      // The app's MCP endpoints, each behind its own per-launch bearer tokens: the goals server
+      // and the memory server (a bearer of one never opens the other).
+      mcpRoutes: [
+        mcpRoute(GOALS_MCP_PATH, goalMcp.endpoint, (line) => console.warn(line)),
+        mcpRoute(MEMORY_MCP_PATH, memoryMcp.endpoint, (line) => console.warn(line))
+      ],
       log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`),
       // SEC-6 / UX-05 — only a bind THIS process made lets a spawn carry `--settings`.
       onListening: () => serverHealth.hookBound(),

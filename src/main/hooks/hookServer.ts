@@ -10,7 +10,7 @@
 // 'error' handler on the server tolerates EADDRINUSE (log + skip).
 // `/mod/report` carries the bridge mod's report (ModReportSchema), behind the same method, Origin
 // and body-cap guards; `/mod/prompt` carries who sent each prompt (ModPromptSchema), behind the same
-// guards. Each MCP route (`mcpRoutes`; the goals server at `/mcp/goals`) is an app MCP endpoint
+// guards. Each MCP route (`mcpRoutes`; the goals server at `/mcp/goals`, the memory server at `/mcp/memory`) is an app MCP endpoint
 // behind the same guards plus its own bearer token (401 before the body is read;
 // `mcp/mcpEndpoint.ts` parses the JSON-RPC body). A path under `/mcp/` with no route is 404. Every
 // other path is a hook, as before.

@@ -7,7 +7,6 @@ import { GOAL_FOLDER_MISSING, LAUNCH_CANCELLED } from '../../shared/schemas/goal
 import type { GoalsStartRequest } from '../../shared/schemas/goal'
 import type { LaunchRequest } from '../pty/launchSession'
 import {
-  goalCommandFields,
   goalSpawnExtras,
   startGoalSessions,
   startPlanner,
@@ -18,7 +17,6 @@ import {
 } from './goalLaunch'
 import { createGoalTokens, type GoalTokens } from './mcp/goalTokens'
 import { buildPlannerPrompt } from './goalPrompt'
-import { composeClaudeCommand, QUESTION_FORMAT_PROMPT } from '../pty/claudeBin'
 import { MCP_SERVER_NAME, createMcpConfigs } from './mcp/mcpConfigFile'
 import { createStorageHealth } from '../storageHealth'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -449,6 +447,7 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
       const configs = createMcpConfigs({
         dir: () => userData,
         serverName: MCP_SERVER_NAME,
+        area: 'goals',
         log: () => {},
         report: health.reporterFor('goals')
       })
@@ -628,54 +627,5 @@ describe('startPlanner', () => {
       await expect(startPlanner(id, d)).rejects.toThrow(code)
       expect((d as unknown as { launched: unknown[] }).launched).toEqual([])
     }
-  })
-})
-
-describe('goalCommandFields', () => {
-  const extras = {
-    appendPrompt: 'TASK BLOCK',
-    mcpConfigPath: '/ud/mcp/abc.json',
-    allowedTools: 'mcp__claude-watcher__mark_task_done'
-  }
-
-  it('hands the task block (after the question nudge), the MCP config and the tools on', () => {
-    expect(goalCommandFields(extras)).toEqual({
-      appendSystemPrompt: `${QUESTION_FORMAT_PROMPT}\n\nTASK BLOCK`,
-      mcpConfigPaths: ['/ud/mcp/abc.json'],
-      allowedTools: 'mcp__claude-watcher__mark_task_done'
-    })
-  })
-
-  it('null extras give the question prompt alone and no MCP flag in the command', () => {
-    const fields = goalCommandFields({
-      appendPrompt: null,
-      mcpConfigPath: null,
-      allowedTools: null
-    })
-    expect(fields).toEqual({
-      appendSystemPrompt: QUESTION_FORMAT_PROMPT,
-      mcpConfigPaths: [],
-      allowedTools: null
-    })
-    const base = {
-      claudeCommand: 'claude',
-      sessionId: 'aaaaaaaa-0000-4000-8000-000000000001',
-      displayName: 'x',
-      hookSettingsPath: null,
-      model: null,
-      permissionMode: null,
-      effort: null,
-      initialPrompt: null,
-      resume: false,
-      pluginDir: null
-    }
-    const bare = composeClaudeCommand({ ...base, ...fields })
-    expect(bare).not.toContain('--mcp-config')
-    expect(bare).not.toContain('--allowedTools')
-    const full = composeClaudeCommand({ ...base, ...goalCommandFields(extras) })
-    expect(full).toContain('--mcp-config')
-    expect(full).toContain('/ud/mcp/abc.json')
-    expect(full).toContain('--allowedTools')
-    expect(full).toContain('TASK BLOCK')
   })
 })

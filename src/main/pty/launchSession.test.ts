@@ -345,3 +345,41 @@ describe('launchSession — goalLaunch', () => {
     expect(seen.at(-1)).toBeNull()
   })
 })
+
+// Memory (spec 2026-11-11): every actual spawn hands the factory the launch's folder and the
+// workspace it names (null = the active one at spawn), so memory can build that folder's index.
+describe('launchSession — the launch folder and workspace reach the spawn factory', () => {
+  function serviceSeeing(seen: unknown[]): LaunchService {
+    let i = 0
+    return createLaunchService({
+      launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
+      spawn: (sessionId, _name, _flags, _prompt, _resume, _goal, _previous, launch) => {
+        seen.push(launch)
+        return shellClaudeSpawn(sessionId)
+      },
+      newTerminalId: () => 't-1',
+      newSessionId: () => `sess-${++i}`
+    })
+  }
+
+  it('on a first open and on a Reopen', () => {
+    const seen: unknown[] = []
+    const svc = serviceSeeing(seen)
+    svc.launch({ cwd: '/work/acme', name: 'acme', workspaceId: 'w2' })
+    svc.mintSpawn('t-1')
+    svc.mintSpawn('t-1') // a dead-pane Reopen
+    expect(seen).toEqual([
+      { cwd: '/work/acme', workspaceId: 'w2' },
+      { cwd: '/work/acme', workspaceId: 'w2' }
+    ])
+  })
+
+  it('on a resume, and null for a launch that names no workspace', () => {
+    const seen: unknown[] = []
+    const svc = serviceSeeing(seen)
+    svc.launch({ cwd: '/work/acme', name: 'acme', resumeSessionId: 'past-1' })
+    svc.mintSpawn('t-1')
+    expect(seen).toEqual([{ cwd: '/work/acme', workspaceId: null }])
+  })
+})

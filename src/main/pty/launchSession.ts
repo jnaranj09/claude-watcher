@@ -174,7 +174,11 @@ export interface LaunchServiceOptions {
    *  `lastSessionId` before this mint (null on the first spawn), so a Reopen carries over only
    *  the work still linked to the session it replaces. The factory links the tasks to `sessionId`
    *  and adds their prompt block, plus `mark_task_done` when the operator chose it
-   *  (`goalSpawnExtras`, goals/goalLaunch.ts). */
+   *  (`goalSpawnExtras`, goals/goalLaunch.ts).
+   *
+   *  Memory: `launch` is the override's folder and the workspace it names (null = main's active
+   *  workspace at spawn, which the factory resolves), so the factory can give the session the
+   *  memory index for that folder (`memorySpawnExtras`, memory/memoryLaunch.ts). */
   spawn: (
     sessionId: string,
     displayName: string,
@@ -182,7 +186,8 @@ export interface LaunchServiceOptions {
     initialPrompt: string | null,
     resume: boolean,
     goalLaunch: GoalLaunch | null,
-    previousSessionId: string | null
+    previousSessionId: string | null,
+    launch: { cwd: string; workspaceId: string | null }
   ) => { file: string; args?: string[]; env?: Record<string, string> }
   /** Mint a fresh opaque terminalId per launch (NOT the session id, NOT a pid — F6). Injected
    *  for deterministic tests; defaults to a crypto-random id in main. */
@@ -376,7 +381,7 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // the flags ride the same override — a re-spawn of this terminal (Reopen) keeps them. The
     // resume flag tells the factory to compose `claude --resume <id>` instead. Goals: the goal
     // launch rides along too, with the id the last spawn minted, so each spawn links its tasks
-    // to THIS minted id.
+    // to THIS minted id. Memory: the folder and the named workspace, for the folder's index.
     const base = options.spawn(
       sessionId,
       displayName,
@@ -384,7 +389,8 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
       override.initialPrompt,
       override.resume !== null,
       override.goalLaunch,
-      override.lastSessionId
+      override.lastSessionId,
+      { cwd: override.cwd, workspaceId: override.workspaceId }
     )
     const spawn: LaunchSpawnConfig = {
       file: base.file,

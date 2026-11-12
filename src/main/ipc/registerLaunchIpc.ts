@@ -61,7 +61,9 @@ import { applyBridgeMod } from '../mods/bridgeModSpawn'
 import type { ModSkipReason } from '../../shared/schemas/contextIpc'
 import type { ClaudeVersion } from '../../shared/launch/claudeVersion'
 import type { LaunchBoardSeam } from '../window/watchFeed'
-import { goalCommandFields, type GoalLaunch, type GoalSpawnExtras } from '../goals/goalLaunch'
+import type { GoalLaunch, GoalSpawnExtras } from '../goals/goalLaunch'
+import type { MemorySpawnExtras } from '../memory/memoryLaunch'
+import { spawnCommandFields } from '../pty/spawnExtras'
 import type { TrustedIpc } from './trustedIpc'
 import { boardWorkspaceOf } from './boardWorkspaceOf'
 
@@ -146,6 +148,16 @@ export interface LaunchIpcDeps {
     resume: boolean,
     previousSessionId: string | null
   ) => GoalSpawnExtras
+  /** Memory: what one spawn of `sessionId` adds (the index for its folder, the memory server's
+   *  config and tools, and the env that turns claude's auto memory off), or nothing
+   *  (memory/memoryLaunch.ts). Read at spawn time; `previousSessionId` as for goals. */
+  memorySpawnExtras: (
+    sessionId: string,
+    launch: { cwd: string; workspaceId: string },
+    previousSessionId: string | null
+  ) => MemorySpawnExtras
+  /** The workspace a launch that names none lands in (main's active one, read at spawn). */
+  activeWorkspaceId: () => string
   isSessionLive: (sessionId: string) => boolean
   getTerminalManager: () => TerminalManager | null
   getPastSessionsStore: () => PastSessionsStore | null
@@ -181,6 +193,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     claudeVersionAllowsLaunch,
     bridgeMod,
     goalSpawnExtras,
+    memorySpawnExtras,
+    activeWorkspaceId,
     isSessionLive,
     getTerminalManager,
     getPastSessionsStore,
@@ -250,7 +264,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     initialPrompt: string | null,
     resume: boolean,
     goalLaunch: GoalLaunch | null,
-    previousSessionId: string | null
+    previousSessionId: string | null,
+    launch: { cwd: string; workspaceId: string | null }
   ): {
     file: string
     args: string[]
@@ -296,6 +311,14 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     // minted id first), and `mark_task_done` when the operator chose it. Nothing for any other
     // launch.
     const goal = goalSpawnExtras(sessionId, goalLaunch, resume, previousSessionId)
+    // Memory: the folder's index, the memory tools and claude's own auto memory off for this
+    // launch, or nothing at all (memory off, hook port not ours, database closed, a failure).
+    const memory = memorySpawnExtras(
+      sessionId,
+      { cwd: launch.cwd, workspaceId: launch.workspaceId ?? activeWorkspaceId() },
+      previousSessionId
+    )
+    Object.assign(env, memory.env)
 
     return {
       file: SHELL,
@@ -305,7 +328,7 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
       // generating its own title, `--settings <file>` carries the hook block WITHOUT touching the
       // operator's project, and `--append-system-prompt` injects the deterministic-attention
       // question-format nudge (DA-4; probe-verified GO), plus the task block of a session started
-      // from goal tasks.
+      // from goal tasks and the memory index, with each server's `--mcp-config` file and tools.
       args: [
         '-l',
         '-c',
@@ -315,7 +338,7 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
           displayName,
           hookSettingsPath: hookSettingsPathForSpawn(),
           pluginDir,
-          ...goalCommandFields(goal),
+          ...spawnCommandFields(goal, memory),
           model: flags.model,
           permissionMode: flags.permissionMode,
           effort: flags.effort,

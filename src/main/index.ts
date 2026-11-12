@@ -53,6 +53,13 @@ import { MEMORY_DB_FILE } from './memory/memoryDb'
 import { createMemoryActivity } from './memory/memoryActivity'
 import { memoryNameLookups } from './memory/memoryNames'
 import { openMemory, type OpenedMemory } from './memory/memoryStartup'
+import type { MemoryStore } from './memory/memoryStore'
+import {
+  createMemoryMcp,
+  liveSessionMeta,
+  markSessionDeletedInMemory,
+  memorySpawnExtras
+} from './memory/memoryLaunch'
 import { goalSpawnExtras } from './goals/goalLaunch'
 import { createGoalTokens } from './goals/mcp/goalTokens'
 import { MCP_SERVER_NAME, createMcpConfigs } from './goals/mcp/mcpConfigFile'
@@ -60,7 +67,7 @@ import { createMcpTools } from './goals/mcp/mcpTools'
 import { createMcpEndpoint } from './mcp/mcpEndpoint'
 import { createProposals } from './goals/proposals'
 import { createGoalsFileExporter, nodeGoalsFileFs, type GoalsFileExporter } from './goals/goalsFile'
-import { GOALS_MCP_URL } from './hooks/hookContract'
+import { GOALS_MCP_URL, MEMORY_MCP_URL } from './hooks/hookContract'
 import type { TagRuleRef } from './persistence/tags'
 import type { RulesEngine } from './rules/rulesEngine'
 import type { RulesSnapshot } from './rules/evaluateRules'
@@ -558,6 +565,29 @@ const memoryNames = memoryNameLookups({
   tags: () => tagsStore?.list() ?? [],
   goals: () => goalsStore?.view().goals ?? []
 })
+/** Memory on: the setting, read live (off takes effect for the next launch and for every tool call). */
+const memoryEnabled = (): boolean => (settingsStore?.get() ?? DEFAULT_SETTINGS).memoryEnabled
+const memoryStore = (): MemoryStore | null => memory?.store ?? null
+// The memory server (`/mcp/memory` on the hook listener, memory/memoryLaunch.ts): its tokens are its
+// own, its config files share the goals server's folder (the goals instance's one start sweep
+// clears both), and its tools read the store through the getter on every call.
+const memoryMcp = createMemoryMcp({
+  dir: () => app.getPath('userData'),
+  report: storageHealth.reporterFor('memory'),
+  enabled: memoryEnabled,
+  store: memoryStore,
+  session: liveSessionMeta({
+    boards: () => launchBoardSeams.values(),
+    tasksForSession: (id) => goalsStore?.tasksForSession(id) ?? []
+  }),
+  names: memoryNames,
+  activity: memoryActivity,
+  now: () => Date.now(),
+  log: (line) => console.warn(line)
+})
+/** A deleted session's memory items stay, marked `Session deleted` (pastSessions.ts `onRemove`). */
+const markMemorySessionDeleted = (sessionId: string): void =>
+  markSessionDeletedInMemory(memoryStore, sessionId, (line) => console.warn(line))
 /** The memory push: any change, whoever made it, tells every window to list again. */
 function pushMemoryChanged(): void {
   for (const win of BrowserWindow.getAllWindows()) sendMemoryChanged(win.webContents)
@@ -620,6 +650,7 @@ const goalMcp = (() => {
     configs: createMcpConfigs({
       dir: () => app.getPath('userData'),
       serverName: MCP_SERVER_NAME,
+      area: 'goals',
       log,
       report: storageHealth.reporterFor('goals')
     }),
@@ -658,7 +689,10 @@ const { registerWatchFeed, teardownWatchFeed } = createWatchFeed({
   rulesSnapshot,
   apiLog,
   getGoalsStore: () => goalsStore,
-  goalMcp
+  goalMcp,
+  memoryMcp,
+  memoryActivity,
+  getMemoryStore: memoryStore
 })
 
 // Story 3.5 (SM-2) — the ONE app-global telemetry store. Append-only JSONL in userData
@@ -708,7 +742,7 @@ const {
   rewriteGoalsFile: (folder) => {
     if (goalsStore !== null) goalsFile?.rewrite(folder, goalsStore.view())
   },
-  getMemoryStore: () => memory?.store ?? null,
+  getMemoryStore: memoryStore,
   memoryNames,
   memoryActivity
 })
@@ -1032,6 +1066,7 @@ app
     registerGoalsIpc()
     // Every token in a file the last run left died with it. Not under SMOKE: smoke shares the
     // default userData and skips the single-instance lock, so a running app's files are live.
+    // The one sweep for every MCP server: the memory server's files share this folder.
     if (!SMOKE) goalMcp.configs.clearStale()
 
     // Memory — after tags and goals (its filters name them). Not under SMOKE (memoryStartup.ts).
@@ -1071,7 +1106,8 @@ app
             blobStore: createElectronPastSessionsBlobStore(),
             workspaceExists,
             hasTranscript: archiveHasTranscript,
-            report: storageHealth.reporterFor('past_sessions')
+            report: storageHealth.reporterFor('past_sessions'),
+            onRemove: markMemorySessionDeleted
           })
     } catch {
       // Code ONLY — never the error: a SyntaxError message quotes file content, and a record
@@ -1082,7 +1118,8 @@ app
       storageHealth.report('past_sessions', 'read_failed')
       pastSessionsStore = createPastSessionsStore({
         workspaceExists,
-        hasTranscript: archiveHasTranscript
+        hasTranscript: archiveHasTranscript,
+        onRemove: markMemorySessionDeleted
       })
     }
     registerPastSessionsIpc()
@@ -1167,6 +1204,23 @@ app
           resume,
           previousSessionId
         ),
+      memorySpawnExtras: (sessionId, launch, previousSessionId) =>
+        memorySpawnExtras(
+          {
+            enabled: memoryEnabled,
+            hookListening: () => serverHealth.hookListening(),
+            store: memoryStore,
+            tokens: memoryMcp.tokens,
+            configs: memoryMcp.configs,
+            url: MEMORY_MCP_URL,
+            activity: memoryActivity,
+            log: (line) => console.warn(line)
+          },
+          sessionId,
+          launch,
+          previousSessionId
+        ),
+      activeWorkspaceId: () => requireWorkspacesStore().activeId(),
       isSessionLive,
       getTerminalManager: () => terminalManager,
       getPastSessionsStore: () => pastSessionsStore,

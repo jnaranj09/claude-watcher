@@ -85,6 +85,13 @@ export const GOALS_MCP_PATH = `${MCP_PATH_PREFIX}goals`
 /** The URL a session's `--mcp-config` file names (`goals/mcp/mcpConfigFile.ts`). */
 export const GOALS_MCP_URL = `http://${HOST}:${PORT}${GOALS_MCP_PATH}`
 
+/** The memory MCP endpoint (the six memory tools), on the hook listener behind its own
+ *  per-launch bearer tokens (spec 2026-11-11 memory; `memory/memoryLaunch.ts`). */
+export const MEMORY_MCP_PATH = `${MCP_PATH_PREFIX}memory`
+
+/** The URL a memory session's `--mcp-config` file names. */
+export const MEMORY_MCP_URL = `http://${HOST}:${PORT}${MEMORY_MCP_PATH}`
+
 /**
  * Maximum accepted HTTP request body size in bytes.
  * Most hook payloads are compact JSON, but a `PostToolUse` carries the tool's whole input and

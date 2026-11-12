@@ -21,16 +21,10 @@ import { SessionNameSchema } from '../../shared/schemas/launch'
 import type { GoalsStartResult } from '../../shared/ipc/contract'
 import { GOAL_ERROR, type GoalsStore } from '../persistence/goals'
 import { LAUNCH_FOLDER_MISSING, type LaunchRequest } from '../pty/launchSession'
-import { QUESTION_FORMAT_PROMPT, type ClaudeCommandSpec } from '../pty/claudeBin'
 import { requireClaudeVersion } from '../pty/inAppLaunch'
-import {
-  buildPlannerPrompt,
-  buildWorkerPrompt,
-  joinSystemPrompt,
-  taskSessionName
-} from './goalPrompt'
+import { buildPlannerPrompt, buildWorkerPrompt, taskSessionName } from './goalPrompt'
 import type { GoalTokens } from './mcp/goalTokens'
-import { MCP_SERVER_NAME, type McpConfigs } from './mcp/mcpConfigFile'
+import { MCP_SERVER_NAME, grantMcpConfig, type McpConfigs } from './mcp/mcpConfigFile'
 import { MARK_TASK_DONE, PLANNER_TOOLS } from './mcp/mcpTools'
 
 /** What a launch from goals carries on its durable recipe (`LaunchOverride.goalLaunch`). */
@@ -38,24 +32,12 @@ export type GoalLaunch =
   | { kind: 'worker'; taskIds: readonly string[]; markDone: boolean }
   | { kind: 'planner'; goalId: string }
 
-/** What one spawn adds to the claude command. Every field null = nothing added. */
+/** What one spawn adds to the claude command (joined with memory's by `pty/spawnExtras.ts`).
+ *  Every field null = nothing added. */
 export interface GoalSpawnExtras {
   appendPrompt: string | null
   mcpConfigPath: string | null
   allowedTools: string | null
-}
-
-/** The goal part of the claude command: the question-format nudge joined with the task block, and
- *  the goals server's MCP config (the one entry of `mcpConfigPaths`) and allowed tools. Null
- *  extras leave the nudge alone and no MCP flag. */
-export function goalCommandFields(
-  extras: GoalSpawnExtras
-): Pick<ClaudeCommandSpec, 'appendSystemPrompt' | 'mcpConfigPaths' | 'allowedTools'> {
-  return {
-    appendSystemPrompt: joinSystemPrompt(QUESTION_FORMAT_PROMPT, extras.appendPrompt),
-    mcpConfigPaths: extras.mcpConfigPath === null ? [] : [extras.mcpConfigPath],
-    allowedTools: extras.allowedTools
-  }
 }
 
 const NO_EXTRAS: GoalSpawnExtras = { appendPrompt: null, mcpConfigPath: null, allowedTools: null }
@@ -159,14 +141,7 @@ function grantMarkDone(
   workspaceId: string
 ): string | null {
   if (mcp === null) return null
-  if (!mcp.hookListening()) {
-    mcp.log('[claude-watcher][goals] code=mcp_hook_port_not_ours')
-    return null
-  }
-  const token = mcp.tokens.mint({ sessionId, workspaceId, mode: 'worker' })
-  const path = mcp.configs.write(sessionId, token, mcp.url)
-  if (path === null) mcp.tokens.revoke(sessionId) // `write` logged the code
-  return path
+  return grantMcpConfig(mcp, 'goals', { sessionId, workspaceId, mode: 'worker' })
 }
 
 /**
@@ -180,21 +155,13 @@ function plannerExtras(deps: GoalSpawnDeps, sessionId: string, goalId: string): 
   const view = store.view()
   const goal = view.goals.find((g) => g.id === goalId)
   if (mcp === null || goal === undefined) return NO_EXTRAS
-  if (!mcp.hookListening()) {
-    mcp.log('[claude-watcher][goals] code=mcp_hook_port_not_ours')
-    return NO_EXTRAS
-  }
-  const token = mcp.tokens.mint({
+  const path = grantMcpConfig(mcp, 'goals', {
     sessionId,
     workspaceId: goal.workspaceId,
     mode: 'planner',
     goalId: goal.id
   })
-  const path = mcp.configs.write(sessionId, token, mcp.url)
-  if (path === null) {
-    mcp.tokens.revoke(sessionId) // `write` logged the code
-    return NO_EXTRAS
-  }
+  if (path === null) return NO_EXTRAS
   return {
     appendPrompt: buildPlannerPrompt({
       goalName: goal.name,

@@ -41,7 +41,8 @@ beforeEach(() => {
   activity = createMemoryActivity()
   names = {
     tagIdsByName: vi.fn((_w: string, name: string) => (name === 'infra' ? ['t1'] : [])),
-    goalIdsByName: vi.fn((): string[] => [])
+    goalIdsByName: vi.fn((): string[] => []),
+    tagName: vi.fn((): string | null => null)
   }
   h = createMemoryIpcHandlers({ store: () => store, names, activity })
 })

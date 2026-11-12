@@ -39,6 +39,12 @@ export interface PastSessionsStoreOptions {
    *  it gets no record. index.ts wires `pty/claudeTranscript.ts` (a known path, else a scan by
    *  id; fails open); the default says every transcript exists. */
   hasTranscript?: (sessionId: string, knownPath: string | undefined) => boolean
+  /** Memory (spec 2026-11-11): a session the operator deleted (a Forget, or a card's Delete, which
+   *  drops its record) keeps its memory items, marked `Session deleted`. Called after every
+   *  `remove` the disk kept, known id or not (a card deleted before its first prompt has no
+   *  record); never by `removeByWorkspace` (the cascade deletes those items). Must not throw:
+   *  index.ts wires `markSessionDeletedInMemory`. */
+  onRemove?: (sessionId: string) => void
 }
 
 export interface PastSessionsStore {
@@ -214,6 +220,9 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
     // Forget — the dialog's own action (UX-06): a record the disk kept must not vanish from it.
     const previous = byId.get(id)
     if (previous !== undefined && byId.delete(id)) commit(() => byId.set(id, previous))
+    // After the commit: a refused write threw above, and the record and its items stay as they
+    // were.
+    options.onRemove?.(id)
     return list()
   }
 
