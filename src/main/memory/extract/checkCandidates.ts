@@ -70,13 +70,14 @@ function strongest<T>(
 
 const WORD_START = /^[\p{L}\p{N}_]/u
 const WORD_END = /[\p{L}\p{N}_]$/u
-/** A `.` or `-` between two letters or digits joins them into one token (`1.2.34`, `2026-11-12`,
- *  `README.md`); R15. */
+/** A `.` or `-` joins the value's edge character (a letter, digit or `_`) to a letter or digit on
+ *  the far side into one token (`1.2.34`, `2026-11-12`, `README.md`, `__init__.py`); R15. */
 const JOIN_START = /^[.-][\p{L}\p{N}]/u
 const JOIN_END = /[\p{L}\p{N}][.-]$/u
 
-/** The text left of a cut and the text right of it are one token there: a word character on both
- *  sides, or a word character on one side and `.` / `-` then a letter or digit on the other. */
+/** The text left of a cut and the text right of it are one token there: a word character (letter,
+ *  digit or `_`) on both sides, or a word character on the value's side and `.` / `-` then a
+ *  letter or digit on the other. */
 const joins = (left: string, right: string): boolean =>
   (WORD_END.test(left) && (WORD_START.test(right) || JOIN_START.test(right))) ||
   (JOIN_END.test(left) && WORD_START.test(right))
@@ -286,20 +287,43 @@ function checkOne(c: ExtractCandidate, s: Shaped, ctx: Ctx): Checked | DropReaso
   return { kind: 'item', ...reconciled, text: s.text, check: s.check, basis: found.basis, source }
 }
 
-/** The addendum's "Checking and writing candidates", steps 1 to 5, in that order. */
+const twinFold = (text: string): string => normalise(text).toLowerCase()
+
+/** R20: what a kept candidate writes to. An `add` writes a new item or task in the session's
+ *  workspace (D18: every add of one answer has the same scope), so its kind and folded key or
+ *  title name it; an `update` or `none` writes to a saved item or task, named by its id. null
+ *  for the episode (step 1 keeps at most one). */
+function twinKey(checked: Checked): string | null {
+  if (checked.kind === 'episode') return null
+  if (checked.kind === 'task')
+    return checked.action === 'add' ? `task add ${twinFold(checked.title)}` : `task ${checked.id}`
+  return checked.action === 'add'
+    ? `${checked.text.kind} add ${twinFold(headOf(checked.text))}`
+    : `item ${checked.id}`
+}
+
+/** The addendum's "Checking and writing candidates", steps 1 to 5, in that order; then R20: a
+ *  later candidate that writes to the same thing as an earlier kept one is dropped (`invalid`),
+ *  the first wins. */
 export function checkCandidates(
   output: ExtractOutput,
   ctx: Ctx
 ): { kept: Checked[]; dropped: DropReason[] } {
   const kept: Checked[] = []
   const dropped: DropReason[] = []
+  const written = new Set<string>()
   let episodes = 0
   for (const c of output.candidates) {
     const s = shape(c, ctx.final, c.type !== 'episode' || episodes === 0)
     if (c.type === 'episode') episodes += 1
     const result = s === null ? 'invalid' : checkOne(c, s, ctx)
+    const key = typeof result === 'string' ? null : twinKey(result)
     if (typeof result === 'string') dropped.push(result)
-    else kept.push(result)
+    else if (key !== null && written.has(key)) dropped.push('invalid')
+    else {
+      if (key !== null) written.add(key)
+      kept.push(result)
+    }
   }
   return { kept, dropped }
 }

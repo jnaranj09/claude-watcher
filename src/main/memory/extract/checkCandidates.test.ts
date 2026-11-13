@@ -202,7 +202,10 @@ describe('checkCandidates: the quote', () => {
       ['version 1.2.34 ready', '2.34', '2.34 ready'],
       ['version 1.2.34 ready', '2.34', '.2.34 ready'],
       ['released 2026-11-12 today', '11-12', '11-12 today'],
-      ['open README.md now', 'README', 'open README']
+      ['open README.md now', 'README', 'open README'],
+      ['released 2026-11-12 today', '2026-11', 'released 2026-11'],
+      ['shipped 1.2.34-beta now', '1.2.34', 'shipped 1.2.34'],
+      ['shipped 1.2.34-beta now', 'beta', 'beta now']
     ]
     for (const [text, value, evidence] of cases) {
       expect(
@@ -217,7 +220,10 @@ describe('checkCandidates: the quote', () => {
       ['host 127.0.0.1 up', '127.0.0', 'host 127.0.0.1 up'],
       ['version 1.2.34 ready', '2.34', 'version 1.2.34 ready'],
       ['released 2026-11-12 today', '11-12', 'released 2026-11-12 today'],
-      ['open README.md now', 'README', 'open README.md now']
+      ['open README.md now', 'README', 'open README.md now'],
+      ['released 2026-11-12 today', '2026-11', 'released 2026-11-12 today'],
+      ['shipped 1.2.34-beta now', '1.2.34', 'shipped 1.2.34-beta now'],
+      ['shipped 1.2.34-beta now', 'beta', 'shipped 1.2.34-beta now']
     ]
     for (const [text, value, evidence] of cases) {
       expect(
@@ -843,5 +849,115 @@ describe('findValue', () => {
     expect(found?.quote.length).toBeLessThanOrEqual(500)
     expect(found?.quote).toContain(value)
     expect(findValue('v'.repeat(501), [entry(5, 'result', 'v'.repeat(501))])).toBeNull()
+  })
+})
+
+describe('checkCandidates: twins in one answer (R20)', () => {
+  const entries = [entry(4, 'result', 'api listening on 9281, admin on 9282')]
+  const Q = 'api listening on 9281'
+
+  it('a second add of a specific with the same key, after case and whitespace, is dropped; the first wins', () => {
+    expect(
+      check([specific('API  port', '9281', Q), specific(' api port', '9282', 'admin on 9282')], {
+        entries
+      })
+    ).toEqual({
+      kept: [
+        {
+          kind: 'item',
+          action: 'add',
+          id: null,
+          text: { kind: 'specific', key: 'API  port', value: '9281' },
+          check: null,
+          basis: 'observed',
+          source: { entryId: 'e-4', quote: Q }
+        }
+      ],
+      dropped: ['invalid']
+    })
+  })
+
+  it('a second add of a fact with the same title is dropped', () => {
+    const out = check([fact('Port', 'It is 9281.', Q), fact('port', 'Also 9281.', Q)], { entries })
+    expect(out.kept.map((k) => (k.kind === 'item' ? k.text : null))).toEqual([
+      { kind: 'fact', title: 'Port', body: 'It is 9281.' }
+    ])
+    expect(out.dropped).toEqual(['invalid'])
+  })
+
+  it('a second add of a task with the same title is dropped', () => {
+    expect(
+      check([task('Do X', Q), task('do  x', Q, { leftWith: 'session' })], { entries })
+    ).toEqual({
+      kept: [
+        { kind: 'task', action: 'add', id: null, title: 'Do X', check: null, leftWith: 'operator' }
+      ],
+      dropped: ['invalid']
+    })
+  })
+
+  it('a specific and a fact with the same head are not twins', () => {
+    const out = check([specific('Port', '9281', Q), fact('Port', 'It is 9281.', Q)], { entries })
+    expect(out.kept.map((k) => (k.kind === 'item' ? k.text.kind : k.kind))).toEqual([
+      'specific',
+      'fact'
+    ])
+    expect(out.dropped).toEqual([])
+  })
+
+  it('an update and an add that hit the same saved item: the first is kept, the second dropped', () => {
+    const items: ScopeItem[] = [{ id: 'i-1', kind: 'specific', head: 'API port', body: '9280' }]
+    // the add's head equals the saved item's, so D17 makes it an update of i-1 too
+    const out = check(
+      [
+        cand({ action: 'update', id: 'i-1', evidence: Q }),
+        specific('api port', '9282', 'admin on 9282')
+      ],
+      { entries, items }
+    )
+    expect(out.kept).toEqual([
+      {
+        kind: 'item',
+        action: 'update',
+        id: 'i-1',
+        text: { kind: 'specific', key: 'API port', value: '9281' },
+        check: null,
+        basis: 'observed',
+        source: { entryId: 'e-4', quote: Q }
+      }
+    ])
+    expect(out.dropped).toEqual(['invalid'])
+    // and two task updates of one open task
+    const twice = check(
+      [
+        task('Update the README', Q, { action: 'update', id: 't-1' }),
+        task('Other', Q, { action: 'none', id: 't-1' })
+      ],
+      { entries, tasks: TASKS }
+    )
+    expect(twice.kept.map((k) => (k.kind === 'task' ? k.title : null))).toEqual([
+      'Update the README'
+    ])
+    expect(twice.dropped).toEqual(['invalid'])
+  })
+
+  it('the same key in two scopes is not a twin: an update of a saved item and an add of a new one', () => {
+    // i-g's key is not `API port`, so the add stays a new item in the session's workspace while
+    // the update renames i-g (which may be global): two different targets.
+    const items: ScopeItem[] = [
+      { id: 'i-g', kind: 'specific', head: 'Old port name', body: '9280' }
+    ]
+    const out = check(
+      [
+        cand({ action: 'update', id: 'i-g', evidence: Q }),
+        specific('API port', '9282', 'admin on 9282')
+      ],
+      { entries, items }
+    )
+    expect(out.kept.map((k) => (k.kind === 'item' ? [k.action, k.id] : null))).toEqual([
+      ['update', 'i-g'],
+      ['add', null]
+    ])
+    expect(out.dropped).toEqual([])
   })
 })
