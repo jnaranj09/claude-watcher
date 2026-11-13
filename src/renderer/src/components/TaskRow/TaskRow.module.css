@@ -111,6 +111,28 @@
   white-space: normal;
   overflow-wrap: anywhere;
 }
+/* `Reported done by "<session>" <date>` (ruling R47): on a closed row the session name is the
+   part that shrinks and ends in `…`; the words and the date never shrink. An open row draws it as
+   one wrapping line, like its other notes. */
+.report {
+  display: flex;
+}
+.reportFixed {
+  flex: none;
+  white-space: pre;
+}
+.reportName {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.row[data-open='true'] .report {
+  display: block;
+}
+.row[data-open='true'] .reportFixed {
+  white-space: normal;
+}
 /* The recipe is machine data: mono, at the line's own size. */
 .recipe {
   font-family: var(--font-mono);

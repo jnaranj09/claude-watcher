@@ -273,7 +273,8 @@ export function PastSessionsPage({
         </ManageDialog.List>
         {selected !== null ? (
           <ManageDialog.Form testId="past-session-form" onSubmit={(e) => void resume(e)}>
-            <PastSessionDetails session={selected} workspaces={workspaces} />
+            {/* Keyed by record: nothing one record read (its episode) is shown for another. */}
+            <PastSessionDetails key={selected.id} session={selected} workspaces={workspaces} />
             <ManageDialog.Footer>
               <ManageDialog.Delete
                 testId="past-session-forget"
@@ -302,7 +303,10 @@ type Episode = { id: string; title: string; body: string }
 /** The episode this record's save wrote (memory phase 2), read from memory by id while the record
  *  is shown. null while it loads, when there is none, when the item is gone or not an episode, and
  *  when the read fails: the form then shows the `Memory:` line only, and nothing is toasted (the
- *  record is still whole). A failed read logs its code only, never the id or the text. */
+ *  record is still whole). A failed read logs its code only, never the id or the text. The form is
+ *  keyed by record, so this state starts empty for each record. Within one record the episode id
+ *  can change while it is shown (a later save of the same session): a read for the old id is
+ *  dropped (`live`), and what was read is shown only while it is still this record's id. */
 function useEpisode(episodeId: string | null): Episode | null {
   const [episode, setEpisode] = useState<Episode | null>(null)
   useEffect(() => {
@@ -311,21 +315,16 @@ function useEpisode(episodeId: string | null): Episode | null {
     window.memory
       .get(episodeId)
       .then(({ item }) => {
-        if (live)
-          setEpisode(
-            item.kind === 'episode' ? { id: item.id, title: item.title, body: item.body } : null
-          )
+        if (live && item.kind === 'episode')
+          setEpisode({ id: item.id, title: item.title, body: item.body })
       })
       .catch(() => {
         console.warn('[claude-watcher][memory] code=past_episode_read_failed')
-        // An earlier read of the same id (the item since deleted) is not shown again.
-        if (live) setEpisode(null)
       })
     return () => {
       live = false
     }
   }, [episodeId])
-  // Held by id: another record's episode is never shown while this one's read is in flight.
   return episode !== null && episode.id === episodeId ? episode : null
 }
 

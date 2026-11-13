@@ -160,4 +160,47 @@ describe('TaskRow', () => {
       cssRule('components/TaskRow/TaskRow.module.css', '.row:has(> .main > .label):hover')
     ).toMatch(/background-image:\s*linear-gradient\(var\(--bg-hover\), var\(--bg-hover\)\)/)
   })
+
+  it('with a select box the lines start under the title; the task panel (no select box) starts them at the inset', () => {
+    const checked = { ...task, check: 'make test' }
+    const sheet = render(
+      <TaskRow task={checked} onToggle={() => {}} leading={<input type="checkbox" />} />
+    )
+    expect(screen.getByTestId('task-notes-indent-t1')).toBeInTheDocument()
+    sheet.unmount()
+    const panel = render(<TaskRow task={checked} onToggle={() => {}} />)
+    expect(screen.getByTestId('task-check-t1')).toBeInTheDocument()
+    expect(screen.queryByTestId('task-notes-indent-t1')).not.toBeInTheDocument()
+    panel.unmount()
+  })
+
+  it('a long session name is the part cut on the Reported done line; the date always shows (R47)', () => {
+    const at = new Date(2026, 10, 12, 14, 30).getTime()
+    const name = 'n'.repeat(200)
+    const report = {
+      at,
+      sessionId: 's1',
+      sessionName: name,
+      outcome: 'done',
+      evidence: 'ok'
+    } as const
+    const { unmount } = render(<TaskRow task={{ ...task, report }} onToggle={() => {}} />)
+    const line = screen.getByTestId('task-report-t1')
+    expect(line).toHaveTextContent(
+      whole(`Reported done by "${name}" ${new Date(at).toLocaleString()}`)
+    )
+    expect(within(line).getByText(name)).toHaveClass(String(styles.reportName))
+    expect(within(line).getByText(`" ${new Date(at).toLocaleString()}`)).toHaveClass(
+      String(styles.reportFixed)
+    )
+    unmount()
+    const css = 'components/TaskRow/TaskRow.module.css'
+    expect(cssRule(css, '.report')).toMatch(/display:\s*flex/)
+    const nameRule = cssRule(css, '.reportName')
+    expect(nameRule).toMatch(/flex:\s*0 1 auto/)
+    expect(nameRule).toMatch(/min-width:\s*0/)
+    expect(nameRule).toMatch(/text-overflow:\s*ellipsis/)
+    expect(cssRule(css, '.reportFixed')).toMatch(/flex:\s*none/)
+    expect(cssRule(css, ".row[data-open='true'] .report")).toMatch(/display:\s*block/)
+  })
 })

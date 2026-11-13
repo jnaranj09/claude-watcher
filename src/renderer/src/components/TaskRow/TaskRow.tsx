@@ -93,7 +93,13 @@ export function TaskRow({
       {(task.check !== null || reported !== null) && (
         <span className={styles.notes}>
           {/* With a select box the lines start under the title, past the box. */}
-          {leading !== undefined && <span className={styles.noteIndent} aria-hidden="true" />}
+          {leading !== undefined && (
+            <span
+              className={styles.noteIndent}
+              data-testid={`task-notes-indent-${task.id}`}
+              aria-hidden="true"
+            />
+          )}
           <span className={styles.noteLines}>
             {task.check !== null && (
               <span
@@ -129,11 +135,20 @@ function ReportLines({
   at: number
   children: string
 }): JSX.Element {
-  const line = `Reported done by "${name}" ${new Date(at).toLocaleString()}`
+  const date = new Date(at).toLocaleString()
+  const line = `Reported done by "${name}" ${date}`
+  // Ruling R47: on a closed row only the session name is cut with `…`; the words around it and
+  // the date always show whole.
   return (
     <>
-      <span className={styles.note} data-testid={`task-report-${id}`} title={line}>
-        {line}
+      <span
+        className={`${styles.note} ${styles.report}`}
+        data-testid={`task-report-${id}`}
+        title={line}
+      >
+        <span className={styles.reportFixed}>Reported done by &quot;</span>
+        <span className={styles.reportName}>{name}</span>
+        <span className={styles.reportFixed}>&quot; {date}</span>
       </span>
       <span className={styles.note} data-testid={`task-report-evidence-${id}`} title={evidence}>
         {evidence}
