@@ -41,6 +41,11 @@ const BASIS_OF: Record<CleanEntry['kind'], Basis> = {
 }
 const STRENGTH: Record<Basis, number> = { observed: 0, stated: 1, inferred: 2 }
 
+/** R48: only evidence in a tool result (`observed`) or in the operator's text (`stated`) is a
+ *  sighting. claude repeating what memory told it (`inferred`) moves no last-seen date. Moved here
+ *  from applyChunk.ts, which imports it. */
+export const isSighting = (basis: Basis): boolean => basis !== 'inferred'
+
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 /** The cleaner's marks. A quote is matched between them, never inside or across one: a cut mark
  *  stands for text the model never saw (D6), a secret mark for text taken out. The middle mark

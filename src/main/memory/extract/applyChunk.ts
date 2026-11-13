@@ -21,7 +21,7 @@ import {
 import type { GoalsStore } from '../../persistence/goals'
 import type { MemoryCommands } from '../memoryCommands'
 import type { MemoryStore, StoredSource } from '../memoryStore'
-import { findValue, type Basis, type Checked } from './checkCandidates'
+import { findValue, isSighting, type Checked } from './checkCandidates'
 import type { ExtractRow, ExtractState } from './extractState'
 import type { CleanEntry } from './sliceCleaner'
 
@@ -72,10 +72,6 @@ const COUNT_KEY: Record<MemoryText['kind'], 'specifics' | 'facts'> = {
 function stored(path: string, source: { entryId: string; quote: string }): StoredSource {
   return { path, entryId: source.entryId, quote: source.quote }
 }
-
-/** R48: only evidence in a tool result (`observed`) or in the operator's text (`stated`) is a
- *  sighting. claude repeating what memory told it (`inferred`) moves no last-seen date. */
-const isSighting = (basis: Basis): boolean => basis !== 'inferred'
 
 /** Step 1: the tasks (D23). One the goals store refuses (or no store yet) is not written and is
  *  logged as a code: the refusal is the schema's, so a re-run would refuse it again. Answers how
