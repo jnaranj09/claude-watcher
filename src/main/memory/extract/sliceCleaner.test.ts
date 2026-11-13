@@ -523,6 +523,21 @@ describe('what memory told the session is never evidence (P3-R2)', () => {
     ).toEqual(["operator:grep '<system-reminders' in src, port 9281 is ours"])
   })
 
+  it.each(['<system-reminder-x', '<system-reminder_x', '<system-reminder9'])(
+    'a tag name that goes on after system-reminder (%s) is not a reminder tag (P3-C7)',
+    (tag) => {
+      expect(kinds(cleanSlice([prompt(`see ${tag} here, port 9281`)], 0).entries)).toEqual([
+        `operator:see ${tag} here, port 9281`
+      ])
+    }
+  )
+
+  it('a closing system-reminder tag with no > never takes the text after it', () => {
+    expect(
+      kinds(cleanSlice([prompt('deploy it </system-reminder the port is 9281')], 0).entries)
+    ).toEqual(['operator:deploy it the port is 9281'])
+  })
+
   it('a system-reminder tag cut off at the end of the text is cut', () => {
     expect(kinds(cleanSlice([prompt('deploy it <system-reminder')], 0).entries)).toEqual([
       'operator:deploy it '
