@@ -37,7 +37,7 @@ export function createExtractResultPush(log: (line: string) => void): ExtractRes
       if (parsed === null) return false
       const targets = liveWindows()
       if (targets.length > 0) {
-        for (const wc of targets) sendMemoryExtractResult(wc, parsed, log)
+        for (const wc of targets) sendMemoryExtractResult(wc, parsed)
         return true
       }
       held.push(parsed)
@@ -49,7 +49,7 @@ export function createExtractResultPush(log: (line: string) => void): ExtractRes
     },
     ready(wc) {
       windows.add(wc)
-      for (const result of held.splice(0)) sendMemoryExtractResult(wc, result, log)
+      for (const result of held.splice(0)) sendMemoryExtractResult(wc, result)
     }
   }
 }

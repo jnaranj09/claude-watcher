@@ -22,17 +22,11 @@ export function parseExtractResult(
   return null
 }
 
-/** Parses with MemoryExtractResultSchema, then sends on CH.memoryExtractResult. A payload that fails is
- *  dropped with `code=memory_extract_result_invalid` and its Zod path and issue code. */
+/** Sends a result `parseExtractResult` already parsed on CH.memoryExtractResult (parse once:
+ *  the hold in extractResultPush.ts parses before it holds, then sends through here). */
 // main→renderer, validated at source (zod-boundaries.md). The result carries counts, codes and the
 // session's name, never memory or transcript text; the drop log carries no name either. A window
-// that is gone gets nothing (a result for it has nowhere to show). Main sends through the hold in
-// extractResultPush.ts, which keeps a result until a renderer is ready for it.
-export function sendMemoryExtractResult(
-  wc: PushTarget,
-  result: MemoryExtractResult,
-  log: (line: string) => void
-): void {
-  const parsed = parseExtractResult(result, log)
-  if (parsed !== null && !wc.isDestroyed()) wc.send(CH.memoryExtractResult, parsed)
+// that is gone gets nothing (a result for it has nowhere to show).
+export function sendMemoryExtractResult(wc: PushTarget, parsed: MemoryExtractResult): void {
+  if (!wc.isDestroyed()) wc.send(CH.memoryExtractResult, parsed)
 }
