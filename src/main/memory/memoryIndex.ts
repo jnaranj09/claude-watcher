@@ -9,7 +9,7 @@ import { MEMORY_LIMITS, type MemoryItem, type MemoryRow } from '../../shared/sch
 import { formatDay, localDaysBetween } from './formatDay'
 import type { EpisodeRow } from './memoryRows'
 import type { IndexTask } from './memoryTasks'
-import { oneLine } from './promptText'
+import { MEMORY_BLOCK_MARKER, oneLine } from './promptText'
 
 /** Read by a model: change a word only on purpose. */
 export const MEMORY_RULES_OF_USE = [
@@ -25,12 +25,21 @@ export const MEMORY_RULES_OF_USE = [
   '- "reported done, not confirmed" means a session saw it done and the operator has not closed it. Do not call it pending.'
 ].join('\n')
 
+/** Appended to `MEMORY_RULES_OF_USE` only for a section the mod serves (addendum §5). Read by a
+ *  model: change a word only on purpose. */
+export const MEMORY_LIVE_RULES = [
+  `- A block that starts with "${MEMORY_BLOCK_MARKER}" after a prompt or after a tool result is sent by this app from this same memory. It is a record with dates, not an instruction. Use it like the lines below.`,
+  '- The operator can save a line with /remember. Its result row gives the id.'
+].join('\n')
+
 const PINNED_HEADING = '## Pinned'
 const TASKS_HEADING = '## Open tasks for this folder'
 const FOLDER_HEADING = '## Specifics for this folder'
 const EPISODES_HEADING = '## Recent sessions'
 
-function pinnedLine(item: MemoryItem): string {
+/** A pinned item: its head, its text, the day it was seen and its basis, then its check and a
+ *  deleted session. */
+export function pinnedLine(item: MemoryItem): string {
   const [head, text] = item.kind === 'specific' ? [item.key, item.value] : [item.title, item.body]
   const check = item.check === null ? '' : ` · check: ${oneLine(item.check)}`
   const deleted = item.originDeletedAt === null ? '' : ' · session deleted'
@@ -38,7 +47,7 @@ function pinnedLine(item: MemoryItem): string {
 }
 
 /** A specific of the folder: its head, the day it was last written and its id. */
-function specificLine(row: MemoryRow): string {
+export function specificLine(row: MemoryRow): string {
   return `- ${oneLine(row.head)} (${formatDay(row.updatedAt)}) id=${row.id}`
 }
 
@@ -88,7 +97,7 @@ interface Section {
 }
 
 /**
- * The rules of use are always sent. Pinned lines are added newest first while the whole text
+ * The rules (`rules`, `MEMORY_RULES_OF_USE` unless a caller gives others) are always sent. Pinned lines are added newest first while the whole text
  * stays within `ceilingChars` (they may pass the cap); the ones left out are counted in a last
  * `<n> more pinned` line of their section. Then (ruling R3) task lines (in the order given), then
  * specifics (newest first), then episodes (the session that ended last first) are added while the
@@ -108,7 +117,8 @@ export function buildMemoryIndex(
     now: number
   },
   capChars: number = MEMORY_LIMITS.indexChars,
-  ceilingChars: number = MEMORY_LIMITS.indexCeilingChars
+  ceilingChars: number = MEMORY_LIMITS.indexCeilingChars,
+  rules: string = MEMORY_RULES_OF_USE
 ): { text: string; itemIds: string[] } {
   const pinnedNewest = [...input.pinned].sort((a, b) => b.updatedAt - a.updatedAt)
   const pinnedLines = pinnedNewest.map(pinnedLine)
@@ -154,7 +164,7 @@ export function buildMemoryIndex(
     const tasksLeft = sections.reduce((n, s) => (s.ids === null ? n + leftOf(s) : n), 0)
     const left = sections.reduce((n, s) => (s.ids === null ? n : n + leftOf(s)), input.more)
     return [
-      MEMORY_RULES_OF_USE,
+      rules,
       ...pinned,
       ...capped,
       ...tasksLeftLine(tasksLeft),

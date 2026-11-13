@@ -22,7 +22,7 @@ function isControl(cp: number): boolean {
 
 /** The lines of `text`: CRLF is one break, every other break ends a line, and every other control
  *  character becomes a space. */
-function linesOf(text: string): string[] {
+export function linesOf(text: string): string[] {
   const lines: string[] = []
   let line = ''
   let afterCr = false

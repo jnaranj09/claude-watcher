@@ -39,6 +39,16 @@ describe('buildSessionIndex', () => {
     ])
   })
 
+  it('takes other rules as its first block', () => {
+    const { text } = buildSessionIndex(
+      { tasks: () => null, now: () => NOW },
+      NO_ROWS,
+      TARGET,
+      'RULES'
+    )
+    expect(text).toBe('RULES')
+  })
+
   it('with no goals view it lists no task', () => {
     const { text } = buildSessionIndex({ tasks: () => null, now: () => NOW }, NO_ROWS, TARGET)
     expect(text.includes('## Open tasks for this folder')).toBe(false)

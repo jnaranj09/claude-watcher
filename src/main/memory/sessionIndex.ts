@@ -15,15 +15,27 @@ export function buildSessionIndex(
     now: () => number
   },
   store: Pick<MemoryStore, 'indexRows'>,
-  target: { workspaceId: string; cwd: string; excludeTaskIds: readonly string[] }
+  target: { workspaceId: string; cwd: string; excludeTaskIds: readonly string[] },
+  /** The index's first block; `MEMORY_RULES_OF_USE` when left out. */
+  rules?: string
 ): { text: string; itemIds: string[] } {
   const view = deps.tasks()
-  return buildMemoryIndex({
-    ...store.indexRows(target.workspaceId, target.cwd),
-    tasksHere:
-      view === null
-        ? []
-        : openTasksForFolder(view, target.workspaceId, target.cwd, new Set(target.excludeTaskIds)),
-    now: deps.now()
-  })
+  return buildMemoryIndex(
+    {
+      ...store.indexRows(target.workspaceId, target.cwd),
+      tasksHere:
+        view === null
+          ? []
+          : openTasksForFolder(
+              view,
+              target.workspaceId,
+              target.cwd,
+              new Set(target.excludeTaskIds)
+            ),
+      now: deps.now()
+    },
+    undefined,
+    undefined,
+    rules
+  )
 }
