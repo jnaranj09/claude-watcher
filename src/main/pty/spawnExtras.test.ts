@@ -14,9 +14,15 @@ import type { ClaudeAutoMemory } from '../../shared/schemas/settings'
 const goal: GoalSpawnExtras = {
   appendPrompt: 'TASK BLOCK',
   mcpConfigPath: '/ud/mcp/goals.json',
-  allowedTools: 'mcp__claude-watcher__mark_task_done'
+  allowedTools: 'mcp__claude-watcher__mark_task_done',
+  taskIds: ['t1', 't2']
 }
-const NO_GOAL: GoalSpawnExtras = { appendPrompt: null, mcpConfigPath: null, allowedTools: null }
+const NO_GOAL: GoalSpawnExtras = {
+  appendPrompt: null,
+  mcpConfigPath: null,
+  allowedTools: null,
+  taskIds: []
+}
 const memory: MemorySpawnExtras = {
   appendPrompt: 'MEMORY INDEX',
   mcpConfigPath: '/ud/mcp/memory.json',
@@ -174,7 +180,31 @@ describe('spawnExtras env and workspace', () => {
       autoMemory: 'off',
       env: BASE_ENV
     })
-    expect(memoryFor).toHaveBeenCalledWith({ cwd: '/work/app', workspaceId: 'w1' })
+    expect(memoryFor).toHaveBeenCalledWith({
+      cwd: '/work/app',
+      workspaceId: 'w1',
+      excludeTaskIds: ['t1', 't2']
+    })
+  })
+
+  it('a task in the goal launch block is not repeated in the memory index', () => {
+    const memoryFor = vi.fn<(target: { excludeTaskIds: readonly string[] }) => MemorySpawnExtras>(
+      () => memory
+    )
+    for (const g of [goal, NO_GOAL]) {
+      spawnExtras({
+        goal: g,
+        memory: memoryFor,
+        launch: LAUNCH,
+        activeWorkspaceId: () => 'active',
+        autoMemory: 'claude',
+        env: BASE_ENV
+      })
+    }
+    expect(memoryFor.mock.calls.map(([target]) => target.excludeTaskIds)).toEqual([
+      ['t1', 't2'],
+      []
+    ])
   })
 
   it("a launch that names no workspace asks memory for main's active one", () => {
@@ -187,6 +217,10 @@ describe('spawnExtras env and workspace', () => {
       autoMemory: 'off',
       env: BASE_ENV
     })
-    expect(memoryFor).toHaveBeenCalledWith({ cwd: '/work/app', workspaceId: 'active' })
+    expect(memoryFor).toHaveBeenCalledWith({
+      cwd: '/work/app',
+      workspaceId: 'active',
+      excludeTaskIds: ['t1', 't2']
+    })
   })
 })

@@ -33,14 +33,21 @@ export type GoalLaunch =
   | { kind: 'planner'; goalId: string }
 
 /** What one spawn adds to the claude command (joined with memory's by `pty/spawnExtras.ts`).
- *  Every field null = nothing added. */
+ *  Every field null (and `taskIds` empty) = nothing added. */
 export interface GoalSpawnExtras {
   appendPrompt: string | null
   mcpConfigPath: string | null
   allowedTools: string | null
+  /** The tasks the block lists ([] when there is none): the memory index leaves them out. */
+  taskIds: readonly string[]
 }
 
-const NO_EXTRAS: GoalSpawnExtras = { appendPrompt: null, mcpConfigPath: null, allowedTools: null }
+const NO_EXTRAS: GoalSpawnExtras = {
+  appendPrompt: null,
+  mcpConfigPath: null,
+  allowedTools: null,
+  taskIds: []
+}
 
 /** The `--allowedTools` value: claude names an MCP tool `mcp__<server>__<tool>`, and pre-allowing
  *  it means the session never stops on a permission prompt for it (probed, claude 2.1.304). */
@@ -129,7 +136,8 @@ export function goalSpawnExtras(
       markDone: mcpConfigPath !== null
     }),
     mcpConfigPath,
-    allowedTools: mcpConfigPath === null ? null : MARK_TASK_DONE_ALLOWED
+    allowedTools: mcpConfigPath === null ? null : MARK_TASK_DONE_ALLOWED,
+    taskIds: tasks.map((t) => t.id)
   }
 }
 
@@ -162,15 +170,15 @@ function plannerExtras(deps: GoalSpawnDeps, sessionId: string, goalId: string): 
     goalId: goal.id
   })
   if (path === null) return NO_EXTRAS
+  const tasks = view.tasks.filter((t) => t.goalId === goal.id)
   return {
     appendPrompt: buildPlannerPrompt({
       goalName: goal.name,
-      tasks: view.tasks
-        .filter((t) => t.goalId === goal.id)
-        .map((t) => ({ id: t.id, title: t.title, status: t.status }))
+      tasks: tasks.map((t) => ({ id: t.id, title: t.title, status: t.status }))
     }),
     mcpConfigPath: path,
-    allowedTools: PLANNER_ALLOWED
+    allowedTools: PLANNER_ALLOWED,
+    taskIds: tasks.map((t) => t.id)
   }
 }
 

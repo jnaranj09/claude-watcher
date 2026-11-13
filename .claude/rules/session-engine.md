@@ -129,11 +129,15 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
 - **Memory (spec 2026-11-11, phase 1):** every actual spawn (new, resume, Reopen) calls
   `memorySpawnExtras` (`memory/memoryLaunch.ts`), all or nothing: with `settings.memoryEnabled`
   (read at each spawn), the hook port ours (SEC-6) and the database open, the session gets its
-  own bearer token, a `--mcp-config` file for `claude-watcher-memory`, the six tools in
-  `--allowedTools` (search, get, browse, save, update, mark stale: no delete, no pin), the index
-  block (`memory/memoryIndex.ts`: rules of use; pinned items newest first, which may pass the cap
-  but never `MEMORY_LIMITS.indexCeilingChars` (the block rides one argv string; the rest are
-  counted, `<n> more pinned`); the folder's specifics, capped at `MEMORY_LIMITS.indexChars`) and
+  own bearer token, a `--mcp-config` file for `claude-watcher-memory`, the seven tools in
+  `--allowedTools` (search, get, browse, save, update, mark stale, `task_report`: no delete, no
+  pin, no task closed; `task_report` only flags a task of the session's workspace, else
+  `task_not_found`), the index block (`memory/memoryIndex.ts`: rules of use; pinned items newest
+  first, which may pass the cap but never `MEMORY_LIMITS.indexCeilingChars` (the block rides one
+  argv string; the rest are counted, `<n> more pinned`); then, capped at
+  `MEMORY_LIMITS.indexChars` and filled in this order, the folder's open tasks (minus the ones
+  the goal block lists, `GoalSpawnExtras.taskIds`), its specifics and its recent sessions, the
+  rest counted in `<n> more`; every saved text on one line) and
   the env `CLAUDE_WATCHER_MEMORY=1` (for the operator's own hooks). `pty/spawnExtras.ts`
   joins it with goals: one `--append-system-prompt` (`QUESTION_FORMAT_PROMPT`, the task block,
   then the index), one `--mcp-config` flag (goals file first), one comma-joined `--allowedTools`;

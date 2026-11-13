@@ -3,9 +3,10 @@
 //
 // `memorySpawnExtras` runs inside every actual spawn (`rawClaudeSpawn`, ipc/registerLaunchIpc.ts).
 // With memory on, the hook port ours (SEC-6: the server lives on it) and the database open, the
-// session gets its own bearer token, a `--mcp-config` file for `claude-watcher-memory`, the six
-// tools pre-allowed, the index for its folder appended to its system prompt, and one env var that
-// lets an operator's own hooks tell. All of it or nothing: a memory failure never fails a launch;
+// session gets its own bearer token, a `--mcp-config` file for `claude-watcher-memory`, the memory
+// tools pre-allowed (`MEMORY_TOOLS`), the index for its folder (its open tasks, specifics and
+// recent sessions) appended to its system prompt, and one env var that lets an operator's own
+// hooks tell. All of it or nothing: a memory failure never fails a launch;
 // the session starts as if memory were off, with a code logged. claude's own auto memory is not
 // set here: it has its own setting, applied to every launch in `pty/spawnExtras.ts`.
 //
@@ -18,6 +19,7 @@
 // forgets the session's save and marks its items and commands `Session deleted`
 // (`markSessionsDeletedInMemory`). Memory text never reaches
 // a log here: lines carry `code=` only.
+import type { GoalsView } from '../../shared/schemas/goal'
 import type { Session } from '../../shared/schemas/session'
 import type { StorageProblemCode } from '../../shared/schemas/storageHealth'
 import { createMcpConfigs, grantMcpConfig, type McpConfigs } from '../goals/mcp/mcpConfigFile'
@@ -28,6 +30,7 @@ import type { MemoryActivityLog } from './memoryActivity'
 import type { MemoryCommands } from './memoryCommands'
 import { buildMemoryIndex } from './memoryIndex'
 import type { MemoryStore } from './memoryStore'
+import { openTasksForFolder } from './memoryTasks'
 import {
   MEMORY_MCP_SERVER_NAME,
   MEMORY_TOOLS,
@@ -76,6 +79,10 @@ export interface MemorySpawnDeps {
   hookListening: () => boolean
   /** Null while the database is not open (unreadable at start, SMOKE, quitting). */
   store: () => MemoryStore | null
+  /** The goals view the index reads the folder's open tasks from; null = no task lines. */
+  tasks: () => Pick<GoalsView, 'goals' | 'tasks'> | null
+  /** The time the index counts `last seen` days to. */
+  now: () => number
   tokens: Pick<SessionTokens<MemoryGrant>, 'mint' | 'revoke'>
   configs: Pick<McpConfigs, 'write' | 'remove'>
   /** `MEMORY_MCP_URL`. */
@@ -86,7 +93,8 @@ export interface MemorySpawnDeps {
 }
 
 /**
- * The memory part of ONE spawn of `sessionId`, in `launch.cwd` for `launch.workspaceId`.
+ * The memory part of ONE spawn of `sessionId`, in `launch.cwd` for `launch.workspaceId`. The
+ * index leaves out `launch.excludeTaskIds` (the tasks the goal block of this spawn lists).
  * `previousSessionId` is the id this terminal's last spawn minted (a Reopen replaces it): its
  * token and file go first, whether or not memory is still on. The whole body is guarded: any throw
  * (a getter, an unreadable index, the activity record) leaves no token or file of `sessionId`
@@ -95,7 +103,7 @@ export interface MemorySpawnDeps {
 export function memorySpawnExtras(
   deps: MemorySpawnDeps,
   sessionId: string,
-  launch: { cwd: string; workspaceId: string },
+  launch: { cwd: string; workspaceId: string; excludeTaskIds: readonly string[] },
   previousSessionId: string | null
 ): MemorySpawnExtras {
   try {
@@ -106,7 +114,20 @@ export function memorySpawnExtras(
     const store = deps.store()
     // The hook port down is already on screen (`ServerHealthBanner`): no log per launch.
     if (!deps.enabled() || !deps.hookListening() || store === null) return noMemory()
-    const index = buildMemoryIndex(store.indexRows(launch.workspaceId, launch.cwd))
+    const view = deps.tasks()
+    const index = buildMemoryIndex({
+      ...store.indexRows(launch.workspaceId, launch.cwd),
+      tasksHere:
+        view === null
+          ? []
+          : openTasksForFolder(
+              view,
+              launch.workspaceId,
+              launch.cwd,
+              new Set(launch.excludeTaskIds)
+            ),
+      now: deps.now()
+    })
     const path = grantMcpConfig(deps, AREA, { sessionId })
     if (path === null) return noMemory()
     deps.activity.injected(sessionId, { chars: index.text.length, itemIds: index.itemIds })

@@ -1,7 +1,8 @@
 // What one spawn adds to the claude command and its env from goals (`goals/goalLaunch.ts`) and
 // memory (`memory/memoryLaunch.ts`) together. claude takes ONE `--append-system-prompt`, and one
 // `--mcp-config` flag followed by a file per server (probed on claude 2.1.322: both servers
-// connect), so the two are joined here: the question nudge, the task block, then the memory index;
+// connect), so the two are joined here: the question nudge, the task block, then the memory index
+// (which leaves out the tasks the block lists);
 // the goals file first; one comma-joined `--allowedTools`. The child env is the base env plus
 // memory's (`CLAUDE_WATCHER_MEMORY`, only while memory is on) plus what the `Claude's auto
 // memory` setting asks for (`AUTO_MEMORY_ENV`), which does not depend on memory being on.
@@ -43,11 +44,16 @@ function spawnCommandFields(goal: GoalSpawnExtras, memory: MemorySpawnExtras): S
 }
 
 /** Asks memory for the launch's folder and workspace (main's active one when the launch names
- *  none), then joins it with goals. `env` is not changed: the result holds a new one, with the
+ *  none), leaving out of its index the tasks the goal block already lists, then joins it with
+ *  goals. `env` is not changed: the result holds a new one, with the
  *  auto memory choice last (it is the operator's setting, so nothing before it wins). */
 export function spawnExtras(input: {
   goal: GoalSpawnExtras
-  memory: (target: { cwd: string; workspaceId: string }) => MemorySpawnExtras
+  memory: (target: {
+    cwd: string
+    workspaceId: string
+    excludeTaskIds: readonly string[]
+  }) => MemorySpawnExtras
   launch: { cwd: string; workspaceId: string | null }
   activeWorkspaceId: () => string
   /** `settings.claudeAutoMemory`, read at this spawn. */
@@ -57,7 +63,8 @@ export function spawnExtras(input: {
   const { goal, launch } = input
   const memory = input.memory({
     cwd: launch.cwd,
-    workspaceId: launch.workspaceId ?? input.activeWorkspaceId()
+    workspaceId: launch.workspaceId ?? input.activeWorkspaceId(),
+    excludeTaskIds: goal.taskIds
   })
   return {
     fields: spawnCommandFields(goal, memory),

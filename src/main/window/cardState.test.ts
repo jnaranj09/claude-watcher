@@ -70,6 +70,8 @@ function deps(): Parameters<typeof moveCardState>[0] & {
     store: () => memoryStore,
     session: (id) => (id === 'old' || id === 'new' ? LIVE : null),
     names: { tagIdsByName: () => [], tagName: () => null, goalIdsByName: () => [] },
+    tasks: () => null,
+    commands: () => null,
     activity: memoryActivity,
     now: () => 1,
     log: () => {}

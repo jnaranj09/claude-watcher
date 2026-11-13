@@ -1,23 +1,31 @@
-// The six memory tools a launched claude session calls over MCP (spec 2026-11-11 memory §3):
-// search, get, browse, save, update, mark stale. The caller is an AI agent sending arbitrary
-// input, so this file is a trust boundary: every argument set is one `.strict()` Zod `safeParse`
-// (`invalid_params`), a session sees only its own workspace plus global items, and no tool can
-// delete or pin (a name not listed here is `invalid_params`, like any unknown one).
+// The seven memory tools a launched claude session calls over MCP (spec 2026-11-11 memory §3,
+// phase 2 "Open work in Goals"): search (items, or the commands that worked), get, browse, save,
+// update, mark stale, and `task_report`. The caller is an AI agent sending arbitrary input, so
+// this file is a trust boundary: every argument set is one `.strict()` Zod `safeParse`
+// (`invalid_params`), a session sees only its own workspace plus global items (and its own
+// workspace's tasks and commands), and no tool can delete, pin or close a task (a name not listed
+// here is `invalid_params`, like any unknown one). `task_report` only flags a task: the operator
+// closes it. Only extraction writes an episode: save and update take a specific or a fact.
 //
 // The store's `get`, `edit` and `setState` take no scope, so this module checks it: an item
 // outside the session's workspace (and not global) answers `memory_not_found`, exactly as an
 // unknown id does. No tool input carries a workspace id, a session id, a basis or an origin;
 // they are stamped here (a save is `inferred`, origin `agent` + the calling session).
 //
-// A refusal is a short code (`memory_not_found`, `store_write_failed`, `memory_read_failed`).
+// A refusal is a short code (`memory_not_found`, `store_write_failed`, `memory_read_failed`,
+// `task_not_found`).
 // Memory is off, the store missing or the session not live: `MEMORY_NOT_AVAILABLE`. Any other
 // throw is a bug: it logs `code=memory_tool_failed` (never the error text, which can carry
 // memory text) and answers `MEMORY_NOT_AVAILABLE`; the endpoint does not catch a tool's throw.
 // Results carry memory text (that is their purpose); logs, errors and activity entries never do.
+// A one-line field (a source quote, a command) is printed on one line, so saved text cannot pass
+// for another field of the result.
 import { z } from 'zod'
 import { MemoryFiltersSchema, memoryFilterJsonSchema } from '../../shared/memory/filterFields'
+import { TASK_REPORT_EVIDENCE_MAX, TaskReportSchema } from '../../shared/schemas/goal'
 import {
   MEMORY_ERROR,
+  MEMORY_ITEM_KINDS,
   MEMORY_KINDS,
   MEMORY_LIMITS,
   MemoryCreateSchema,
@@ -29,8 +37,11 @@ import {
 import { hasControlChar } from '../../shared/schemas/launch'
 import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 import type { McpToolDef, McpToolOutcome, McpTools } from '../mcp/mcpEndpoint'
+import { GOAL_ERROR, type GoalsStore } from '../persistence/goals'
 import { formatDay } from './formatDay'
 import type { MemoryActivityLog } from './memoryActivity'
+import type { MemoryCommands } from './memoryCommands'
+import { oneLine } from './memoryIndex'
 import type { MemoryNames } from './memoryNames'
 import type { FilterContext, MemoryScope, MemoryStore } from './memoryStore'
 
@@ -43,7 +54,8 @@ export const MEMORY_TOOLS = [
   'memory_browse',
   'memory_save',
   'memory_update',
-  'memory_mark_stale'
+  'memory_mark_stale',
+  'task_report'
 ] as const
 type MemoryToolName = (typeof MEMORY_TOOLS)[number]
 
@@ -62,6 +74,9 @@ export type MemorySessionMeta = {
 const LOG_PREFIX = '[claude-watcher][memory]'
 const DEFAULT_LIMIT = 10
 const NO_VALUE = '-'
+const COMMAND_KIND = 'command'
+/** A task id as the goals store makes it, with room to spare. */
+const TASK_ID_MAX = 200
 const UNKNOWN_TAG = 'unknown tag'
 const BROWSE_BY = ['kind', 'folder', 'tag', 'month'] as const
 /** Throws of the store that a tool answers as a code; any other throw is a bug. */
@@ -85,13 +100,24 @@ const CheckSchema = MemoryCreateSchema.shape.check
 const IdSchema = MemoryGetSchema.shape.id
 const ScopeSchema = z.enum(['workspace', 'global'])
 
+const LimitSchema = z.number().int().min(1).max(MEMORY_LIMITS.searchLimit)
 const [SPECIFIC_TEXT, FACT_TEXT] = MemoryTextSchema.options
-const SearchArgsSchema = MemoryFiltersSchema.extend({
+const ItemSearchArgsSchema = MemoryFiltersSchema.extend({
   query: QuerySchema.optional(),
-  kind: z.enum(MEMORY_KINDS).optional(),
-  limit: z.number().int().min(1).max(MEMORY_LIMITS.searchLimit).optional()
+  kind: z.enum(MEMORY_ITEM_KINDS).optional(),
+  limit: LimitSchema.optional()
 }).strict()
-const GetArgsSchema = z.object({ id: IdSchema }).strict()
+/** A command search takes only these: a filter it cannot apply is refused, never ignored. */
+const CommandSearchArgsSchema = z
+  .object({
+    kind: z.literal(COMMAND_KIND),
+    query: QuerySchema.optional(),
+    folder: MemoryFiltersSchema.shape.folder,
+    limit: LimitSchema.optional()
+  })
+  .strict()
+const SearchArgsSchema = z.union([CommandSearchArgsSchema, ItemSearchArgsSchema])
+const GetArgsSchema = z.object({ id: IdSchema, withSource: z.boolean().optional() }).strict()
 const BrowseArgsSchema = z.object({ by: z.enum(BROWSE_BY) }).strict()
 const SAVE_EXTRA = { check: CheckSchema.optional(), scope: ScopeSchema }
 const UPDATE_EXTRA = { id: IdSchema, check: CheckSchema.optional(), reason: ReasonSchema }
@@ -105,6 +131,13 @@ const UpdateArgsSchema = z.discriminatedUnion('kind', [
   FACT_TEXT.extend(UPDATE_EXTRA)
 ])
 const MarkStaleArgsSchema = z.object({ id: IdSchema, reason: ReasonSchema }).strict()
+const TaskReportArgsSchema = z
+  .object({
+    taskId: z.string().min(1).max(TASK_ID_MAX),
+    outcome: TaskReportSchema.shape.outcome,
+    evidence: TaskReportSchema.shape.evidence
+  })
+  .strict()
 
 const TEXT_PROPERTIES = {
   kind: {
@@ -140,7 +173,7 @@ const DEFS: Record<MemoryToolName, McpToolDef> = {
   memory_search: {
     name: 'memory_search',
     description:
-      "Search this workspace's memory (and global memory): short rows with id, kind, key or title, date, basis, session and tags. Filters narrow before the text query. Stale items are left out unless includeStale is true. Use memory_get for the full item.",
+      "Search this workspace's memory (and global memory): short rows with id, kind, key or title, date, basis, session and tags. Filters narrow before the text query. Stale items are left out unless includeStale is true. Use memory_get for the full item. kind command lists the shell commands that worked in this workspace instead (id, command, folder, runs, last run), and takes only query, folder and limit.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -148,7 +181,7 @@ const DEFS: Record<MemoryToolName, McpToolDef> = {
           type: 'string',
           description: `Words to find, at most ${MEMORY_LIMITS.query} characters.`
         },
-        kind: { type: 'string', enum: [...MEMORY_KINDS] },
+        kind: { type: 'string', enum: [...MEMORY_ITEM_KINDS, COMMAND_KIND] },
         limit: {
           type: 'integer',
           minimum: 1,
@@ -163,10 +196,10 @@ const DEFS: Record<MemoryToolName, McpToolDef> = {
   memory_get: {
     name: 'memory_get',
     description:
-      'Read one memory item by id: its text, check, basis, last-seen date, session, tags and state.',
+      'Read one memory item by id: its text, check, basis, last-seen date, session, tags and state. withSource true adds the words of the session it was taken from, when it has them.',
     inputSchema: {
       type: 'object',
-      properties: { id: ID_PROPERTY },
+      properties: { id: ID_PROPERTY, withSource: { type: 'boolean' } },
       required: ['id'],
       additionalProperties: false
     }
@@ -216,6 +249,24 @@ const DEFS: Record<MemoryToolName, McpToolDef> = {
       required: ['id', 'reason'],
       additionalProperties: false
     }
+  },
+  task_report: {
+    name: 'task_report',
+    description:
+      'Report what you saw when you checked an open task of this workspace (from the memory index). done flags it as reported done; the operator closes it. open records that it is still open today.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'The task id, as listed (id=…).' },
+        outcome: { type: 'string', enum: ['done', 'open'] },
+        evidence: {
+          type: 'string',
+          description: `What you saw, one line, at most ${TASK_REPORT_EVIDENCE_MAX} characters.`
+        }
+      },
+      required: ['taskId', 'outcome', 'evidence'],
+      additionalProperties: false
+    }
   }
 }
 
@@ -246,6 +297,18 @@ interface Call {
   visible(id: string): MemoryItem
 }
 
+/** The text lines of `memory_get`: an episode adds the day its session ended. */
+function itemText(item: MemoryItem): string[] {
+  switch (item.kind) {
+    case 'specific':
+      return [`key: ${item.key}`, `value: ${item.value}`]
+    case 'fact':
+      return [`title: ${item.title}`, `body: ${item.body}`]
+    case 'episode':
+      return [`title: ${item.title}`, `body: ${item.body}`, `ended: ${formatDay(item.endedAt)}`]
+  }
+}
+
 function isMemoryToolName(name: string): name is MemoryToolName {
   return MEMORY_TOOLS.some((t) => t === name)
 }
@@ -256,6 +319,10 @@ export function createMemoryTools(deps: {
   /** null = not a live session. */
   session: (sessionId: string) => MemorySessionMeta | null
   names: MemoryNames
+  /** The goals store `task_report` reads and writes; null = not available. */
+  tasks: () => Pick<GoalsStore, 'view' | 'reportTask'> | null
+  /** The commands a `command` search lists; null = not available. */
+  commands: () => Pick<MemoryCommands, 'list'> | null
   activity: Pick<MemoryActivityLog, 'record'>
   now: () => number
   log: (line: string) => void
@@ -267,9 +334,38 @@ export function createMemoryTools(deps: {
     return named.length === 0 ? NO_VALUE : named.join(', ')
   }
 
+  /** `folder: "here"` is the calling session's folder; a session with none matches nothing. */
+  function searchCommands(args: z.infer<typeof CommandSearchArgsSchema>, c: Call): McpToolOutcome {
+    const commands = deps.commands()
+    if (commands === null) return notAvailable()
+    const folder = args.folder === 'here' ? c.session.folder : (args.folder ?? null)
+    const { rows, total } =
+      folder === ''
+        ? { rows: [], total: 0 }
+        : commands.list(c.session.workspaceId, {
+            query: args.query ?? null,
+            folder,
+            offset: 0,
+            limit: args.limit ?? DEFAULT_LIMIT
+          })
+    c.record('pulled', 'memory_search', null)
+    if (rows.length === 0) return ok('No items.')
+    const lines = rows.map((r) =>
+      [r.id, oneLine(r.text), oneLine(r.folder), String(r.count), formatDay(r.lastAt)]
+        .concat(
+          r.sessionDeletedAt === null ? [] : [`session deleted ${formatDay(r.sessionDeletedAt)}`]
+        )
+        .join(' | ')
+    )
+    return ok(
+      ['id | command | folder | runs | last run', ...lines, `${rows.length} of ${total}`].join('\n')
+    )
+  }
+
   function search(args: unknown, c: Call): McpToolOutcome {
     const parsed = SearchArgsSchema.safeParse(args)
     if (!parsed.success) return { kind: 'invalid_params' }
+    if (parsed.data.kind === COMMAND_KIND) return searchCommands(parsed.data, c)
     const { query, kind, limit, ...filters } = parsed.data
     const { rows, total } = c.store.search(
       c.scope,
@@ -314,14 +410,15 @@ export function createMemoryTools(deps: {
     if (!parsed.success) return { kind: 'invalid_params' }
     const item = c.visible(parsed.data.id)
     c.record('pulled', 'memory_get', item.id)
-    const text =
-      item.kind === 'specific'
-        ? [`key: ${item.key}`, `value: ${item.value}`]
-        : [`title: ${item.title}`, `body: ${item.body}`]
+    const source =
+      parsed.data.withSource === true && item.source !== null
+        ? [`source: ${oneLine(item.source.quote)}`]
+        : []
     return ok(
       [
-        ...text,
+        ...itemText(item),
         `basis: ${item.basis}`,
+        ...source,
         `seen: ${formatDay(item.lastSeenAt)}`,
         ...(item.check === null ? [] : [`check: ${item.check}`]),
         `session: ${item.meta.sessionName ?? NO_VALUE}`,
@@ -332,6 +429,30 @@ export function createMemoryTools(deps: {
           : [`session deleted: ${formatDay(item.originDeletedAt)}`])
       ].join('\n')
     )
+  }
+
+  /** A session's own report on a task of its workspace: stamped here, never from the input. A done
+   *  task answers `Reported.` and stays as it is (the store's rule); nothing here closes one. */
+  function taskReport(args: unknown, c: Call): McpToolOutcome {
+    const parsed = TaskReportArgsSchema.safeParse(args)
+    if (!parsed.success) return { kind: 'invalid_params' }
+    const goals = deps.tasks()
+    if (goals === null) return notAvailable()
+    const { taskId, outcome, evidence } = parsed.data
+    const task = goals.view().tasks.find((t) => t.id === taskId)
+    if (task === undefined || task.workspaceId !== c.session.workspaceId) {
+      return refused(GOAL_ERROR.taskNotFound)
+    }
+    const answer = goals.reportTask(task.id, {
+      at: deps.now(),
+      sessionId: c.sessionId,
+      sessionName: c.session.sessionName,
+      outcome,
+      evidence
+    })
+    if (answer === 'not_found') return refused(GOAL_ERROR.taskNotFound)
+    c.record('updated', 'task_report', null)
+    return ok('Reported.')
   }
 
   function browse(args: unknown, c: Call): McpToolOutcome {
@@ -402,7 +523,8 @@ export function createMemoryTools(deps: {
     memory_browse: browse,
     memory_save: save,
     memory_update: update,
-    memory_mark_stale: markStale
+    memory_mark_stale: markStale,
+    task_report: taskReport
   }
 
   function open(grant: MemoryGrant): Call | null {

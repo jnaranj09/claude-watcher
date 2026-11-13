@@ -1,11 +1,12 @@
 // What a launch with memory on gets (spec 2026-11-11 memory, "Claude integration"): its own token,
-// the memory server's config, the six tools pre-allowed, the index and its env var, all or
-// nothing. A memory failure never fails the launch, and the memory server's bearers open nothing
-// of the goals server's (and the other way round).
+// the memory server's config, every memory tool pre-allowed, the index (its open tasks too) and
+// its env var, all or nothing. A memory failure never fails the launch, and the memory server's
+// bearers open nothing of the goals server's (and the other way round).
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { TaskSchema, type GoalsView } from '../../shared/schemas/goal'
 import type { Session } from '../../shared/schemas/session'
 import { GOALS_MCP_PATH, MEMORY_MCP_PATH, MEMORY_MCP_URL } from '../hooks/hookContract'
 import { createSessionTokens, type SessionTokens } from '../mcp/sessionTokens'
@@ -13,6 +14,7 @@ import { createMcpEndpoint, mcpRoute, type JsonRpcResponse } from '../mcp/mcpEnd
 import { createGoalTokens } from '../goals/mcp/goalTokens'
 import { MCP_SERVER_NAME, createMcpConfigs } from '../goals/mcp/mcpConfigFile'
 import { META, T0, createHarness, flush, prompt, said } from '../../__fixtures__/extractorHarness'
+import { formatDay } from './formatDay'
 import { createMemoryActivity } from './memoryActivity'
 import { openMemoryDb } from './memoryDb'
 import { createMemoryStore, type MemoryStore } from './memoryStore'
@@ -72,6 +74,8 @@ function spawnDeps(over: Partial<Omit<MemorySpawnDeps, 'tokens'>> = {}): MemoryS
     enabled: () => true,
     hookListening: () => true,
     store: () => store,
+    tasks: () => null,
+    now: () => NOW,
     tokens,
     configs: createMcpConfigs({
       dir: () => userData,
@@ -89,7 +93,24 @@ function spawnDeps(over: Partial<Omit<MemorySpawnDeps, 'tokens'>> = {}): MemoryS
   }
 }
 
-const launch = { cwd: '/work/acme', workspaceId: 'w1' }
+const launch = { cwd: '/work/acme', workspaceId: 'w1', excludeTaskIds: [] }
+
+/** An open task made `createdAt` NOW, in `/work/acme` unless `over` says otherwise. */
+function openTask(
+  id: string,
+  title: string,
+  over: Record<string, unknown> = {}
+): GoalsView['tasks'][number] {
+  return TaskSchema.parse({
+    id,
+    workspaceId: 'w1',
+    title,
+    status: 'open',
+    createdAt: NOW,
+    folder: '/work/acme',
+    ...over
+  })
+}
 
 describe('memorySpawnExtras', () => {
   it('returns nothing at all while memory is off, the hook port is down or the store is missing', () => {
@@ -111,6 +132,7 @@ describe('memorySpawnExtras', () => {
     expect(out.allowedTools).toBe(
       MEMORY_TOOLS.map((t) => `mcp__claude-watcher-memory__${t}`).join(',')
     )
+    expect(out.allowedTools?.split(',')).toContain('mcp__claude-watcher-memory__task_report')
     expect(out.appendPrompt).toContain('# Memory (Claude Watcher)')
     expect(out.mcpConfigPath).not.toBeNull()
     expect(existsSync(out.mcpConfigPath ?? '')).toBe(true)
@@ -139,6 +161,35 @@ describe('memorySpawnExtras', () => {
     const out = memorySpawnExtras(on, 's1', launch, null)
     expect(out.appendPrompt).toContain('test key')
     expect(on.injected[0]?.[1].itemIds).toEqual([item?.id])
+  })
+
+  it('the index lists the open tasks of the launch folder in its workspace, with no item id', () => {
+    const view = {
+      goals: [],
+      tasks: [
+        openTask('t1', 'Turn the cache on'),
+        openTask('t2', 'Elsewhere', { workspaceId: 'w2' }),
+        openTask('t3', 'Closed', { status: 'done' })
+      ]
+    }
+    const on = spawnDeps({ tasks: () => view })
+    const out = memorySpawnExtras(on, 's1', launch, null)
+    const day = formatDay(NOW)
+    expect(out.appendPrompt?.split('\n').slice(-3)).toEqual([
+      '',
+      '## Open tasks for this folder',
+      `- Turn the cache on · open since ${day} · last seen today · id=t1`
+    ])
+    expect(on.injected[0]?.[1].itemIds).toEqual([])
+  })
+
+  it('a task in the goal launch block is not repeated in the memory index', () => {
+    const view = { goals: [], tasks: [openTask('t1', 'In the block'), openTask('t2', 'Not in it')] }
+    const on = spawnDeps({ tasks: () => view })
+    const out = memorySpawnExtras(on, 's1', { ...launch, excludeTaskIds: ['t1'] }, null)
+    expect(out.appendPrompt).not.toContain('In the block')
+    expect(out.appendPrompt).not.toContain('id=t1')
+    expect(out.appendPrompt).toContain('Not in it')
   })
 
   it('the token it mints is the one in the config file and resolves to the session', () => {
@@ -250,6 +301,8 @@ describe('the memory MCP server', () => {
       store,
       session: (id) => (id === 's1' ? sessionMeta : null),
       names: { tagIdsByName: () => [], tagName: () => null, goalIdsByName: () => [] },
+      tasks: () => null,
+      commands: () => null,
       activity: createMemoryActivity(),
       now: () => NOW,
       log: () => undefined
@@ -314,6 +367,8 @@ describe('the memory MCP server', () => {
       store: () => null,
       session: () => null,
       names: { tagIdsByName: () => [], tagName: () => null, goalIdsByName: () => [] },
+      tasks: () => null,
+      commands: () => null,
       activity: createMemoryActivity(),
       now: () => NOW,
       log: () => undefined

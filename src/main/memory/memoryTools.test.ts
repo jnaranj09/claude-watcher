@@ -4,10 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MEMORY_ERROR } from '../../shared/schemas/memory'
 import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 import type { McpToolOutcome, McpTools } from '../mcp/mcpEndpoint'
+import { createGoalsStore, type GoalsStore } from '../persistence/goals'
 import { formatDay } from './formatDay'
 import { createMemoryActivity, type MemoryActivityLog } from './memoryActivity'
+import { createMemoryCommands, type MemoryCommands } from './memoryCommands'
 import { openMemoryDb } from './memoryDb'
-import { createMemoryStore, type MemoryStore } from './memoryStore'
+import { createMemoryStore, type MemoryAdd, type MemoryStore } from './memoryStore'
 import {
   MEMORY_NOT_AVAILABLE,
   MEMORY_TOOLS,
@@ -34,6 +36,9 @@ function meta(workspaceId: string, over: Partial<MemorySessionMeta> = {}): Memor
 }
 
 let store: MemoryStore
+let goals: GoalsStore
+let commands: MemoryCommands
+let goalsAvailable: boolean
 let clock = NOW
 let activity: MemoryActivityLog
 let sessions: Map<string, MemorySessionMeta>
@@ -55,6 +60,11 @@ beforeEach(() => {
     report: () => undefined,
     log: () => undefined
   })
+  let c = 0
+  commands = createMemoryCommands({ db: open.db, newId: () => `c${++c}` })
+  let g = 0
+  goals = createGoalsStore({ newId: () => `t${++g}`, now: () => NOW, log: () => undefined })
+  goalsAvailable = true
   activity = createMemoryActivity()
   sessions = new Map([
     ['s1', meta('w1')],
@@ -74,6 +84,8 @@ beforeEach(() => {
       tagName: (id) => tagNames[id] ?? null,
       goalIdsByName: () => []
     },
+    tasks: () => (goalsAvailable ? goals : null),
+    commands: () => (storeAvailable ? commands : null),
     activity,
     now: () => NOW,
     log: (line) => {
@@ -106,17 +118,37 @@ const specific = (key: string, value: string, scope = 'workspace'): Record<strin
 })
 
 describe('memory tools: list', () => {
-  it('lists the six tools, and no delete or pin', () => {
-    expect(tools.list(as('s1')).map((t) => t.name)).toEqual([...MEMORY_TOOLS])
-    expect(MEMORY_TOOLS).toHaveLength(6)
-    for (const name of ['memory_delete', 'memory_pin', 'memory_remove', 'memory_set_pinned']) {
+  it('lists seven tools and pre-allows task_report', () => {
+    expect(tools.list(as('s1')).map((t) => t.name)).toEqual([
+      'memory_search',
+      'memory_get',
+      'memory_browse',
+      'memory_save',
+      'memory_update',
+      'memory_mark_stale',
+      'task_report'
+    ])
+    // `memoryLaunch.ts` pre-allows every name of this list (its own test pins the flag).
+    expect(MEMORY_TOOLS).toEqual(tools.list(as('s1')).map((t) => t.name))
+  })
+
+  it('no tool deletes, pins or closes a task', () => {
+    for (const name of [
+      'memory_delete',
+      'memory_pin',
+      'memory_remove',
+      'memory_set_pinned',
+      'task_done',
+      'mark_task_done',
+      'task_close'
+    ]) {
       expect(call(name, { id: 'm1' })).toEqual({ kind: 'invalid_params' })
     }
   })
 
   it('still lists the tools when memory is not available', () => {
     enabled = false
-    expect(tools.list(as('s1'))).toHaveLength(6)
+    expect(tools.list(as('s1'))).toHaveLength(7)
   })
 
   it('builds the search input from the one filter list', () => {
@@ -140,7 +172,18 @@ describe('memory tools: list', () => {
 })
 
 describe('memory tools: input schema drift', () => {
-  const DECOYS = ['workspaceId', 'sessionId', 'basis', 'origin', 'withSource', 'offset', 'pinned']
+  const DECOYS = [
+    'workspaceId',
+    'sessionId',
+    'sessionName',
+    'at',
+    'basis',
+    'origin',
+    'withSource',
+    'offset',
+    'pinned',
+    'status'
+  ]
   const VALUES: Record<string, unknown> = {
     id: 'm1',
     reason: 'r',
@@ -151,7 +194,11 @@ describe('memory tools: input schema drift', () => {
     value: 'v',
     title: 't',
     body: 'b',
-    kind: 'specific'
+    kind: 'specific',
+    withSource: true,
+    taskId: 't1',
+    outcome: 'open',
+    evidence: 'seen'
   }
   const SPECIFIC = { kind: 'specific', key: 'k', value: 'v' }
   const FACT = { kind: 'fact', title: 't', body: 'b' }
@@ -166,7 +213,8 @@ describe('memory tools: input schema drift', () => {
       { id: 'm1', ...SPECIFIC, reason: 'r' },
       { id: 'm1', ...FACT, reason: 'r' }
     ],
-    memory_mark_stale: [{ id: 'm1', reason: 'r' }]
+    memory_mark_stale: [{ id: 'm1', reason: 'r' }],
+    task_report: [{ taskId: 't1', outcome: 'done', evidence: 'e' }]
   }
 
   function accepted(name: string, universe: string[]): string[] {
@@ -202,7 +250,8 @@ describe('memory tools: not available', () => {
       ['memory_browse', { by: 'kind' }],
       ['memory_save', specific('k', 'v')],
       ['memory_update', { id: 'm1', kind: 'specific', key: 'k', value: 'v', reason: 'r' }],
-      ['memory_mark_stale', { id: 'm1', reason: 'r' }]
+      ['memory_mark_stale', { id: 'm1', reason: 'r' }],
+      ['task_report', { taskId: 't1', outcome: 'done', evidence: 'e' }]
     ] as const) {
       expect(call(name, args)).toEqual({
         kind: 'result',
@@ -223,7 +272,23 @@ describe('memory tools: arguments', () => {
     ['memory_search', { workspaceId: 'w2' }],
     ['memory_search', { since: '2026-13-40' }],
     ['memory_get', {}],
-    ['memory_get', { id: 'm1', withSource: true }],
+    ['memory_get', { id: 'm1', withSource: 'yes' }],
+    ['memory_search', { kind: 'task' }],
+    ['memory_search', { kind: 'command', tags: ['ci'] }],
+    ['memory_search', { kind: 'command', since: '2026-11-01' }],
+    ['memory_search', { kind: 'command', includeStale: true }],
+    ['memory_search', { kind: 'command', limit: 21 }],
+    ['memory_search', { kind: 'command', folder: '' }],
+    ['memory_save', { kind: 'episode', title: 't', body: 'b', endedAt: 1, scope: 'global' }],
+    ['memory_update', { id: 'm1', kind: 'episode', title: 't', body: 'b', reason: 'r' }],
+    ['task_report', { taskId: 't1', outcome: 'done' }],
+    ['task_report', { taskId: 't1', outcome: 'closed', evidence: 'e' }],
+    ['task_report', { taskId: '', outcome: 'done', evidence: 'e' }],
+    ['task_report', { taskId: 'x'.repeat(201), outcome: 'done', evidence: 'e' }],
+    ['task_report', { taskId: 't1', outcome: 'done', evidence: 'e'.repeat(301) }],
+    ['task_report', { taskId: 't1', outcome: 'done', evidence: '   ' }],
+    ['task_report', { taskId: 't1', outcome: 'done', evidence: 'e', sessionName: 'x' }],
+    ['task_report', { taskId: 't1', outcome: 'done', evidence: 'e', at: 1 }],
     ['memory_browse', { by: 'session' }],
     ['memory_save', { ...specific('k', 'v'), workspaceId: 'w2' }],
     ['memory_save', { ...specific('k', 'v'), basis: 'observed' }],
@@ -529,6 +594,8 @@ describe('failures', () => {
         throw new Error('x')
       },
       names: { tagIdsByName: () => [], tagName: () => null, goalIdsByName: () => [] },
+      tasks: () => goals,
+      commands: () => commands,
       activity,
       now: () => NOW,
       log: (line) => {
@@ -556,5 +623,291 @@ describe('activity', () => {
       { at: NOW, action: 'marked_stale', tool: 'memory_mark_stale', itemId: id, reason: null }
     ])
     expect(JSON.stringify(entries)).not.toContain(SECRET)
+  })
+})
+
+/** An open task of `workspaceId` in the goals store; its id. */
+function openTask(workspaceId = 'w1', title = 'Turn the cache on'): string {
+  return goals.saveTask({ workspaceId, goalId: null, title }).saved.id
+}
+const taskOf = (id: string): ReturnType<GoalsStore['view']>['tasks'][number] | undefined =>
+  goals.view().tasks.find((t) => t.id === id)
+
+describe('task_report', () => {
+  it('a done report flags the task with the calling session name and leaves it open', () => {
+    const id = openTask()
+    expect(
+      call('task_report', { taskId: id, outcome: 'done', evidence: 'grep shows true' })
+    ).toEqual({ kind: 'result', text: 'Reported.', isError: false })
+    expect(taskOf(id)).toMatchObject({
+      status: 'open',
+      doneAt: null,
+      doneBy: null,
+      lastSeenAt: null,
+      report: {
+        at: NOW,
+        sessionId: 's1',
+        sessionName: 'build',
+        outcome: 'done',
+        evidence: 'grep shows true'
+      }
+    })
+  })
+
+  it('an open report also sets the last-seen date', () => {
+    const id = openTask()
+    call('task_report', { taskId: id, outcome: 'open', evidence: 'still false' }, 's3')
+    expect(taskOf(id)).toMatchObject({
+      status: 'open',
+      lastSeenAt: NOW,
+      report: { sessionId: 's3', sessionName: 'old run', outcome: 'open' }
+    })
+  })
+
+  it('a report on a task of another workspace answers task_not_found', () => {
+    const other = openTask('w2', 'Not yours')
+    const before = taskOf(other)
+    const notFound = { kind: 'result', text: 'task_not_found', isError: true }
+    expect(call('task_report', { taskId: other, outcome: 'done', evidence: 'e' })).toEqual(notFound)
+    expect(call('task_report', { taskId: 'nope', outcome: 'done', evidence: 'e' })).toEqual(
+      notFound
+    )
+    expect(taskOf(other)).toEqual(before)
+    // The refusal carries no saved text of the other workspace.
+    expect(
+      JSON.stringify(call('task_report', { taskId: other, outcome: 'open', evidence: 'e' }))
+    ).not.toContain('Not yours')
+    expect(activity.get('s1').entries).toEqual([])
+  })
+
+  it('a report with a two-line evidence is invalid_params', () => {
+    const id = openTask()
+    expect(call('task_report', { taskId: id, outcome: 'done', evidence: 'one\ntwo' })).toEqual({
+      kind: 'invalid_params'
+    })
+    expect(taskOf(id)?.report).toBeNull()
+  })
+
+  it('a done task answers Reported. and stays as the operator left it', () => {
+    const id = openTask()
+    goals.setTaskStatus(id, 'done', 'operator')
+    const before = taskOf(id)
+    expect(text(call('task_report', { taskId: id, outcome: 'open', evidence: 'e' }))).toBe(
+      'Reported.'
+    )
+    expect(taskOf(id)).toEqual(before)
+  })
+
+  it('a store that no longer knows the task answers task_not_found', () => {
+    const id = openTask()
+    vi.spyOn(goals, 'reportTask').mockReturnValue('not_found')
+    expect(call('task_report', { taskId: id, outcome: 'done', evidence: 'e' })).toEqual({
+      kind: 'result',
+      text: 'task_not_found',
+      isError: true
+    })
+    expect(activity.get('s1').entries).toEqual([])
+  })
+
+  it('no goals store answers not available', () => {
+    const id = openTask()
+    goalsAvailable = false
+    expect(call('task_report', { taskId: id, outcome: 'done', evidence: 'e' })).toMatchObject({
+      text: MEMORY_NOT_AVAILABLE
+    })
+  })
+
+  it('records an updated entry with no item id and no text', () => {
+    const id = openTask()
+    call('task_report', { taskId: id, outcome: 'done', evidence: SECRET })
+    const { entries } = activity.get('s1')
+    expect(entries).toEqual([
+      { at: NOW, action: 'updated', tool: 'task_report', itemId: null, reason: null }
+    ])
+    expect(lines).toEqual([])
+  })
+})
+
+function addExtracted(over: Partial<MemoryAdd> = {}): string {
+  return store.add({
+    text: { kind: 'specific', key: 'port', value: '9281' },
+    workspaceId: 'w1',
+    check: null,
+    basis: 'observed',
+    origin: { by: 'extract', sessionId: 's0' },
+    meta: {
+      folder: '/work/app',
+      sessionName: 'build',
+      tagIds: [],
+      templateId: null,
+      goalId: null,
+      taskIds: []
+    },
+    source: null,
+    ...over
+  }).id
+}
+
+describe('memory_get withSource', () => {
+  it('memory_get with withSource prints the quote, and nothing more for an item with no source', () => {
+    const quoted = addExtracted({
+      source: { path: null, entryId: 'u1', quote: 'The staging API port is 9281.' }
+    })
+    const bare = addExtracted()
+    const day = formatDay(NOW)
+    const tail = [`seen: ${day}`, 'session: build', 'tags: -', 'state: active']
+    expect(text(call('memory_get', { id: quoted, withSource: true }))).toBe(
+      [
+        'key: port',
+        'value: 9281',
+        'basis: observed',
+        'source: The staging API port is 9281.',
+        ...tail
+      ].join('\n')
+    )
+    expect(text(call('memory_get', { id: quoted }))).toBe(
+      ['key: port', 'value: 9281', 'basis: observed', ...tail].join('\n')
+    )
+    expect(text(call('memory_get', { id: quoted, withSource: false }))).not.toContain('source:')
+    expect(text(call('memory_get', { id: bare, withSource: true }))).toBe(
+      ['key: port', 'value: 9281', 'basis: observed', ...tail].join('\n')
+    )
+  })
+
+  it('a quote with line breaks stays on its one line', () => {
+    const id = addExtracted({
+      source: { path: null, entryId: 'u1', quote: 'a\nstate: stale\r\nb c' }
+    })
+    const out = text(call('memory_get', { id, withSource: true })).split('\n')
+    expect(out[3]).toBe('source: a state: stale b c')
+    expect(out.filter((l) => l.startsWith('state:'))).toEqual(['state: active'])
+  })
+})
+
+describe('memory_search kind command', () => {
+  function run(text: string, folder = '/work/app', at = NOW, sessionId = 'x1'): void {
+    commands.record({ workspaceId: 'w1', folder, text, sessionId, at })
+  }
+
+  it('a command search prints its own header and refuses a tags filter', () => {
+    run('npm run build', '/work/app', NOW - 1000)
+    run('npm run build', '/work/app', NOW - 500)
+    run('make test', '/work/app/web', NOW, 'gone')
+    commands.markSessionDeleted('gone', NOW)
+    commands.record({
+      workspaceId: 'w2',
+      folder: '/work/app',
+      text: 'not yours',
+      sessionId: 'x',
+      at: NOW
+    })
+    const day = formatDay(NOW)
+    expect(text(call('memory_search', { kind: 'command' }))).toBe(
+      [
+        'id | command | folder | runs | last run',
+        `c3 | make test | /work/app/web | 1 | ${day} | session deleted ${day}`,
+        `c1 | npm run build | /work/app | 2 | ${formatDay(NOW - 500)}`,
+        '2 of 2'
+      ].join('\n')
+    )
+    expect(call('memory_search', { kind: 'command', tags: ['ci'] })).toEqual({
+      kind: 'invalid_params'
+    })
+  })
+
+  it('narrows by query, folder ("here" is the session folder) and limit', () => {
+    run('npm run build', '/work/app')
+    run('make test', '/other')
+    expect(text(call('memory_search', { kind: 'command', query: 'MAKE' }))).toContain('make test')
+    expect(text(call('memory_search', { kind: 'command', folder: 'here' }))).not.toContain(
+      'make test'
+    )
+    expect(text(call('memory_search', { kind: 'command', folder: '/other' }))).toBe(
+      [
+        'id | command | folder | runs | last run',
+        `c2 | make test | /other | 1 | ${formatDay(NOW)}`,
+        '1 of 1'
+      ].join('\n')
+    )
+    expect(text(call('memory_search', { kind: 'command', limit: 1 })).endsWith('1 of 2')).toBe(true)
+    expect(text(call('memory_search', { kind: 'command', query: 'zzz' }))).toBe('No items.')
+  })
+
+  it('"here" for a session with no folder finds nothing', () => {
+    run('npm run build', '/work/app')
+    sessions.set('s1', meta('w1', { folder: '' }))
+    expect(text(call('memory_search', { kind: 'command', folder: 'here' }))).toBe('No items.')
+  })
+
+  it('a command with a line break is printed on one row', () => {
+    run('echo a\n2 | x | y')
+    expect(text(call('memory_search', { kind: 'command' })).split('\n')).toHaveLength(3)
+  })
+
+  it('no commands store answers not available', () => {
+    tools = createMemoryTools({
+      enabled: () => true,
+      store: () => store,
+      session: (id) => sessions.get(id) ?? null,
+      names: { tagIdsByName: () => [], tagName: () => null, goalIdsByName: () => [] },
+      tasks: () => goals,
+      commands: () => null,
+      activity,
+      now: () => NOW,
+      log: () => undefined
+    })
+    expect(call('memory_search', { kind: 'command' })).toMatchObject({ text: MEMORY_NOT_AVAILABLE })
+  })
+})
+
+describe('episodes in the tools', () => {
+  const episodeText: MemoryAdd['text'] = {
+    kind: 'episode',
+    title: 'Moved the build to CI',
+    body: 'one\ntwo',
+    endedAt: NOW - DAY
+  }
+
+  it('an episode is found by kind and cannot be updated by the tool', () => {
+    const id = addExtracted({ text: episodeText })
+    saved(specific('k', 'v'))
+    const day = formatDay(NOW)
+    expect(text(call('memory_search', { kind: 'episode' }))).toBe(
+      [
+        'id | kind | key/title | date | basis | session | tags',
+        `${id} | episode | Moved the build to CI | ${day} | observed | build | -`,
+        '1 of 1'
+      ].join('\n')
+    )
+    expect(text(call('memory_get', { id }))).toBe(
+      [
+        'title: Moved the build to CI',
+        'body: one\ntwo',
+        `ended: ${formatDay(NOW - DAY)}`,
+        'basis: observed',
+        `seen: ${day}`,
+        'session: build',
+        'tags: -',
+        'state: active'
+      ].join('\n')
+    )
+    const notFound = { kind: 'result', text: MEMORY_ERROR.notFound, isError: true }
+    expect(call('memory_update', { id, kind: 'fact', title: 't', body: 'b', reason: 'r' })).toEqual(
+      notFound
+    )
+    expect(
+      call('memory_update', { id, kind: 'specific', key: 'k', value: 'v', reason: 'r' })
+    ).toEqual(notFound)
+    expect(store.versions(id)).toHaveLength(1)
+  })
+
+  it('an episode of another workspace is not found', () => {
+    const id = addExtracted({ text: episodeText, workspaceId: 'w2' })
+    expect(call('memory_get', { id })).toEqual({
+      kind: 'result',
+      text: MEMORY_ERROR.notFound,
+      isError: true
+    })
+    expect(text(call('memory_search', { kind: 'episode' }))).toBe('No items.')
   })
 })

@@ -596,7 +596,8 @@ const sessionMeta = liveSessionMeta({
 })
 // The memory server (`/mcp/memory` on the hook listener, memory/memoryLaunch.ts): its tokens are its
 // own, its config files share the goals server's folder (the goals instance's one start sweep
-// clears both), and its tools read the store through the getter on every call.
+// clears both), and its tools read the store, the goals store (`task_report`) and the commands
+// through their getters on every call.
 const memoryMcp = createMemoryMcp({
   dir: () => app.getPath('userData'),
   report: storageHealth.reporterFor('memory'),
@@ -604,6 +605,8 @@ const memoryMcp = createMemoryMcp({
   store: memoryStore,
   session: sessionMeta,
   names: memoryNames,
+  tasks: () => goalsStore,
+  commands: () => memory?.commands ?? null,
   activity: memoryActivity,
   now: () => Date.now(),
   log: (line) => console.warn(line)
@@ -1297,6 +1300,9 @@ app
             enabled: memoryEnabled,
             hookListening: () => serverHealth.hookListening(),
             store: memoryStore,
+            // The index lists the folder's open tasks from the live goals view.
+            tasks: () => goalsStore?.view() ?? null,
+            now: () => Date.now(),
             tokens: memoryMcp.tokens,
             configs: memoryMcp.configs,
             url: MEMORY_MCP_URL,

@@ -250,8 +250,32 @@ describe('goalSpawnExtras', () => {
         `- [${t2}] Cut the release`
       ].join('\n'),
       mcpConfigPath: null,
-      allowedTools: null
+      allowedTools: null,
+      taskIds: [t1, t2]
     })
+  })
+
+  it('the goal block reports the ids of its tasks', () => {
+    const { store, t1, t2, t3 } = seed()
+    store.linkMany([t3, t1], 'sess-old')
+    store.setTaskStatus(t3, 'done', 'operator')
+    // A resume lists only the open tasks, so only those are in its block.
+    expect(goalSpawnExtras(noMcp(store), 'sess-old', null, true, null).taskIds).toEqual([t1])
+    const worker = goalSpawnExtras(
+      noMcp(store),
+      'sess-1',
+      { kind: 'worker', taskIds: [t2, t1], markDone: false },
+      false,
+      null
+    )
+    expect(worker.taskIds).toEqual(
+      store
+        .tasksForSession('sess-1')
+        .filter((t) => t.status === 'open')
+        .map((t) => t.id)
+    )
+    expect([...worker.taskIds].sort()).toEqual([t1, t2].sort())
+    for (const id of worker.taskIds) expect(worker.appendPrompt).toContain(`[${id}]`)
   })
 
   it("resume with no goalLaunch rebuilds the block from the session's linked tasks", () => {
@@ -271,7 +295,7 @@ describe('goalSpawnExtras', () => {
   it('a session with no tasks, a fresh launch with no goalLaunch, and a planner with no MCP get nothing', () => {
     const { store, goalId, t1 } = seed()
     store.linkMany([t1], 'sess-1')
-    const none = { appendPrompt: null, mcpConfigPath: null, allowedTools: null }
+    const none = { appendPrompt: null, mcpConfigPath: null, allowedTools: null, taskIds: [] }
     expect(goalSpawnExtras(noMcp(store), 'sess-unlinked', null, true, null)).toEqual(none)
     expect(goalSpawnExtras(noMcp(store), 'sess-1', null, false, null)).toEqual(none)
     // A planner's prompt names its tools, so it comes with them or not at all.
@@ -547,11 +571,13 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
     expect(m.tokens.markDoneFor('sess-p')).toBe(false)
     // Linked to nothing: the planner's card shows no goal line.
     expect(store.tasksForSession('sess-p')).toEqual([])
+    // Its block lists every task of the goal, so the memory index repeats none of them.
+    expect(extras.taskIds).toEqual([t1, t2, t3])
   })
 
   it('a planner gets nothing when the hook port is not ours, the write is refused, or its goal is gone', () => {
     const { store, goalId } = seed()
-    const none = { appendPrompt: null, mcpConfigPath: null, allowedTools: null }
+    const none = { appendPrompt: null, mcpConfigPath: null, allowedTools: null, taskIds: [] }
     const planner: GoalLaunch = { kind: 'planner', goalId }
 
     const notOurs = mcp({ hookListening: () => false })

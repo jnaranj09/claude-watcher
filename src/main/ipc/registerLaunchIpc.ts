@@ -163,12 +163,12 @@ export interface LaunchIpcDeps {
     resume: boolean,
     previousSessionId: string | null
   ) => GoalSpawnExtras
-  /** Memory: what one spawn of `sessionId` adds (the index for its folder, the memory server's
-   *  config and tools, and its env flag), or nothing (memory/memoryLaunch.ts). Read at spawn
-   *  time; `previousSessionId` as for goals. */
+  /** Memory: what one spawn of `sessionId` adds (the index for its folder, without the tasks the
+   *  goal block lists; the memory server's config and tools, and its env flag), or nothing
+   *  (memory/memoryLaunch.ts). Read at spawn time; `previousSessionId` as for goals. */
   memorySpawnExtras: (
     sessionId: string,
-    launch: { cwd: string; workspaceId: string },
+    launch: { cwd: string; workspaceId: string; excludeTaskIds: readonly string[] },
     previousSessionId: string | null
   ) => MemorySpawnExtras
   /** The workspace a launch that names none lands in (main's active one, read at spawn). */
