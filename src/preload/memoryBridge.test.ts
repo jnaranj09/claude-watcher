@@ -1,6 +1,6 @@
 // Which channel each `window.memory` bridge calls (the preload is the other half of the
 // registrar's binding, registerStoreIpc.memory.test.ts): a swapped channel goes red here. And the
-// result push's hold in the preload (ruling R39).
+// result push's hold in the preload (rulings R39, R43).
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { CH, type Channel } from '../shared/ipc/contract'
 import { NO_COUNTS, type MemoryExtractResult } from '../shared/schemas/memory'
@@ -97,8 +97,9 @@ describe('window.memory calls its own channel', () => {
   })
 })
 
-// Ruling R39: the result push must not wait for React. The preload listens from its start and
-// holds what arrives until the renderer subscribes, then hands each result over once, in order.
+// Rulings R39, R43: the result push must not wait for React. The preload listens from its start
+// and holds what arrives (opaque plain objects; the renderer parses them) until the renderer
+// subscribes, then hands each result over once, in order.
 describe('window.memory.onExtractResult holds results until the renderer subscribes', () => {
   const result = (n: number): MemoryExtractResult => ({
     sessionName: `session ${n}`,
@@ -114,8 +115,8 @@ describe('window.memory.onExtractResult holds results until the renderer subscri
     listener({}, payload)
   }
   /** Subscribes a collector and returns what it got plus the unsubscribe. */
-  function subscribe(): { got: MemoryExtractResult[]; off: () => void } {
-    const got: MemoryExtractResult[] = []
+  function subscribe(): { got: object[]; off: () => void } {
+    const got: object[] = []
     const off = memory.onExtractResult((r) => got.push(r))
     return { got, off }
   }
@@ -163,7 +164,7 @@ describe('window.memory.onExtractResult holds results until the renderer subscri
     for (let n = 1; n <= 52; n += 1) fromMain(result(n))
     const { got, off } = subscribe()
     off()
-    expect(got.map((r) => r.counts.facts)).toEqual(Array.from({ length: 50 }, (_, i) => i + 3))
+    expect(got).toEqual(Array.from({ length: 50 }, (_, i) => result(i + 3)))
     expect(warn.mock.calls).toEqual([
       ['[claude-watcher][memory] code=memory_extract_result_held_dropped'],
       ['[claude-watcher][memory] code=memory_extract_result_held_dropped']
@@ -171,20 +172,12 @@ describe('window.memory.onExtractResult holds results until the renderer subscri
     warn.mockRestore()
   })
 
-  it.each<[string, unknown, string]>([
-    ['a payload that is not an object', 'x', 'path= issue=invalid_type'],
-    [
-      'a negative count',
-      { ...result(1), counts: { ...NO_COUNTS, tasks: -1 } },
-      'path=counts.tasks issue=too_small'
-    ],
-    [
-      'memory text riding along',
-      { ...result(1), body: 'a secret value' },
-      'path= issue=unrecognized_keys'
-    ],
-    ['an empty name', { ...result(1), sessionName: '' }, 'path=sessionName issue=too_small']
-  ])('drops %s with its path and code only, never the value', (_name, payload, where) => {
+  it.each<[string, unknown]>([
+    ['a string', 'x'],
+    ['null', null],
+    ['an array', [1, 2]],
+    ['a number', 7]
+  ])('drops %s (not a plain object) with a code only, never the value', (_name, payload) => {
     drain()
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     fromMain(payload)
@@ -193,9 +186,18 @@ describe('window.memory.onExtractResult holds results until the renderer subscri
     off()
     expect(got).toEqual([])
     expect(warn.mock.calls).toEqual([
-      [`[claude-watcher][memory] code=memory_extract_result_invalid ${where}`],
-      [`[claude-watcher][memory] code=memory_extract_result_invalid ${where}`]
+      ['[claude-watcher][memory] code=memory_extract_result_invalid issue=not_object'],
+      ['[claude-watcher][memory] code=memory_extract_result_invalid issue=not_object']
     ])
     warn.mockRestore()
+  })
+
+  it("hands an object over as it came: the schema check is the renderer's (R43)", () => {
+    drain()
+    const odd = { ...result(1), counts: { ...NO_COUNTS, tasks: -1 } }
+    fromMain(odd)
+    const { got, off } = subscribe()
+    off()
+    expect(got).toEqual([odd])
   })
 })

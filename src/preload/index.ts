@@ -67,7 +67,6 @@ import type {
   MemoryCommandsResult,
   MemoryCreateRequest,
   MemoryEditRequest,
-  MemoryExtractResult,
   MemoryGetResult,
   MemoryItem,
   MemoryListRequest,
@@ -91,9 +90,6 @@ import type {
   FileHistoryDiffResult,
   FileHistoryRestoreResult
 } from '../shared/ipc/contract'
-// The one schema the preload runs: the result push it holds (ruling R39). zod is bundled into the
-// preload (electron.vite.config.ts): a sandboxed preload can require nothing but electron.
-import { MemoryExtractResultSchema } from '../shared/schemas/memory'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
 // contextIsolation stays ON — the renderer gets ONLY these functions, never
@@ -585,35 +581,32 @@ const goalsApi = {
 }
 export type GoalsApi = typeof goalsApi
 
-// The result push's hold (ruling R39). Main sends a result once the window's page has loaded
+// The result push's hold (rulings R39, R43). Main sends a result once the window's page has loaded
 // (`did-finish-load`, main/ipc/extractResultPush.ts), which can be before React subscribed. So the
-// preload listens from its start and HOLDS each result (schema-checked here: counts, the session's
-// name and codes, never memory text) while nothing is subscribed: the newest HELD_RESULTS_MAX, in
-// order. A subscribe takes what is held, once, in order; later results go straight to every
-// subscriber. An unsubscribe then a subscribe again (React strict mode, a remount) holds what
-// came in between, so nothing is shown twice and nothing is lost. Under SMOKE main opens no memory
-// and sends nothing, so this listener stays idle.
+// preload listens from its start and HOLDS each result while nothing is subscribed: the newest
+// HELD_RESULTS_MAX, in order. The values are opaque here: main schema-checks every result before it
+// sends, and the renderer parses each one where it turns it into a toast (lib/memoryToasts.ts); the
+// preload only drops a value that is not a plain object. A subscribe takes what is held, once, in
+// order; later results go straight to every subscriber. An unsubscribe then a subscribe again
+// (React strict mode, a remount) holds what came in between, so nothing is shown twice and nothing
+// is lost. Under SMOKE main opens no memory and sends nothing, so this listener stays idle.
 const HELD_RESULTS_MAX = 50
-const heldResults: MemoryExtractResult[] = []
-const resultSubscribers = new Set<(result: MemoryExtractResult) => void>()
+const heldResults: object[] = []
+const resultSubscribers = new Set<(raw: object) => void>()
 ipcRenderer.on(CH.memoryExtractResult, (_evt: unknown, raw: unknown): void => {
-  const parsed = MemoryExtractResultSchema.safeParse(raw)
-  if (!parsed.success) {
-    const issue = parsed.error.issues[0]
-    console.warn(
-      `[claude-watcher][memory] code=memory_extract_result_invalid path=${issue?.path.join('.') ?? ''} issue=${issue?.code ?? ''}`
-    )
+  if (typeof raw !== 'object' || raw === null || Object.getPrototypeOf(raw) !== Object.prototype) {
+    console.warn('[claude-watcher][memory] code=memory_extract_result_invalid issue=not_object')
     return
   }
   if (resultSubscribers.size === 0) {
-    heldResults.push(parsed.data)
+    heldResults.push(raw)
     if (heldResults.length > HELD_RESULTS_MAX) {
       heldResults.shift()
       console.warn('[claude-watcher][memory] code=memory_extract_result_held_dropped')
     }
     return
   }
-  for (const cb of [...resultSubscribers]) cb(parsed.data)
+  for (const cb of [...resultSubscribers]) cb(raw)
 })
 
 // Memory — typed invoke wrappers over CH.memory* (spec 2026-11-11). The operator's dialog lists,
@@ -621,7 +614,8 @@ ipcRenderer.on(CH.memoryExtractResult, (_evt: unknown, raw: unknown): void => {
 // `onChanged` is main's push after any change, whoever made it: it carries nothing, so the dialog
 // lists again. Every refusal is a code (`memory_unavailable` while memory is off; `activity`
 // still answers). `onExtractResult` is main's push after a save from a session: counts, the
-// session's name and codes, never memory text; the preload holds it until a subscribe (above).
+// session's name and codes, never memory text; the preload holds it until a subscribe (above) and
+// the renderer parses it.
 const memoryApi = {
   list(req: MemoryListRequest): Promise<MemoryListResult> {
     return ipcRenderer.invoke(CH.memoryList, req)
@@ -682,8 +676,9 @@ const memoryApi = {
     return ipcRenderer.invoke(CH.memoryDeleteCommand, { id })
   },
   /** Subscribe to what each save from a session did; returns the unsubscribe. First hands over
-   *  the results held while nothing was subscribed (the hold above), once, in order. */
-  onExtractResult(cb: (result: MemoryExtractResult) => void): () => void {
+   *  the results held while nothing was subscribed (the hold above), once, in order. Each value
+   *  is a plain object the caller still parses (`MemoryExtractResultSchema`). */
+  onExtractResult(cb: (raw: object) => void): () => void {
     resultSubscribers.add(cb)
     for (let next = heldResults.shift(); next !== undefined; next = heldResults.shift()) cb(next)
     return () => {

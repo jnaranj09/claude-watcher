@@ -24,9 +24,7 @@ export default defineConfig({
     }
   },
   preload: {
-    // The window is sandboxed, so its preload can require only `electron`: zod (the result push's
-    // check in the preload, ruling R39) is BUNDLED into it, not left as a runtime require.
-    plugins: [externalizeDepsPlugin({ exclude: ['zod'] })]
+    plugins: [externalizeDepsPlugin()]
   },
   renderer: {
     resolve: {

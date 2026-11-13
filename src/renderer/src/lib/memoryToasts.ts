@@ -3,7 +3,7 @@
 // failed; `claude_version` once per run); this file only draws what arrives. A toast holds the
 // session's name and counts only, never memory text. The counts are what the saves WROTE (an
 // update counts too), in the addendum's words.
-import type { MemoryCounts, MemoryExtractResult } from '../../../shared/schemas/memory'
+import { MemoryExtractResultSchema, type MemoryCounts } from '../../../shared/schemas/memory'
 import { formatVersion, MIN_EXTRACT_CLAUDE_VERSION } from '../../../shared/launch/claudeVersion'
 import { boardStore } from '../stores/boardStore'
 import { toast } from '../stores/toastStore'
@@ -31,15 +31,26 @@ export function openMemoryForSession(sessionName: string): void {
   boardStore.getState().openMemoryDialog({ sessionName })
 }
 
-/** The toast for one result (addendum "Feedback"). `show` opens the Memory dialog for that session. */
-export function showExtractResult(
-  result: MemoryExtractResult,
-  show: (sessionName: string) => void
-): void {
+/** The toast for one result (addendum "Feedback", ruling R42). `raw` is what the preload hands
+ *  over; it is parsed here, once (R43): a value that fails is dropped with its path and issue code,
+ *  and shows no toast. Every toast keeps its title short and puts what must stay whole (the counts,
+ *  the version) on the detail line, so a long session name is the only thing cut. `show` opens the
+ *  Memory dialog for that session. */
+export function showExtractResult(raw: unknown, show: (sessionName: string) => void): void {
+  const parsed = MemoryExtractResultSchema.safeParse(raw)
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    console.warn(
+      `[claude-watcher][memory] code=memory_extract_result_invalid path=${issue?.path.join('.') ?? ''} issue=${issue?.code ?? ''}`
+    )
+    return
+  }
+  const result = parsed.data
   const name = result.sessionName
   switch (result.outcome) {
     case 'saved':
-      toast.success(`Memory saved from "${name}": ${countsCopy(result.counts)}.`, {
+      toast.success(`Memory saved from "${name}".`, {
+        detail: countsCopy(result.counts),
         action: { label: 'Show', icon: 'open', run: () => show(name) }
       })
       return
@@ -50,9 +61,7 @@ export function showExtractResult(
       toast.error(
         `Could not save memory from "${name}".`,
         result.reason === 'claude_version'
-          ? {
-              detail: `Update claude to ${formatVersion(MIN_EXTRACT_CLAUDE_VERSION)} or newer to save memory.`
-            }
+          ? { detail: `Needs claude ${formatVersion(MIN_EXTRACT_CLAUDE_VERSION)} or newer.` }
           : {}
       )
   }

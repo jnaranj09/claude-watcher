@@ -51,9 +51,9 @@ describe('App — the result toasts of a save from a session', () => {
     await renderApp()
     expect(subscribers.size).toBe(1)
     fromMain(SAVED)
-    expect(screen.getByTestId('toast')).toHaveTextContent(
-      'Memory saved from "fix api port": 4 specifics, 1 fact, 2 tasks, 1 episode.'
-    )
+    const card = screen.getByTestId('toast')
+    expect(within(card).getByText('Memory saved from "fix api port".')).toBeVisible()
+    expect(within(card).getByText('4 specifics, 1 fact, 2 tasks, 1 episode')).toBeVisible()
   })
 
   it('Show opens the Memory dialog', async () => {

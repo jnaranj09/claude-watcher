@@ -54,7 +54,6 @@ import type {
   MemoryCommandsResult,
   MemoryCreateRequest,
   MemoryEditRequest,
-  MemoryExtractResult,
   MemoryGetResult,
   MemoryItem,
   MemoryListRequest,
@@ -244,6 +243,7 @@ declare global {
     // stamps the writer; `onChanged` is main's empty push, so the renderer lists again.
     // `onExtractResult` is main's push after a save from a session (counts and a name only); the
     // preload holds results until a subscribe, then hands each over once, in order (ruling R39).
+    // Each is a plain object the renderer parses itself (`MemoryExtractResultSchema`, R43).
     memory: {
       list(req: MemoryListRequest): Promise<MemoryListResult>
       get(id: string): Promise<MemoryGetResult>
@@ -264,7 +264,7 @@ declare global {
         limit: number
       }): Promise<MemoryCommandsResult>
       removeCommand(id: string): Promise<void>
-      onExtractResult(cb: (result: MemoryExtractResult) => void): () => void
+      onExtractResult(cb: (raw: object) => void): () => void
     }
     // Story 3.5 (SM-2) — mirrors src/preload/index.ts `telemetryApi`. The renderer signals the
     // acknowledge moment ONLY through this typed bridge (never ipcRenderer directly — F4).
