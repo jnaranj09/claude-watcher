@@ -149,12 +149,20 @@ function versionOk(r: JobRun): boolean {
   return ok
 }
 
-function noTranscript(r: JobRun, mem: Mem): void {
+/** No transcript. A checkpoint waits for the end. An end or a catch-up closes the row; it fails
+ *  only when a save read the file before (it went missing since). claude writes the transcript at
+ *  the first prompt, so a row that never read anything is a session that never said anything: it
+ *  ends quietly like the substance guard, with no `failed` record and no push (R49). */
+function noTranscript(r: JobRun, mem: Mem, start: ExtractRow): void {
   log(r, 'memory_extract_no_transcript')
   if (r.job.trigger === 'checkpoint') return
   mem.state.setPhase(r.job.id, 'done', r.deps.now())
   const row = mem.state.get(r.job.id)
   if (row === null) return
+  if (start.byteOffset === 0) {
+    setRecord(r, row, 'nothing')
+    return
+  }
   setRecord(r, row, 'failed')
   push(r, row, 'failed', null)
 }
@@ -374,7 +382,7 @@ async function run(r: JobRun): Promise<void> {
   }
   const path = deps.locate(start.sessionId)
   if (path === null) {
-    noTranscript(r, mem)
+    noTranscript(r, mem, start)
     return
   }
   const slice = await deps.read(path, start.byteOffset, EXTRACT_LIMITS.readBytesPerJob)

@@ -1,7 +1,8 @@
 // The extractor's fix round 1 (rulings R30–R34): a given-up chunk is a failure, a too-old claude
 // is asked once per 10 minutes and never costs an attempt, a corrupt save row never stops the
 // catch-up of the others, a second end with nothing new makes no job, and a `/clear` reported in
-// the wrong order keeps the old transcript owed. Same harness as the other extractor tests.
+// the wrong order keeps the old transcript owed. R49: a session that never said anything ends
+// quietly when it has no transcript. Same harness as the other extractor tests.
 import { beforeEach, describe, expect, it } from 'vitest'
 import { NO_COUNTS } from '../../../shared/schemas/memory'
 import { EXTRACT_LIMITS } from '../../../shared/schemas/memoryExtract'
@@ -253,5 +254,51 @@ describe('what the reviewer found untested', () => {
     expect(h.logs).toContain(
       '[claude-watcher][memory] code=memory_extract_done trigger=checkpoint saved=0 dropped=0'
     )
+  })
+})
+
+describe('R49: no transcript', () => {
+  it('a card left open at quit that never said anything is closed quietly by the next start', async () => {
+    stops(h, 's1', 1)
+    const start = h.restart()
+    start.catchUp()
+    await start.idle()
+    expect(h.state.get('s1')?.phase).toBe('done')
+    expect(h.setMemory.mock.calls.filter(([, m]) => m.state === 'failed')).toEqual([])
+    expect(h.pushed).toEqual([])
+    expect(h.calls).toHaveLength(0)
+  })
+
+  it('an end whose transcript went missing after a save read it still fails', async () => {
+    conversation('s1')
+    stops(h, 's1', 15)
+    await h.ex.idle()
+    h.transcripts.delete('s1')
+    h.ex.ended('s1')
+    await h.ex.idle()
+    expect(h.state.get('s1')?.phase).toBe('done')
+    expect(h.setMemory).toHaveBeenLastCalledWith('s1', {
+      state: 'failed',
+      ...NO_COUNTS,
+      episodeId: null
+    })
+    expect(h.pushed.map((p) => [p.trigger, p.outcome])).toEqual([['end', 'failed']])
+  })
+
+  it('a catch-up whose transcript went missing after a save read it still fails', async () => {
+    conversation('s1')
+    stops(h, 's1', 15)
+    await h.ex.idle()
+    h.transcripts.delete('s1')
+    const start = h.restart()
+    start.catchUp()
+    await start.idle()
+    expect(h.state.get('s1')?.phase).toBe('done')
+    expect(h.setMemory).toHaveBeenLastCalledWith('s1', {
+      state: 'failed',
+      ...NO_COUNTS,
+      episodeId: null
+    })
+    expect(h.pushed.map((p) => [p.trigger, p.outcome])).toEqual([['catchup', 'failed']])
   })
 })

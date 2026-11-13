@@ -485,17 +485,17 @@ describe('the queue and failures', () => {
     expect(h.pushed).toEqual([])
   })
 
-  it('no transcript: the end fails with a code and the row is closed', async () => {
+  it('no transcript for a session that never said anything: the end is quiet and closes the row (R49)', async () => {
     h.ex.ended('s1')
     await h.ex.idle()
     expect(h.logs).toContain('[claude-watcher][memory] code=memory_extract_no_transcript')
     expect(h.state.get('s1')?.phase).toBe('done')
     expect(h.setMemory).toHaveBeenLastCalledWith('s1', {
-      state: 'failed',
+      state: 'nothing',
       ...NO_COUNTS,
       episodeId: null
     })
-    expect(h.pushed.map((p) => p.outcome)).toEqual(['failed'])
+    expect(h.pushed).toEqual([])
   })
 })
 
