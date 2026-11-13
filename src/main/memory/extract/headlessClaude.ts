@@ -9,7 +9,9 @@
 // exit 0 → the parsed result; another exit → `exit`; no exit in `timeoutMs` → `timeout`; stdout
 // past `stdoutBytes` → `exit`; a spawn error or no pid → `spawn`; `cancel()` → `cancelled`. A
 // kill sends SIGTERM to the group, SIGKILL `killGraceMs` later, and the call ends at the child's
-// close, or `killGraceMs` after the SIGKILL when even that close never comes.
+// close, or `killGraceMs` after the SIGKILL when even that close never comes. `killNow()` (app
+// quit) sends the SIGKILL at once. A kill stops reading stdout, and stdout is held only up to
+// `stdoutBytes`, so a flood is never buffered.
 //
 // SENSITIVE: stdin (the slice) and stdout (the model's output) are never logged; a log carries a
 // code only. The real `spawn` and `process.kill` are injected by the caller.
@@ -28,7 +30,13 @@ export type ExtractCallResult =
   | { ok: false; reason: ExtractCallFailure; issue: { path: string; code: string } | null }
 export interface ExtractCall {
   result: Promise<ExtractCallResult>
+  /** SIGTERM to the process group, SIGKILL `killGraceMs` later; the result is `cancelled`. */
   cancel(): void
+  /** SIGKILL to the process group at once, synchronously: the app's quit calls it (Task 11), since
+   *  a timer would die with the app and the detached group would not. Does nothing after the call
+   *  ended or once a SIGKILL went out. The result is `cancelled`, or the reason of a kill already
+   *  under way. */
+  killNow(): void
 }
 
 /** The command for `$SHELL -l -c`, every value through `shellQuote`:
@@ -68,9 +76,12 @@ export function composeExtractCommand(spec: {
 /** Every variable the app itself owns starts with this: the memory and mod markers
  *  (`CLAUDE_WATCHER_MEMORY`, `CLAUDE_WATCHER_MOD_URL`), the profile, the claude path override. */
 const WATCHER_PREFIX = 'CLAUDE_WATCHER_'
+/** Set when the app itself was started from a claude terminal; `buildPtyEnv` keeps it for
+ *  sessions, but the headless call was probed without it. */
+const CLAUDECODE = 'CLAUDECODE'
 
 /** `base` without CLAUDE_WATCHER_MEMORY and CLAUDE_WATCHER_MOD_URL (and every other
- *  `CLAUDE_WATCHER_*`), with CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 and `claudeDir` first in PATH.
+ *  `CLAUDE_WATCHER_*`) and without CLAUDECODE, with CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 and `claudeDir` first in PATH.
  *  `base` is already `buildPtyEnv()` (no CLAUDE_CODE_*). */
 export function buildExtractEnv(
   base: Readonly<Record<string, string>>,
@@ -78,7 +89,7 @@ export function buildExtractEnv(
 ): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(base)) {
-    if (!k.startsWith(WATCHER_PREFIX)) env[k] = v
+    if (k !== CLAUDECODE && !k.startsWith(WATCHER_PREFIX)) env[k] = v
   }
   const path = prependToPath(claudeDir, env.PATH)
   if (path !== undefined) env.PATH = path
@@ -120,12 +131,38 @@ export function parseClaudeResult(stdout: string): ExtractCallResult {
   })
 }
 
-/** What the call needs of a spawned child. `close` (not `exit`): it fires after stdout is drained,
- *  so the parse sees every byte. */
+/** Holds stdout up to `cap` bytes. The chunk that would pass the cap is not kept, and `push` answers
+ *  false, so nothing past the cap is ever buffered. Exported for its own test, which pins the
+ *  bytes held. */
+export function boundedCollector(cap: number): {
+  push(chunk: Buffer): boolean
+  held(): number
+  text(): string
+} {
+  const chunks: Buffer[] = []
+  let held = 0
+  return {
+    push: (chunk) => {
+      if (held + chunk.length > cap) return false
+      chunks.push(chunk)
+      held += chunk.length
+      return true
+    },
+    held: () => held,
+    // Joined before decoding, so a multi-byte character split across two chunks stays whole.
+    text: () => Buffer.concat(chunks).toString('utf8')
+  }
+}
+
+/** What the call needs of a spawned child; Node's `ChildProcess` from `spawn` with
+ *  `stdio: ['pipe', 'pipe', 'ignore']` fits it as is (a type test pins that). `pid` is optional
+ *  there: Node leaves it unset when the spawn failed. `close` (not `exit`): it fires after stdout is
+ *  drained, so the parse sees every byte. */
 export interface ChildSeam {
-  pid: number | undefined
+  pid?: number | undefined
   stdin: { end(text: string): void; on(event: 'error', cb: () => void): void }
-  stdout: { on(event: 'data', cb: (chunk: Buffer) => void): void }
+  stdout: { on(event: 'data', cb: (chunk: Buffer) => void): void; destroy(): void }
+  kill(signal: 'SIGTERM' | 'SIGKILL'): void
   on(event: 'close', cb: (code: number | null) => void): void
   on(event: 'error', cb: () => void): void
 }
@@ -143,7 +180,8 @@ export type SpawnSeam = (
 /** Spawns `shell -l -c command` in its own process group, writes `input` to stdin and closes it. Resolves
  *  once, never rejects: exit 0 → parseClaudeResult; another exit → 'exit'; no exit after `timeoutMs` →
  *  SIGTERM to the group (`kill(-pid)`), SIGKILL after `killGraceMs`, 'timeout'; stdout over `stdoutBytes`
- *  → killed, 'exit'; a spawn error or no pid → 'spawn'; `cancel()` → killed the same way, 'cancelled'. */
+ *  → killed, 'exit'; a spawn error or no pid → 'spawn'; `cancel()` → killed the same way, 'cancelled';
+ *  `killNow()` → SIGKILL at once, 'cancelled' unless a kill had already started. */
 export function runExtractCall(
   deps: {
     spawn: SpawnSeam
@@ -167,10 +205,10 @@ export function runExtractCall(
   let done = false
   /** Set once a kill starts: the reason the call ends with, whatever the child then exits with. */
   let killedFor: ExtractCallFailure | null = null
+  let sigkillSent = false
   let timer: unknown = null
-  let pid: number | undefined = undefined
-  const chunks: Buffer[] = []
-  let bytes = 0
+  let child: ChildSeam | null = null
+  const out = boundedCollector(deps.stdoutBytes)
 
   const clear = (): void => {
     if (timer === null) return
@@ -184,34 +222,54 @@ export function runExtractCall(
     clear()
     settle(r)
   }
+  /** The group when the child has a pid; the child itself when it has none. Its callers (`stop`,
+   *  `killNow`, the SIGKILL timer) never run after the call ended, so a pid the system gave to
+   *  another process since is never signalled. */
   const signal = (s: 'SIGTERM' | 'SIGKILL'): void => {
-    // Narrows the type only: `stop` runs once `pid` is set (a call that never got one is done).
-    if (pid === undefined) return
+    // Narrows the type only: a call whose spawn threw is already done.
+    if (child === null) return
     try {
-      deps.kill(-pid, s)
+      if (child.pid === undefined) child.kill(s)
+      else deps.kill(-child.pid, s)
     } catch {
       // ESRCH: the group is already gone; its close (or the last timer) still ends the call.
       console.warn(`[claude-watcher][memory] code=memory_extract_kill_failed signal=${s}`)
     }
   }
-  /** SIGTERM to the group now, SIGKILL after the grace time, and the call ends at the close or one
-   *  more grace time after the SIGKILL. Once per call; never after the call ended. */
-  const stop = (why: ExtractCallFailure): void => {
-    if (done || killedFor !== null) return
-    killedFor = why
+  /** SIGKILL now; the call ends at the close, or one grace time later when no close comes. */
+  const sigkill = (): void => {
+    sigkillSent = true
     clear()
-    signal('SIGTERM')
+    signal('SIGKILL')
     timer = deps.setTimer(() => {
-      signal('SIGKILL')
-      timer = deps.setTimer(() => {
-        timer = null
-        finish(failed(why))
-      }, deps.killGraceMs)
+      timer = null
+      finish(failed(killedFor ?? 'cancelled'))
     }, deps.killGraceMs)
   }
-  const call: ExtractCall = { result, cancel: () => stop('cancelled') }
+  /** Marks the kill's reason (the first one wins) and stops reading stdout: nothing after a kill
+   *  is buffered. */
+  const startKill = (why: ExtractCallFailure): void => {
+    killedFor = why
+    child?.stdout.destroy()
+  }
+  /** SIGTERM to the group now, SIGKILL after the grace time. Once per call; never after it ended. */
+  const stop = (why: ExtractCallFailure): void => {
+    if (done || killedFor !== null) return
+    startKill(why)
+    clear()
+    signal('SIGTERM')
+    timer = deps.setTimer(sigkill, deps.killGraceMs)
+  }
+  const call: ExtractCall = {
+    result,
+    cancel: () => stop('cancelled'),
+    killNow: () => {
+      if (done || sigkillSent) return
+      if (killedFor === null) startKill('cancelled')
+      sigkill()
+    }
+  }
 
-  let child: ChildSeam
   try {
     child = deps.spawn(deps.shell, ['-l', '-c', deps.command], {
       cwd: deps.cwd,
@@ -224,37 +282,34 @@ export function runExtractCall(
     finish(failed('spawn'))
     return call
   }
+  const spawned = child
   // Listened to before anything else: an 'error' with no listener would throw in main.
-  child.on('error', () => {
-    if (pid === undefined) finish(failed('spawn'))
+  spawned.on('error', () => {
+    if (spawned.pid === undefined) finish(failed('spawn'))
     else stop('spawn')
   })
-  child.stdin.on('error', () => {
+  spawned.stdin.on('error', () => {
     // EPIPE: the child closed stdin early. Its close decides the result; nothing to do here.
   })
-  if (child.pid === undefined) {
+  if (spawned.pid === undefined) {
+    // Node leaves no pid when the spawn failed; the child's own kill is the fallback, in case one
+    // runs anyway.
+    signal('SIGKILL')
     finish(failed('spawn'))
     return call
   }
-  pid = child.pid
-  child.stdout.on('data', (chunk) => {
-    if (done || killedFor !== null) return
-    bytes += chunk.length
-    if (bytes > deps.stdoutBytes) {
-      stop('exit')
-      return
-    }
-    chunks.push(chunk)
+  spawned.stdout.on('data', (chunk) => {
+    if (!out.push(chunk)) stop('exit')
   })
-  child.on('close', (code) => {
+  spawned.on('close', (code) => {
     if (killedFor !== null) finish(failed(killedFor))
-    else if (code === 0) finish(parseClaudeResult(Buffer.concat(chunks).toString('utf8')))
+    else if (code === 0) finish(parseClaudeResult(out.text()))
     else finish(failed('exit'))
   })
   timer = deps.setTimer(() => {
     timer = null
     stop('timeout')
   }, deps.timeoutMs)
-  child.stdin.end(input)
+  spawned.stdin.end(input)
   return call
 }

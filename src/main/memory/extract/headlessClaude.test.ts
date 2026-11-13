@@ -1,8 +1,12 @@
 // The headless model call (addendum "The call", D7–D12): a fake spawn seam and a hand-driven
 // timer stand in for `child_process` and the clock, so no real claude ever runs here.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { spawn } from 'node:child_process'
+import { EventEmitter } from 'node:events'
+import { PassThrough } from 'node:stream'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { EXTRACT_LIMITS, type ExtractOutput } from '../../../shared/schemas/memoryExtract'
 import {
+  boundedCollector,
   buildExtractEnv,
   composeExtractCommand,
   parseClaudeResult,
@@ -63,7 +67,8 @@ describe('buildExtractEnv', () => {
       CLAUDE_WATCHER_MEMORY: '1',
       CLAUDE_WATCHER_MOD_URL: 'http://127.0.0.1:1/mod',
       CLAUDE_WATCHER_PROFILE: 'drive',
-      CLAUDE_WATCHER_CLAUDE_BIN: '/opt/claude'
+      CLAUDE_WATCHER_CLAUDE_BIN: '/opt/claude',
+      CLAUDECODE: '1'
     }
     expect(buildExtractEnv(base, '/opt/claude-dir')).toEqual({
       HOME: '/home/op',
@@ -145,8 +150,13 @@ describe('parseClaudeResult', () => {
 
 // ---- runExtractCall ----
 
+// Built on real EventEmitters, as Node's child and its streams are: an `error` emitted with no
+// listener throws, so a missing listener is a red test, not a silent drop.
 interface FakeChild extends ChildSeam {
   written: string[]
+  /** What the call asked of the child's own `kill` (the fallback when it has no pid). */
+  ownKills: string[]
+  stdoutDestroyed(): boolean
   data(chunk: Buffer | string): void
   close(code: number | null): void
   fail(): void
@@ -154,43 +164,51 @@ interface FakeChild extends ChildSeam {
 }
 
 function fakeChild(pid: number | undefined): FakeChild {
-  const on: { close: ((c: number | null) => void)[]; error: (() => void)[] } = {
-    close: [],
-    error: []
-  }
-  const dataCbs: ((chunk: Buffer) => void)[] = []
-  const stdinErr: (() => void)[] = []
+  const events = new EventEmitter()
+  const stdin = new EventEmitter()
+  const stdout = new EventEmitter()
+  let destroyed = false
   const written: string[] = []
+  const ownKills: string[] = []
   return {
     pid,
     written,
+    ownKills,
     stdin: {
       end: (text) => {
         written.push(text)
       },
-      on: (_e, cb) => {
-        stdinErr.push(cb)
+      on: (event, cb) => {
+        stdin.on(event, cb)
       }
     },
     stdout: {
-      on: (_e, cb) => {
-        dataCbs.push(cb)
+      on: (event, cb) => {
+        stdout.on(event, cb)
+      },
+      destroy: () => {
+        destroyed = true
       }
     },
-    on: (event: 'close' | 'error', cb: never) => {
-      on[event].push(cb)
+    kill: (signal) => {
+      ownKills.push(signal)
     },
+    on: (event: 'close' | 'error', cb: (code: number | null) => void) => {
+      events.on(event, cb)
+    },
+    stdoutDestroyed: () => destroyed,
+    // A destroyed Readable emits no more data (pinned on a real stream below).
     data: (chunk) => {
-      for (const cb of dataCbs) cb(typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
+      if (!destroyed) stdout.emit('data', typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
     },
     close: (code) => {
-      for (const cb of on.close) cb(code)
+      events.emit('close', code, null)
     },
     fail: () => {
-      for (const cb of on.error) cb()
+      events.emit('error', new Error('spawn /bin/bash ENOENT'))
     },
     stdinFail: () => {
-      for (const cb of stdinErr) cb()
+      stdin.emit('error', Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }))
     }
   }
 }
@@ -425,8 +443,10 @@ describe('runExtractCall', () => {
     const call = run()
     child.data(Buffer.alloc(EXTRACT_LIMITS.stdoutBytes, 0x20))
     expect(kills).toEqual([])
+    expect(child.stdoutDestroyed()).toBe(false)
     child.data('x')
     expect(kills).toEqual([[-4242, 'SIGTERM']])
+    expect(child.stdoutDestroyed()).toBe(true)
     child.data('more')
     expect(kills).toEqual([[-4242, 'SIGTERM']])
     child.close(0)
@@ -446,14 +466,16 @@ describe('runExtractCall', () => {
     expect(timers.pending()).toBe(0)
   })
 
-  it('a spawn that gives no pid is a failed call, its later error is taken, and nothing is killed', async () => {
+  it('a spawn that gives no pid is a failed call, its later error is taken, and only the child itself is killed', async () => {
     child = fakeChild(undefined)
     const call = run()
     expect(child.written).toEqual([])
-    child.fail()
+    expect(() => child.fail()).not.toThrow()
     await expect(call.result).resolves.toEqual({ ok: false, reason: 'spawn', issue: null })
     call.cancel()
+    call.killNow()
     expect(kills).toEqual([])
+    expect(child.ownKills).toEqual(['SIGKILL'])
     expect(timers.pending()).toBe(0)
   })
 
@@ -466,12 +488,27 @@ describe('runExtractCall', () => {
     expect(timers.pending()).toBe(0)
   })
 
-  it('a stdin error (the child closed it early) does not end the call by itself', async () => {
+  it('a stdin error (the child closed it early) is taken, never thrown, and does not end the call by itself', async () => {
     const call = run()
-    child.stdinFail()
+    expect(() => child.stdinFail()).not.toThrow()
     expect(kills).toEqual([])
+    const seen = vi.fn()
+    void call.result.then(seen)
+    await Promise.resolve()
+    expect(seen).not.toHaveBeenCalled()
     child.close(1)
     await expect(call.result).resolves.toEqual({ ok: false, reason: 'exit', issue: null })
+    expect(seen).toHaveBeenCalledTimes(1)
+  })
+
+  it('a timeout or a cancel stops reading stdout, so nothing after the kill is held', () => {
+    run()
+    timers.advance(120_000)
+    expect(child.stdoutDestroyed()).toBe(true)
+    child = fakeChild(4242)
+    const call = run()
+    call.cancel()
+    expect(child.stdoutDestroyed()).toBe(true)
   })
 
   it('a kill that throws (the group is gone) still ends the call and logs a code only', async () => {
@@ -494,5 +531,115 @@ describe('runExtractCall', () => {
     timers.advance(5_000)
     await expect(call.result).resolves.toEqual({ ok: false, reason: 'cancelled', issue: null })
     expect(timers.pending()).toBe(0)
+  })
+
+  it('killNow sends SIGKILL to the group at once, once, to a child that ignores SIGTERM', async () => {
+    const call = run()
+    call.killNow()
+    call.killNow()
+    expect(kills).toEqual([[-4242, 'SIGKILL']])
+    expect(child.stdoutDestroyed()).toBe(true)
+    child.close(null)
+    await expect(call.result).resolves.toEqual({ ok: false, reason: 'cancelled', issue: null })
+    expect(timers.pending()).toBe(0)
+  })
+
+  it('killNow after a cancel skips the grace time and keeps the cancel', async () => {
+    const call = run()
+    call.cancel()
+    timers.advance(1_000)
+    call.killNow()
+    expect(kills).toEqual([
+      [-4242, 'SIGTERM'],
+      [-4242, 'SIGKILL']
+    ])
+    timers.advance(60_000)
+    expect(kills).toEqual([
+      [-4242, 'SIGTERM'],
+      [-4242, 'SIGKILL']
+    ])
+    await expect(call.result).resolves.toEqual({ ok: false, reason: 'cancelled', issue: null })
+    expect(timers.pending()).toBe(0)
+  })
+
+  it('killNow during a timeout kill keeps the timeout reason', async () => {
+    const call = run()
+    timers.advance(120_000)
+    call.killNow()
+    child.close(null)
+    await expect(call.result).resolves.toEqual({ ok: false, reason: 'timeout', issue: null })
+  })
+
+  it('killNow after the SIGKILL already went out sends nothing more', () => {
+    const call = run()
+    timers.advance(125_000)
+    call.killNow()
+    expect(kills).toEqual([
+      [-4242, 'SIGTERM'],
+      [-4242, 'SIGKILL']
+    ])
+    expect(timers.pending()).toBe(1)
+  })
+
+  it('killNow with no close still ends the call one grace time later', async () => {
+    const call = run()
+    call.killNow()
+    timers.advance(5_000)
+    await expect(call.result).resolves.toEqual({ ok: false, reason: 'cancelled', issue: null })
+    expect(timers.pending()).toBe(0)
+  })
+
+  it('killNow after the exit, or after a spawn that threw, does nothing and never throws', async () => {
+    const call = run()
+    child.data(envelope(output))
+    child.close(0)
+    expect(() => call.killNow()).not.toThrow()
+    await expect(call.result).resolves.toEqual({ ok: true, output })
+    const failedSpawn = run({
+      spawn: () => {
+        throw new Error('spawn EACCES')
+      }
+    })
+    expect(() => failedSpawn.killNow()).not.toThrow()
+    expect(kills).toEqual([])
+    expect(timers.pending()).toBe(0)
+  })
+})
+
+describe('boundedCollector', () => {
+  it('holds up to the cap, and the chunk that would pass it is not kept', () => {
+    const out = boundedCollector(10)
+    expect(out.push(Buffer.from('12345678'))).toBe(true)
+    expect(out.push(Buffer.from('abc'))).toBe(false)
+    expect(out.held()).toBe(8)
+    expect(out.push(Buffer.from('90'))).toBe(true)
+    expect(out.held()).toBe(10)
+    expect(out.text()).toBe('1234567890')
+  })
+
+  it('a single chunk past the cap is never held', () => {
+    const out = boundedCollector(4)
+    expect(out.push(Buffer.alloc(5))).toBe(false)
+    expect(out.held()).toBe(0)
+  })
+})
+
+describe('the seams fit Node as it is', () => {
+  it('the real spawn is a SpawnSeam, with no cast and no adapter', () => {
+    const seam: SpawnSeam = spawn
+    expectTypeOf(spawn).toExtend<SpawnSeam>()
+    expect(seam).toBe(spawn)
+  })
+
+  it('a destroyed Readable emits no more data, which is what stops a flood after a kill', async () => {
+    const stream = new PassThrough()
+    const seen: string[] = []
+    stream.on('data', (c: Buffer) => seen.push(c.toString()))
+    stream.write('before')
+    await new Promise((r) => setImmediate(r))
+    stream.destroy()
+    stream.write('after')
+    await new Promise((r) => setImmediate(r))
+    expect(seen).toEqual(['before'])
   })
 })
