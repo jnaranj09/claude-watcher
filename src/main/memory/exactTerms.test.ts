@@ -23,14 +23,33 @@ describe('termRuns', () => {
 })
 
 describe('isExactTerm', () => {
-  it.each(['9281', 'v2.1.304', 'err_conn', 'src/main/index.ts', 'README.md', 'v2.1'])(
-    '%s is exact',
+  it.each([
+    '9281',
+    'v2.1.304',
+    'err_conn',
+    'src/main/index.ts',
+    'README.md',
+    'v2.1',
+    'deploy/prod'
+  ])('%s is exact', (t) => {
+    expect(isExactTerm(t)).toBe(true)
+  })
+
+  it.each(['follow-up', 'port', 'v21', 'a_b', '4.2'])('%s is not exact', (t) => {
+    expect(isExactTerm(t)).toBe(false)
+  })
+
+  it.each(['٩٢٨١', '９３００', 'port٣'])(
+    '%s is exact: a digit is any decimal digit (\\p{Nd})',
     (t) => {
       expect(isExactTerm(t)).toBe(true)
     }
   )
 
-  it.each(['follow-up', 'port', 'v21', 'a_b', '4.2'])('%s is not exact', (t) => {
-    expect(isExactTerm(t)).toBe(false)
-  })
+  it.each(['area²', 'ⅫⅫⅫⅫ'])(
+    '%s is not exact: a superscript or a numeral is no decimal digit',
+    (t) => {
+      expect(isExactTerm(t)).toBe(false)
+    }
+  )
 })

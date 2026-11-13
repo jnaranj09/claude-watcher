@@ -299,10 +299,23 @@ describe('items', () => {
     expect(state.get('t-1')?.byteOffset).toBe(400)
   })
 
-  it('P3-C6: a fact update that only rewords the fact leaves the stored fact as it was', () => {
-    const id = addSaved({ kind: 'fact', title: 'Deploy', body: 'Deploys run from release/v2.3.' })
+  it.each([
+    [
+      'only rewords the fact',
+      'Deploys run from release/v2.3.',
+      'Every deploy starts from release/v2.3.',
+      'listening on 9281'
+    ],
+    [
+      'brings a path its evidence lacks',
+      'port 9280',
+      'deploy/prod on port 9300',
+      'moved to port 9300 ok'
+    ]
+  ])('P3-C6: a fact update that %s leaves the stored fact as it was', (_, old, body, line) => {
+    const id = addSaved({ kind: 'fact', title: 'Deploy', body: old })
     const before = store.get(id)
-    const entries = [entry(5, 'result', 'listening on 9281')]
+    const entries = [entry(5, 'result', line)]
     const checked = checkCandidates(
       {
         candidates: [
@@ -311,10 +324,10 @@ describe('items', () => {
             action: 'update',
             id,
             head: 'Deploy',
-            body: 'Every deploy starts from release/v2.3.',
+            body,
             check: null,
             leftWith: null,
-            evidence: 'listening on 9281'
+            evidence: line
           }
         ],
         note: 'n'
@@ -336,9 +349,7 @@ describe('items', () => {
     )
     expect([out.added, out.saved]).toEqual([NO_COUNTS, []])
     expect(store.get(id)).toEqual(before)
-    expect(store.versions(id).map((v) => [v.body, v.by])).toEqual([
-      ['Deploys run from release/v2.3.', 'extract']
-    ])
+    expect(store.versions(id).map((v) => [v.body, v.by])).toEqual([[old, 'extract']])
   })
 
   it('P3-R1: an update with inferred evidence that reaches the writer changes nothing', () => {

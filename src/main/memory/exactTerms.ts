@@ -11,8 +11,9 @@ export function termRuns(text: string): string[] {
   return Array.from(text.matchAll(TERM_RUN), (m) => m[0].replace(TRAILING, ''))
 }
 
-/** An exact term: at least 4 characters and holds a digit, `_`, `/` or `.` (`9281`, `v2.1.304`,
- *  `err_conn`, `src/main/index.ts`). */
+/** An exact term: at least 4 characters and holds a digit (any decimal digit, `\p{Nd}`: not a
+ *  superscript or a Roman numeral), `_`, `/` or `.` (`9281`, `v2.1.304`, `err_conn`, `src/main`).
+ *  A shorter value (`22`, `80`) is never exact. */
 export function isExactTerm(term: string): boolean {
   return [...term].length >= 4 && EXACT_MARK.test(term)
 }

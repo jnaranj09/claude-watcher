@@ -143,6 +143,39 @@ describe('checkCandidates: a fact update needs a new exact value its evidence ho
     ).toEqual({ kept: [], dropped: ['claude_only'] })
   })
 
+  it('P3-C6: a new path alone (no digit, `_` or `.`) that its evidence lacks is dropped', () => {
+    const items: ScopeItem[] = [{ id: 'f-2', kind: 'fact', head: 'Ports', body: 'port 9280' }]
+    const line = 'moved to port 9300 ok'
+    expect(
+      check(
+        [
+          factCand({ action: 'update', id: 'f-2', head: 'Ports' }, 'deploy/prod on port 9300', line)
+        ],
+        { items, entries: [...ENTRIES, entry(4, 'result', line)] }
+      )
+    ).toEqual({ kept: [], dropped: ['claude_only'] })
+  })
+
+  it('P3-C11: an update that only renames the fact, body unchanged, is dropped as claude_only', () => {
+    expect(
+      check([factCand({ action: 'update', id: 'f-1', head: 'Release flow' }, OLD, SWITCHED)], {
+        items: ITEMS,
+        entries: WITH_RESULT
+      })
+    ).toEqual({ kept: [], dropped: ['claude_only'] })
+  })
+
+  it('P3-C11: a short new value (under 4 characters) its evidence holds does not update a fact', () => {
+    const items: ScopeItem[] = [{ id: 'f-3', kind: 'fact', head: 'Runtime', body: 'Uses Node 20.' }]
+    const line = 'node now reports major 22'
+    expect(
+      check([factCand({ action: 'update', id: 'f-3', head: 'Runtime' }, 'Uses Node 22.', line)], {
+        items,
+        entries: [...ENTRIES, entry(4, 'result', line)]
+      })
+    ).toEqual({ kept: [], dropped: ['claude_only'] })
+  })
+
   it('P3-C6: a new fact with no exact value is still added', () => {
     const body = 'Deploys need a green build first.'
     expect(

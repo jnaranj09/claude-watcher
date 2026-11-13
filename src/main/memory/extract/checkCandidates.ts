@@ -269,9 +269,9 @@ function reconcileTask(
 }
 
 const exactValues = (text: string): string[] => termRuns(text).filter(isExactTerm)
-/** `value` stands whole (`valueAt`) in `text`, between the cleaner's marks. */
-const standsIn = (text: string, value: string): boolean =>
-  text.split(MARKS).some((segment) => valueAt(normalise(segment), value) !== -1)
+/** `value` stands whole (`valueAt`) in `text`. A term run holds no whitespace or bracket, so it
+ *  can never stand inside or across one of the cleaner's marks: no split is needed. */
+const standsIn = (text: string, value: string): boolean => valueAt(text, value) !== -1
 
 /** P3-C6: the new body holds at least one exact value (`isExactTerm`) the old body does not
  *  (case ignored), and each such value stands whole in the entry the quote was found in. */
