@@ -108,7 +108,7 @@ export const MEMORY_CHECKPOINT_OPTIONS = [0, 10, 15, 25] as const
 export type MemoryCheckpoint = (typeof MEMORY_CHECKPOINT_OPTIONS)[number]
 export const DEFAULT_MEMORY_CHECKPOINT: MemoryCheckpoint = 15
 const MemoryCheckpointSchema = z.literal(MEMORY_CHECKPOINT_OPTIONS)
-/** The model that reads a session to save memory from it. */
+/** The model that reads a session to save memory from it. A test keeps this export on purpose. */
 export const MemoryModelSchema = z.enum(['haiku', 'sonnet'])
 export type MemoryModel = z.infer<typeof MemoryModelSchema>
 export const DEFAULT_MEMORY_MODEL: MemoryModel = 'sonnet'

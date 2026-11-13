@@ -104,7 +104,8 @@ const failed = (
 ): ExtractCallResult => ({ ok: false, reason, issue })
 
 /** The last stdout line that starts with `{` → ClaudeResultSchema → `is_error === false` and a
- *  `structured_output` that passes ExtractOutputSchema. Else 'envelope' or 'output'. */
+ *  `structured_output` that passes ExtractOutputSchema. Else 'envelope' or 'output'.
+ *  A test keeps this export on purpose. */
 export function parseClaudeResult(stdout: string): ExtractCallResult {
   const line = stdout
     .split('\n')

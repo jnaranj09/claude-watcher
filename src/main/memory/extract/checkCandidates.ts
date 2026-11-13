@@ -98,7 +98,8 @@ function valueAt(text: string, value: string): number {
 /** D14: the strongest entry that holds the quote (result → observed, operator → stated, claude or
  *  tool → inferred), then the earliest. Entries with `evidence: false` never match. The quote must
  *  stand whole in the entry (`valueAt`): a quote cut mid-word, such as `version 1.2.3` in
- *  `version 1.2.34`, is not found, so a value cut short with its quote is never kept. */
+ *  `version 1.2.34`, is not found, so a value cut short with its quote is never kept.
+ *  A test keeps this export on purpose. */
 export function findEvidence(quote: string, entries: readonly CleanEntry[]): Found | null {
   const q = normalise(quote)
   if (q.length < EXTRACT_LIMITS.evidenceMin) return null

@@ -31,7 +31,8 @@ export type CleanEntry = {
   evidence: boolean
 }
 
-/** Tools whose results are never evidence (D4), with every `mcp__*` tool. */
+/** Tools whose results are never evidence (D4), with every `mcp__*` tool.
+ *  A test keeps this export on purpose. */
 export const NON_EVIDENCE_TOOLS: ReadonlySet<string> = new Set([
   'WebFetch',
   'WebSearch',
@@ -42,6 +43,7 @@ export const NON_EVIDENCE_TOOLS: ReadonlySet<string> = new Set([
   'ListMcpResourcesTool'
 ])
 
+/** A test keeps this export on purpose. */
 export function isNonEvidenceTool(name: string): boolean {
   return NON_EVIDENCE_TOOLS.has(name) || name.startsWith('mcp__')
 }
@@ -228,7 +230,8 @@ export function cleanSlice(
   return { entries, prompts: entries.filter((e) => e.kind === 'operator').length }
 }
 
-/** `[#12 operator]\n<text>`, `[#14 tool Bash] <args>`, `[#15 result Bash ok]\n<text>`. */
+/** `[#12 operator]\n<text>`, `[#14 tool Bash] <args>`, `[#15 result Bash ok]\n<text>`.
+ *  A test keeps this export on purpose. */
 export function renderEntry(entry: CleanEntry): string {
   // A line of text that starts with `[#` gets one space in front (R13), so transcript text never
   // reads as an entry header. Only the rendering changes: the quote check reads `entry.text`, and

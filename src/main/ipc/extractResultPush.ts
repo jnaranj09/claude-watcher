@@ -12,6 +12,7 @@ import {
   type PushTarget
 } from './sendMemoryExtractResult'
 
+/** A test keeps this export on purpose. */
 export const HELD_EXTRACT_RESULTS_MAX = 50
 
 export interface ExtractResultPush {

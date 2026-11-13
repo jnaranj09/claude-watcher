@@ -15,7 +15,8 @@ function savedToMemory(counts: MemoryCounts): number {
 }
 
 /** `12 saved to memory, 3 tasks` (ruling R44): the specifics, facts and episodes written, then the
- *  tasks; a part that is 0 is left out, `1 task` in the singular. '' when nothing was written. */
+ *  tasks; a part that is 0 is left out, `1 task` in the singular. '' when nothing was written.
+ *  A test keeps this export on purpose. */
 export function countsCopy(counts: MemoryCounts): string {
   const saved = savedToMemory(counts)
   const parts = [

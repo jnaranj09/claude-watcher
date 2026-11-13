@@ -12,7 +12,8 @@ export const PastSessionIdSchema = z.string().min(1)
 const MemoryCountSchema = z.number().int().nonnegative().default(0)
 
 /** Memory (phase 2): how saving memory from this session went. State and counts only, never
- *  memory text. Every key but `state` defaults, so a new count stays additive on v1. */
+ *  memory text. Every key but `state` defaults, so a new count stays additive on v1.
+ *  A test keeps this export on purpose. */
 export const PastSessionMemorySchema = z
   .object({
     state: z.enum(['saving', 'saved', 'nothing', 'failed', 'off']),

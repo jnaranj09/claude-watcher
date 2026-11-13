@@ -2,6 +2,7 @@
 // claude must answer in, and claude's own result line. The model's output and every text here
 // are SENSITIVE like memory text: NEVER log them, issue path + code only.
 import { z } from 'zod'
+import { MEMORY_LIMITS } from './memory'
 
 export const EXTRACT_LIMITS = {
   /** One operator or claude text: the first `textHeadChars` and the last `textTailChars`. */
@@ -18,7 +19,8 @@ export const EXTRACT_LIMITS = {
   candidates: 12,
   outputStringChars: 4000,
   evidenceMin: 4,
-  evidenceMax: 500,
+  /** The stored source quote is the evidence: one owner, so a longer quote never fails `ItemRow`. */
+  evidenceMax: MEMORY_LIMITS.sourceQuote,
   note: 500,
   notesKept: 20,
   scopeItems: 150,

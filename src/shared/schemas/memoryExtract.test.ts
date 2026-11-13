@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { EXTRACT_JSON_SCHEMA, EXTRACT_LIMITS, ExtractOutputSchema } from './memoryExtract'
+import { MEMORY_LIMITS } from './memory'
 
 const candidate = {
   type: 'fact',
@@ -11,6 +12,12 @@ const candidate = {
   leftWith: null,
   evidence: 'run make deploy'
 }
+
+describe('EXTRACT_LIMITS', () => {
+  it('a quote the check keeps fits the stored source quote', () => {
+    expect(EXTRACT_LIMITS.evidenceMax).toBe(MEMORY_LIMITS.sourceQuote)
+  })
+})
 
 describe('ExtractOutputSchema', () => {
   it('accepts up to 12 candidates', () => {

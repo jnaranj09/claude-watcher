@@ -9,6 +9,7 @@ export const GOAL_NAME_MAX = 80
 export const TASK_TITLE_MAX = 200
 export const PROPOSAL_GROUPS_MAX = 10
 export const PROPOSAL_NOTE_MAX = 200
+/** A test keeps this export on purpose. */
 export const TASK_CHECK_MAX = 300
 export const TASK_REPORT_EVIDENCE_MAX = 300
 
@@ -40,7 +41,8 @@ export type TaskStatus = z.infer<typeof TaskStatusValueSchema>
 export const TASK_DONE_BY = ['operator', 'session'] as const
 export type TaskDoneBy = (typeof TASK_DONE_BY)[number]
 
-/** Who a task was left with when a session last saw it (memory extraction). */
+/** Who a task was left with when a session last saw it (memory extraction).
+ *  A test keeps this export on purpose. */
 export const TASK_LEFT_WITH = ['operator', 'session'] as const
 export type TaskLeftWith = (typeof TASK_LEFT_WITH)[number]
 

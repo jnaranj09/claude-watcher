@@ -102,7 +102,8 @@ export const EpisodeTextSchema = z
   .strict()
 export type EpisodeText = z.infer<typeof EpisodeTextSchema>
 
-/** Where in the transcript an extracted item came from: the entry and the words it quotes. */
+/** Where in the transcript an extracted item came from: the entry and the words it quotes.
+ *  A test keeps this export on purpose. */
 export const MemorySourceSchema = z
   .object({
     entryId: z.string().min(1),
