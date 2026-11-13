@@ -212,7 +212,8 @@ export function runExtractCall(
     timeoutMs: number
     killGraceMs: number
     stdoutBytes: number
-    kill: (pid: number, signal: 'SIGTERM' | 'SIGKILL') => void
+    /** Called with the negated process-group id (`-pid` of a positive-integer pid), never a pid. */
+    kill: (groupId: number, signal: 'SIGTERM' | 'SIGKILL') => void
     setTimer: (fn: () => void, ms: number) => unknown
     clearTimer: (handle: unknown) => void
   },

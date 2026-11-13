@@ -26,7 +26,11 @@ const LOG_PREFIX = '[claude-watcher][memory]'
 
 /** The call's working folder under userData: the headless claude runs there, never in an
  *  operator's project. */
-export const EXTRACT_DIR = 'memory-extract'
+const EXTRACT_DIR = 'memory-extract'
+
+/** How the folder is made (D8, R36): owned here, so the caller passes Node's `mkdirSync` as is. */
+type ExtractDirOptions = { recursive: true; mode: 0o700 }
+const EXTRACT_DIR_OPTIONS: ExtractDirOptions = { recursive: true, mode: 0o700 }
 
 /** A call that never started: it ends as `spawn` and signals nothing. */
 function spawnFailed(): ExtractCall {
@@ -41,9 +45,10 @@ function spawnFailed(): ExtractCall {
  *  (0700) when missing, and runs it (`runExtractCall`, with EXTRACT_LIMITS' timeout, grace and stdout cap)
  *  with the real spawn, `process.kill` and the real timer pair.
  *
- *  `mkdir` makes the folder (recursive, mode 0700) and is a no-op when it exists. A folder it cannot
- *  make, or a throw while resolving claude, is a `spawn` failure: nothing spawns, nothing is
- *  signalled, and nothing throws to the extractor. `env` is the sessions' base env (`buildPtyEnv`);
+ *  `mkdir` is called as `mkdir(dir, { recursive: true, mode: 0o700 })` (R36: the mode lives here;
+ *  `mkdirSync` fits as is) and is a no-op when the folder exists. A throw from `userData`, `mkdir`,
+ *  `resolveClaude` or `env` is a `spawn` failure: nothing spawns, nothing is signalled, and
+ *  nothing throws to the extractor. `env` is the sessions' base env (`buildPtyEnv`);
  *  the child gets it through `buildExtractEnv` (no CLAUDECODE, no CLAUDE_WATCHER_*, R18). */
 export function createExtractCall(deps: {
   shell: string
@@ -51,8 +56,10 @@ export function createExtractCall(deps: {
   env: () => Record<string, string>
   resolveClaude: () => { command: string; dir: string | null }
   spawn: SpawnSeam
-  kill: (pid: number, signal: 'SIGTERM' | 'SIGKILL') => void
-  mkdir: (dir: string) => void
+  /** `groupId` is already the negated process-group id (`-pid`, -2 or lower): pass it to
+   *  `process.kill` unchanged, never negate it again. */
+  kill: (groupId: number, signal: 'SIGTERM' | 'SIGKILL') => void
+  mkdir: (dir: string, options: ExtractDirOptions) => void
   setTimer: (fn: () => void, ms: number) => unknown
   clearTimer: (handle: unknown) => void
 }): (model: MemoryModel, input: string) => ExtractCall {
@@ -62,7 +69,7 @@ export function createExtractCall(deps: {
     let env: Record<string, string>
     try {
       cwd = join(deps.userData(), EXTRACT_DIR)
-      deps.mkdir(cwd)
+      deps.mkdir(cwd, EXTRACT_DIR_OPTIONS)
       claude = deps.resolveClaude()
       env = buildExtractEnv(deps.env(), claude.dir)
     } catch {

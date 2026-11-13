@@ -20,7 +20,6 @@ import { EXTRACT_JSON_SCHEMA, EXTRACT_LIMITS } from '../../../shared/schemas/mem
 import { createExtractor } from './extractor'
 import { EXTRACT_SYSTEM_PROMPT } from './extractPrompt'
 import {
-  EXTRACT_DIR,
   createTimerPair,
   extractSources,
   createExtractCall,
@@ -134,11 +133,12 @@ function realCall(
       pids.push(child.pid)
       return child
     },
-    kill: (pid, signal) => {
-      kills.push([pid, signal])
-      process.kill(pid, signal)
+    kill: (groupId, signal) => {
+      kills.push([groupId, signal])
+      process.kill(groupId, signal)
     },
-    mkdir: (d) => void mkdirSync(d, { recursive: true, mode: 0o700 }),
+    // As main passes it: Node's own, with the options createExtractCall gives (R36).
+    mkdir: mkdirSync,
     setTimer: (fn, ms) => {
       const t = setTimeout(() => {
         timers.delete(t)
@@ -158,31 +158,37 @@ function realCall(
   return { call, pids, kills, timers }
 }
 
-function wiring(over: { spawn?: SpawnSeam; mkdir?: (dir: string) => void } = {}): {
+type WiringDeps = Parameters<typeof createExtractCall>[0]
+
+function wiring(
+  over: Partial<Pick<WiringDeps, 'spawn' | 'mkdir' | 'userData' | 'env' | 'resolveClaude'>> = {}
+): {
   call: ReturnType<typeof createExtractCall>
   fake: ReturnType<typeof fakeSpawn>
   kills: [number, string][]
-  mkdirs: string[]
+  mkdirs: [string, unknown][]
   timers: ReturnType<typeof handTimers>
 } {
   const fake = fakeSpawn()
   const kills: [number, string][] = []
-  const mkdirs: string[] = []
+  const mkdirs: [string, unknown][] = []
   const timers = handTimers()
   const call = createExtractCall({
     shell: '/bin/sh',
-    userData: () => '/data/app',
-    env: () => ({
-      PATH: '/usr/bin',
-      HOME: '/home/op',
-      CLAUDECODE: '1',
-      CLAUDE_WATCHER_MEMORY: '1',
-      CLAUDE_WATCHER_MOD_URL: 'http://127.0.0.1:1/mod/report'
-    }),
-    resolveClaude: () => ({ command: CLAUDE, dir: '/opt/my tools' }),
+    userData: over.userData ?? (() => '/data/app'),
+    env:
+      over.env ??
+      (() => ({
+        PATH: '/usr/bin',
+        HOME: '/home/op',
+        CLAUDECODE: '1',
+        CLAUDE_WATCHER_MEMORY: '1',
+        CLAUDE_WATCHER_MOD_URL: 'http://127.0.0.1:1/mod/report'
+      })),
+    resolveClaude: over.resolveClaude ?? (() => ({ command: CLAUDE, dir: '/opt/my tools' })),
     spawn: over.spawn ?? fake.spawn,
-    kill: (pid, signal) => void kills.push([pid, signal]),
-    mkdir: over.mkdir ?? ((dir) => void mkdirs.push(dir)),
+    kill: (groupId, signal) => void kills.push([groupId, signal]),
+    mkdir: over.mkdir ?? ((dir, options) => void mkdirs.push([dir, options])),
     setTimer: timers.setTimer,
     clearTimer: timers.clearTimer
   })
@@ -209,7 +215,6 @@ describe('the real call', () => {
     ])
     expect(s?.args[2]?.startsWith(`'${CLAUDE}' -p `)).toBe(true)
     expect(s?.options.cwd).toBe('/data/app/memory-extract')
-    expect(s?.options.cwd.endsWith(`/${EXTRACT_DIR}`)).toBe(true)
     expect(s?.options.detached).toBe(true)
     expect(s?.options.env).not.toHaveProperty('CLAUDE_WATCHER_MEMORY')
     expect(s?.options.env).not.toHaveProperty('CLAUDE_WATCHER_MOD_URL')
@@ -217,7 +222,7 @@ describe('the real call', () => {
     expect(s?.options.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY).toBe('1')
     expect(s?.options.env.PATH).toBe('/opt/my tools:/usr/bin')
     expect(s?.options.env.HOME).toBe('/home/op')
-    expect(w.mkdirs).toEqual(['/data/app/memory-extract'])
+    expect(w.mkdirs.map(([dir]) => dir)).toEqual(['/data/app/memory-extract'])
     // The slice goes on stdin, never on argv.
     expect(w.fake.stdin).toEqual(['SLICE-7f3a'])
     expect(s?.args.join(' ')).not.toContain('SLICE-7f3a')
@@ -244,22 +249,34 @@ describe('the real call', () => {
     expect(await call.result).toEqual({ ok: false, reason: 'exit', issue: null })
   })
 
-  it('a folder it cannot make is a spawn failure: nothing spawns, nothing is signalled', async () => {
-    const spawnSpy = vi.fn<SpawnSeam>()
-    const w = wiring({
-      spawn: spawnSpy,
-      mkdir: () => {
-        throw new Error('EACCES')
-      }
-    })
-    const call = w.call('sonnet', 'x')
-    expect(await call.result).toEqual({ ok: false, reason: 'spawn', issue: null })
-    call.cancel()
-    call.killNow()
-    expect(spawnSpy).not.toHaveBeenCalled()
-    expect(w.kills).toEqual([])
-    expect(w.timers.pending.size).toBe(0)
+  it("makes the folder with mode 0700, recursive (R36: the mode is not the caller's)", () => {
+    const w = wiring()
+    w.call('sonnet', 'x')
+    expect(w.mkdirs).toEqual([['/data/app/memory-extract', { recursive: true, mode: 0o700 }]])
   })
+
+  const boom = (): never => {
+    throw new Error('EACCES')
+  }
+  it.each([
+    ['the folder it cannot make', { mkdir: boom }],
+    ['userData', { userData: boom }],
+    ['resolving claude', { resolveClaude: boom }],
+    ['the base env', { env: boom }]
+  ] satisfies [string, Partial<WiringDeps>][])(
+    'a throw from %s is a spawn failure: nothing spawns, nothing is signalled, nothing throws',
+    async (_seam, over) => {
+      const spawnSpy = vi.fn<SpawnSeam>()
+      const w = wiring({ ...over, spawn: spawnSpy })
+      const call = w.call('sonnet', 'x')
+      expect(await call.result).toEqual({ ok: false, reason: 'spawn', issue: null })
+      call.cancel()
+      call.killNow()
+      expect(spawnSpy).not.toHaveBeenCalled()
+      expect(w.kills).toEqual([])
+      expect(w.timers.pending.size).toBe(0)
+    }
+  )
 })
 
 function conversation(h: Harness, id: string): void {
@@ -289,10 +306,23 @@ describe('quit (R17)', () => {
 
   describe('with a real child that ignores SIGTERM', () => {
     let dir = ''
+    /** The stub's pids, killed after each run: a failed run must not leave it running. */
+    let spawned: (number | undefined)[] = []
     beforeEach(() => {
       dir = mkdtempSync(join(tmpdir(), 'cw-extract-quit-'))
+      spawned = []
     })
     afterEach(() => {
+      for (const pid of spawned) {
+        // Only a real child's pid (2 or more): never 0, never a negative number, so this can only
+        // reach the stub's own group, never the runner's.
+        if (pid === undefined || !Number.isInteger(pid) || pid < 2) continue
+        try {
+          process.kill(-pid, 'SIGKILL')
+        } catch {
+          // ESRCH: the group is already gone, which is the passing case.
+        }
+      }
       rmSync(dir, { recursive: true, force: true })
     })
 
@@ -303,6 +333,7 @@ describe('quit (R17)', () => {
       writeFileSync(stub, `#!/bin/sh\ntrap '' TERM\n: > '${mark}'\nexec sleep 30\n`)
       chmodSync(stub, 0o755)
       const { call, pids, kills, timers } = realCall(dir, stub)
+      spawned = pids
       const h = createHarness()
       h.meta.set('s1', META)
       const ex = createExtractor({ ...h.deps, call })
@@ -320,7 +351,7 @@ describe('quit (R17)', () => {
       })
       expect(timers.size).toBe(0)
       expect(h.state.get('s1')?.phase).toBe('ending')
-    })
+    }, 20_000)
   })
 })
 

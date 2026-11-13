@@ -637,9 +637,10 @@ const extractor = createExtractor({
     env: () => buildPtyEnv(),
     resolveClaude: () => resolveClaudeOnDisk(buildPtyEnv()),
     spawn,
-    // The pid it gets is already the process group's (negative): passed on unchanged.
-    kill: (pid, signal) => process.kill(pid, signal),
-    mkdir: (dir) => mkdirSync(dir, { recursive: true, mode: 0o700 }),
+    // Already the negated process-group id: passed on unchanged, never negated again.
+    kill: (groupId, signal) => process.kill(groupId, signal),
+    // Called with `{ recursive: true, mode: 0o700 }` by createExtractCall itself (R36).
+    mkdir: mkdirSync,
     ...createTimerPair()
   }),
   pastSessions: () => pastSessionsStore,
