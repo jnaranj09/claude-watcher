@@ -831,7 +831,8 @@ const {
   getMemoryStore: memoryStore,
   getMemoryCommands: () => memory?.commands ?? null,
   memoryNames,
-  memoryActivity
+  memoryActivity,
+  memoryTurnedOff: () => extractor.memoryOff()
 })
 
 /**

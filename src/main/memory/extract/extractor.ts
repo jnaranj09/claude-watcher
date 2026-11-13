@@ -76,6 +76,9 @@ export interface Extractor {
    *  `ended(oldId)`; called first, the old transcript's row is kept owed for the next start
    *  (`code=memory_extract_end_missing`). */
   rebind(oldId: string, newId: string): void
+  /** Memory was switched off (R51): `cancel()` on the running call; the job then writes nothing
+   *  of it, and every queued job stops at its own check. */
+  memoryOff(): void
   /** App start: a catch-up for every pending row; with Memory off, each is closed as `off` (D24). */
   catchUp(): void
   /** The app is quitting: `killNow()` on the running call (R17: SIGKILL to its group at once,
@@ -303,6 +306,10 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
           mem.state.setPhase(row.sessionId, 'done', deps.now())
         }
       }),
+
+    memoryOff: () => {
+      running?.call?.cancel()
+    },
 
     quit: () => {
       quitting = true

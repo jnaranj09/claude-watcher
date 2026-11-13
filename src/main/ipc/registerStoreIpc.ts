@@ -80,6 +80,8 @@ export interface StoreIpcDeps {
   memoryNames: MemoryNames
   /** What memory did for each session (Context reads it). */
   memoryActivity: Pick<MemoryActivityLog, 'get'>
+  /** `Memory` was just switched off (R51): the save call in flight is cancelled. */
+  memoryTurnedOff: () => void
 }
 
 /** One registrar per store; index.ts calls each ONCE, in its own place in the ready block. */
@@ -126,7 +128,8 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     getMemoryStore,
     getMemoryCommands,
     memoryNames,
-    memoryActivity
+    memoryActivity,
+    memoryTurnedOff
   } = deps
 
   // Story 2.4 — register the settings IPC ONCE (mirrors registerPtyIpc): `settings:get` returns
@@ -168,6 +171,8 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
       // must not re-read the disk.
       if (themeNeedsReapply(before, next))
         getThemeLifecycle()?.apply(next.themeId, chosenWallpaper(next))
+      // Memory off means off (R51): a save call running now is cancelled, and none of it written.
+      if (before.memoryEnabled && !next.memoryEnabled) memoryTurnedOff()
       return next
     })
   }

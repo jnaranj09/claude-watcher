@@ -308,6 +308,19 @@ function cancelled(r: JobRun): 'stop' {
   return 'stop'
 }
 
+/** Memory was switched off while the job ran (R51): nothing more is written. Like an end with
+ *  Memory off (R2), an end or a catch-up closes its row (`done`) with the record `off`; a live
+ *  session's row (a checkpoint) stays as it was. */
+function stoppedByOff(r: JobRun): 'stop' {
+  log(r, 'memory_extract_skipped reason=off')
+  const mem = r.deps.memory()
+  const row = mem?.state.get(r.job.id) ?? null
+  if (mem === null || row === null || r.job.trigger === 'checkpoint') return 'stop'
+  mem.state.setPhase(row.sessionId, 'done', r.deps.now())
+  setRecord(r, row, 'off')
+  return 'stop'
+}
+
 /** One chunk: the input, the call, then the check and the write. The row is read again after the
  *  call, so a `/clear` meanwhile (`rebind`) makes what is written carry the card's new id. */
 async function runChunk(r: JobRun, plan: Plan, path: string): Promise<Step> {
@@ -330,7 +343,10 @@ async function runChunk(r: JobRun, plan: Plan, path: string): Promise<Step> {
   job.call = call
   const result = await call.result
   job.call = null
-  if (job.cancelled || (!result.ok && result.reason === 'cancelled')) return cancelled(r)
+  if (job.cancelled) return cancelled(r)
+  // R51: an answer that arrives after Memory went off (or the call it cancelled) writes nothing.
+  if (!deps.enabled()) return stoppedByOff(r)
+  if (!result.ok && result.reason === 'cancelled') return cancelled(r)
   const mem = deps.memory()
   const now = mem?.state.get(job.id) ?? null
   if (mem === null || now === null) return 'stop'
@@ -429,7 +445,7 @@ async function run(r: JobRun): Promise<void> {
   const sum = { saved: 0, dropped: 0, gaveUp: false }
   for (const plan of plans) {
     if (!deps.enabled()) {
-      log(r, 'memory_extract_skipped reason=off')
+      stoppedByOff(r)
       return
     }
     if (calls >= EXTRACT_LIMITS.chunksPerJob) break

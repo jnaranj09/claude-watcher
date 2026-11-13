@@ -1,8 +1,9 @@
 // The extractor when its session goes away or the app quits while a job runs (addendum "Save
 // points and the job"; R17): quit kills the call with `killNow()`, a forget cancels it, a `/clear`
-// moves what is written next to the card's new id, Memory switched off stops the job, a full queue
-// refuses only a checkpoint, and one bad session never stops the others. Each test ends in a
-// defined state of the save row, the store and the Past sessions record.
+// moves what is written next to the card's new id, Memory switched off cancels the call and stops
+// the job (R51), a full queue refuses only a checkpoint, and one bad session never stops the
+// others. Each test ends in a defined state of the save row, the store and the Past sessions
+// record.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NO_COUNTS } from '../../../shared/schemas/memory'
 import { specific } from '../../../__fixtures__/extractCandidates'
@@ -189,22 +190,83 @@ describe('a session that goes away', () => {
     expect(h.state.get('s2')?.phase).toBe('done')
   })
 
-  it('Memory switched off mid-job stops the job before its next call', async () => {
-    h.set.manual = true
+  it('Memory switched off between two chunks stops the job before its next call and closes an end as off (R2)', async () => {
     for (let i = 0; i < 30; i += 1) h.write('s1', prompt(`step ${i} ${'word '.repeat(780)}`))
+    // After the first call, its write asks for the card's stamp: Memory goes off right then.
+    const meta = h.deps.sessionMeta
+    h.deps.sessionMeta = (id) => {
+      if (h.calls.length > 0) h.set.enabled = false
+      return meta(id)
+    }
     h.ex.ended('s1')
-    await flush()
-    h.set.enabled = false
-    h.calls[0]?.resolve(answer([]))
     await h.ex.idle()
     expect(h.calls).toHaveLength(1)
-    expect(h.state.get('s1')?.phase).toBe('ending')
+    expect(h.state.get('s1')?.phase).toBe('done')
     expect(h.setMemory).toHaveBeenLastCalledWith('s1', {
-      state: 'saving',
+      state: 'off',
       ...NO_COUNTS,
       episodeId: null
     })
+    expect(h.pushed).toEqual([])
     expect(h.logs).toContain('[claude-watcher][memory] code=memory_extract_skipped reason=off')
+  })
+})
+
+describe('Memory switched off while a call runs (R51)', () => {
+  it('memoryOff cancels the running call; nothing is written and an end is closed as off', async () => {
+    h.set.manual = true
+    conversation('s1')
+    h.ex.ended('s1')
+    await flush()
+    h.set.enabled = false
+    h.ex.memoryOff()
+    expect(h.calls[0]?.cancel).toHaveBeenCalledTimes(1)
+    h.calls[0]?.resolve({ ok: false, reason: 'cancelled', issue: null })
+    await h.ex.idle()
+    expect(itemCount()).toBe(0)
+    expect(h.pushed).toEqual([])
+    expect(h.state.get('s1')?.phase).toBe('done')
+    expect(h.setMemory).toHaveBeenLastCalledWith('s1', {
+      state: 'off',
+      ...NO_COUNTS,
+      episodeId: null
+    })
+  })
+
+  it('an answer that arrives after Memory went off is not written', async () => {
+    h.set.manual = true
+    conversation('s1')
+    h.ex.ended('s1')
+    await flush()
+    h.set.enabled = false
+    h.calls[0]?.resolve(answer([API]))
+    await h.ex.idle()
+    expect(itemCount()).toBe(0)
+    expect(h.state.get('s1')?.byteOffset).toBe(0)
+    expect(h.pushed).toEqual([])
+  })
+
+  it('a checkpoint stopped by Memory off leaves its live row as it was', async () => {
+    h.set.manual = true
+    conversation('s1')
+    stops(h, 's1', 15)
+    await flush()
+    h.set.enabled = false
+    h.ex.memoryOff()
+    h.calls[0]?.resolve({ ok: false, reason: 'cancelled', issue: null })
+    await h.ex.idle()
+    expect(itemCount()).toBe(0)
+    expect(h.state.get('s1')?.phase).toBe('live')
+    expect(h.setMemory).not.toHaveBeenCalled()
+  })
+
+  it('memoryOff with no call running changes nothing', async () => {
+    conversation('s1')
+    h.ex.memoryOff()
+    stops(h, 's1', 15)
+    h.answers.push(answer([API]))
+    await h.ex.idle()
+    expect(itemCount()).toBe(1)
   })
 })
 
