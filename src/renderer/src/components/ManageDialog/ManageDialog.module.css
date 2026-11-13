@@ -343,6 +343,13 @@
      scroll, and the footer below can match it. */
   scrollbar-gutter: stable;
 }
+/* Every line keeps its own height, and the body scrolls instead. A read-only value is
+   `overflow: hidden` (its ellipsis), so its automatic minimum height is 0: without this the
+   column squeezed it to nothing before it began to scroll (the Memory form's `Basis` and
+   `Folder` drew no value at the default window). */
+.scrollBody > * {
+  flex-shrink: 0;
+}
 /* The right column while nothing is open (spec 2026-09-29): it stretches to the row the rail sets
    and centres one line in it, so the panel keeps its size and the line sits mid-column.
    --text-secondary: muted text on this raised panel measures 2.54:1 (design.md). */

@@ -334,6 +334,13 @@ describe('ManageDialog footer never hides a field (final review)', () => {
   it('the first label starts level with the first rail row', () => {
     expect(rule('.scrollBody > .label:first-child')).toMatch(/margin-top:\s*0/)
   })
+
+  // A read-only value is `overflow: hidden` (its ellipsis), so its automatic minimum height is 0:
+  // without this the column squeezed the Memory form's `Basis` and `Folder` to 0px before the
+  // body began to scroll.
+  it('no line of a scrolling body shrinks: the body scrolls instead', () => {
+    expect(rule('.scrollBody > *')).toMatch(/flex-shrink:\s*0/)
+  })
 })
 
 // Region spacing (spec 2026-10-02-region-spacing-design.md): two different regions never sit
