@@ -6,7 +6,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { EXTRACT_LIMITS } from '../../../shared/schemas/memoryExtract'
-import { readTranscriptSlice, transcriptFsOnDisk, type TranscriptFs } from './transcriptReader'
+import {
+  holdPartial,
+  readTranscriptSlice,
+  transcriptFsOnDisk,
+  type TranscriptFs
+} from './transcriptReader'
 
 const line = (text: string): string =>
   JSON.stringify({ type: 'user', uuid: `u-${text.length}`, message: { content: text } })
@@ -186,6 +191,41 @@ describe('readTranscriptSlice', () => {
     expect(texts(out)).toEqual([a, b])
     expect(out?.nextOffset).toBe(Buffer.byteLength(text))
     expect(out?.more).toBe(false)
+  })
+})
+
+describe('readTranscriptSlice between steps', () => {
+  it('gives the event loop a turn between two read steps, even when a read answers at once', async () => {
+    const step = EXTRACT_LIMITS.readStepBytes
+    const bytes = Buffer.from(line('w'.repeat(step)) + '\n')
+    let ticked = false
+    const tickedAtRead: boolean[] = []
+    const instant: TranscriptFs = {
+      size: () => Promise.resolve(bytes.length),
+      read: (_p, offset, length) => {
+        tickedAtRead.push(ticked)
+        return Promise.resolve(Buffer.from(bytes.subarray(offset, offset + length)))
+      }
+    }
+    setImmediate(() => {
+      ticked = true
+    })
+    const out = await readTranscriptSlice(instant, 'p', 0, step * 2)
+    expect(out?.lines).toHaveLength(1)
+    expect(tickedAtRead).toEqual([false, true])
+  })
+})
+
+describe('holdPartial', () => {
+  const held = [Buffer.from('ab')]
+  const piece = Buffer.from('cd')
+
+  it('adds the latest bytes while the line so far fits the cap', () => {
+    expect(Buffer.concat(holdPartial(held, piece, 4, 4)).toString()).toBe('abcd')
+  })
+
+  it('holds nothing once the line so far is longer than the cap', () => {
+    expect(holdPartial(held, piece, 5, 4)).toEqual([])
   })
 })
 

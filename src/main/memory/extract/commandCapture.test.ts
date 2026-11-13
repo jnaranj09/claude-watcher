@@ -43,6 +43,12 @@ const secret = [
   bash('s', { command: 'git push https://' + 'bot:' + 'v'.repeat(12) + '@example.test/r' }),
   done('s')
 ]
+const basicAuth = [
+  bash('h', {
+    command: 'curl -H "Author' + 'ization: Basic ' + 'Zm'.repeat(8) + '" https://example.test/api'
+  }),
+  done('h')
+]
 const empty = [bash('e', { command: '   ' }), done('e')]
 const notBash = [bash('n', { command: 'ls' }, 'Monitor'), done('n')]
 const noResult = [bash('r', { command: 'ls' })]
@@ -103,6 +109,7 @@ describe('captureCommands', () => {
     ['a two-line one', multiline],
     ['one over 500 characters', long],
     ['one holding a secret', secret],
+    ['a curl with a Basic authorization header', basicAuth],
     ['an empty one', empty],
     ['one from another tool', notBash],
     ['one with no result in the slice', noResult],

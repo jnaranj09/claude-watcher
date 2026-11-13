@@ -298,6 +298,29 @@ describe('cleanSlice', () => {
     expect(kept.includes('gh' + 'p_')).toBe(false)
   })
 
+  it('takes a secret out of an operator and a claude text before the cut', () => {
+    const token = 'gh' + 'p_' + 'x'.repeat(36)
+    const text = 'h'.repeat(2989) + ' ' + token + ' ' + 't'.repeat(1100)
+    const { entries } = cleanSlice([prompt(text), said(text)], 0)
+    const head = 'h'.repeat(2989) + ' ' + SECRET_MARK.slice(0, 10) + CUT_MIDDLE
+    expect(entries.map((e) => [e.kind, e.text.startsWith(head)])).toEqual([
+      ['operator', true],
+      ['claude', true]
+    ])
+    expect(entries.some((e) => e.text.includes('gh' + 'p_'))).toBe(false)
+  })
+
+  it('takes a secret out of tool arguments before the cut', () => {
+    const token = 'gh' + 'p_' + 'x'.repeat(36)
+    const { entries } = cleanSlice(
+      [call('t1', 'Bash', { command: 'c'.repeat(779) + ' ' + token })],
+      0
+    )
+    expect(entries[0]?.text).toBe(
+      '{"command":"' + 'c'.repeat(779) + ' ' + SECRET_MARK.slice(0, 8) + CUT_END
+    )
+  })
+
   it('every entry carries its line uuid and the end offset of its line', () => {
     const lines = [prompt('one'), call('t1', 'Bash', { command: 'ls' }), result('t1', 'out')]
     const { entries } = cleanSlice(lines, 0)

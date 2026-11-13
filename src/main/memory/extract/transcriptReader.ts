@@ -64,6 +64,19 @@ function parseLine(bytes: Buffer): TranscriptEntry | null {
   return parsed.success ? parsed.data : null
 }
 
+/** The bytes held for the line being read once `piece` (its latest bytes) is read: `piece` added
+ *  while the line so far (`lineBytes`) can still fit `maxBytes`, else nothing, so a line longer than
+ *  the cap is never held whole. Exported for its test: the reader's answer is the same either way,
+ *  only its memory differs. */
+export function holdPartial(
+  held: readonly Buffer[],
+  piece: Buffer,
+  lineBytes: number,
+  maxBytes: number
+): Buffer[] {
+  return lineBytes <= maxBytes ? [...held, piece] : []
+}
+
 const nextTick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
 
 /** Whole lines from `fromOffset`, at most `maxBytes`, read in EXTRACT_LIMITS.readStepBytes steps with a
@@ -108,8 +121,7 @@ export async function readTranscriptSlice(
     while (from < chunk.length) {
       const nl = chunk.indexOf(NEWLINE, from)
       if (nl === -1) {
-        if (pos + chunk.length - nextOffset <= maxBytes) parts.push(chunk.subarray(from))
-        else parts = []
+        parts = holdPartial(parts, chunk.subarray(from), pos + chunk.length - nextOffset, maxBytes)
         break
       }
       const end = pos + nl + 1
