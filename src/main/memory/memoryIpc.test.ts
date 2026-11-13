@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MEMORY_ERROR, type MemoryText } from '../../shared/schemas/memory'
 import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 import { createMemoryActivity, type MemoryActivityLog } from './memoryActivity'
+import { createMemoryCommands, type MemoryCommands } from './memoryCommands'
 import { openMemoryDb, type MemoryDb } from './memoryDb'
 import { createMemoryIpcHandlers, type MemoryIpcHandlers } from './memoryIpc'
 import type { MemoryNames } from './memoryNames'
@@ -16,6 +17,7 @@ const NOTE: MemoryText = { kind: 'fact', title: 'Deploys', body: 'Tag first, the
 
 let db: MemoryDb
 let store: MemoryStore
+let commands: MemoryCommands
 let activity: MemoryActivityLog
 let names: MemoryNames
 let h: MemoryIpcHandlers
@@ -38,13 +40,14 @@ beforeEach(() => {
     report: () => undefined,
     log: () => undefined
   })
+  commands = createMemoryCommands({ db, newId: () => `c${++ids}` })
   activity = createMemoryActivity()
   names = {
     tagIdsByName: vi.fn((_w: string, name: string) => (name === 'infra' ? ['t1'] : [])),
     goalIdsByName: vi.fn((): string[] => []),
     tagName: vi.fn((): string | null => null)
   }
-  h = createMemoryIpcHandlers({ store: () => store, names, activity })
+  h = createMemoryIpcHandlers({ store: () => store, commands: () => commands, names, activity })
 })
 
 const LIST = {
@@ -291,9 +294,56 @@ describe("a session's items (the Delete confirm)", () => {
   })
 })
 
+const COMMANDS = { workspaceId: 'w1', query: null, offset: 0, limit: 50 } as const
+
+/** A command a session ran in `/work/demo`, recorded the way a save records it. */
+function ranOnce(text: string, workspaceId = 'w1'): string {
+  commands.record({ workspaceId, folder: '/work/demo', text, sessionId: 's1', at: NOW })
+  const row = commands
+    .list(workspaceId, { query: null, folder: null, offset: 0, limit: 50 })
+    .rows.find((r) => r.text === text)
+  if (row === undefined) throw new Error('command not recorded')
+  return row.id
+}
+
+describe('commands (the Commands page)', () => {
+  it('lists commands for a workspace and refuses an extra key', () => {
+    ranOnce('npm test')
+    ranOnce('npm run build')
+    ranOnce('make', 'w2')
+    const page = h.commands(COMMANDS)
+    expect(page.total).toBe(2)
+    expect(page.rows.map((r) => r.text).sort()).toEqual(['npm run build', 'npm test'])
+    expect(h.commands({ ...COMMANDS, query: 'build' }).rows.map((r) => r.text)).toEqual([
+      'npm run build'
+    ])
+    expect(() => h.commands({ ...COMMANDS, extra: 1 })).toThrow()
+    expect(() => h.commands({ ...COMMANDS, folder: '/work/demo' })).toThrow()
+  })
+
+  it('deleting an unknown command throws memory_command_not_found', () => {
+    expect(() => h.removeCommand({ id: 'nope' })).toThrow(MEMORY_ERROR.commandNotFound)
+  })
+
+  it('deleting a command pushes memory:changed once', () => {
+    const id = ranOnce('npm test')
+    const heard = vi.fn()
+    store.onChange(heard)
+    h.removeCommand({ id })
+    expect(heard).toHaveBeenCalledTimes(1)
+    expect(h.commands(COMMANDS).total).toBe(0)
+    expect(() => h.removeCommand({ id, extra: 1 })).toThrow()
+  })
+})
+
 describe('while memory is off (no store)', () => {
   it('every handler but activity throws memory_unavailable', () => {
-    const off = createMemoryIpcHandlers({ store: () => null, names, activity })
+    const off = createMemoryIpcHandlers({
+      store: () => null,
+      commands: () => null,
+      names,
+      activity
+    })
     const id = { id: 'm1' }
     const calls: (() => unknown)[] = [
       () => off.list(LIST),
@@ -305,13 +355,20 @@ describe('while memory is off (no store)', () => {
       () => off.remove(id),
       () => off.restore({ ...id, versionAt: NOW }),
       () => off.sessionCount({ sessionId: 's1' }),
-      () => off.removeSession({ sessionId: 's1' })
+      () => off.removeSession({ sessionId: 's1' }),
+      () => off.commands(COMMANDS),
+      () => off.removeCommand({ id: 'c1' })
     ]
     for (const call of calls) expect(call).toThrow(MEMORY_ERROR.unavailable)
   })
 
   it('activity still answers from the in-memory record, and still parses its argument', () => {
-    const off = createMemoryIpcHandlers({ store: () => null, names, activity })
+    const off = createMemoryIpcHandlers({
+      store: () => null,
+      commands: () => null,
+      names,
+      activity
+    })
     activity.injected('s1', { chars: 8, itemIds: ['m1'] })
     expect(off.activity({ sessionId: 's1' })).toEqual({
       injected: { tokens: 2, itemIds: ['m1'] },
@@ -332,5 +389,18 @@ describe('a write the disk refuses', () => {
       STORE_WRITE_FAILED
     )
     expect(() => h.remove({ id })).toThrow(STORE_WRITE_FAILED)
+  })
+
+  it('a refused command delete throws store_write_failed, keeps the row and tells no one', () => {
+    const id = ranOnce('npm test')
+    const heard = vi.fn()
+    store.onChange(heard)
+    vi.spyOn(db, 'transaction').mockImplementation(() => {
+      throw new Error('SQLITE_FULL')
+    })
+    expect(() => h.removeCommand({ id })).toThrow(STORE_WRITE_FAILED)
+    expect(heard).not.toHaveBeenCalled()
+    vi.restoreAllMocks()
+    expect(h.commands(COMMANDS).total).toBe(1)
   })
 })

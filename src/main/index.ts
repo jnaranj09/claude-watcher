@@ -56,6 +56,7 @@ import type { GoalsView } from '../shared/schemas/goal'
 import { createElectronGoalsBlobStore } from './persistence/electronGoalsBlobStore'
 import { sendGoalsChanged } from './ipc/sendGoalsChanged'
 import { sendMemoryChanged } from './ipc/sendMemoryChanged'
+import { sendMemoryExtractResult } from './ipc/sendMemoryExtractResult'
 import { MEMORY_DB_FILE } from './memory/memoryDb'
 import { createMemoryActivity } from './memory/memoryActivity'
 import { memoryNameLookups } from './memory/memoryNames'
@@ -622,8 +623,12 @@ const { extractor, start: startMemoryCatchUp } = createAppExtractor({
   pastSessions: () => pastSessionsStore,
   sessionMeta,
   activity: memoryActivity,
-  // Dropped for now: Task 12 sends the result to the renderer.
-  push: () => undefined,
+  // What each save did reaches every window (validated at source; counts and a name only).
+  push: (result) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      sendMemoryExtractResult(win.webContents, result, (line) => console.warn(line))
+    }
+  },
   lookup: () => transcriptLookupDepsFromFs(),
   readSlice: (path, fromOffset, maxBytes) =>
     readTranscriptSlice(transcriptFsOnDisk, path, fromOffset, maxBytes),
@@ -815,6 +820,7 @@ const {
     if (goalsStore !== null) goalsFile?.rewrite(folder, goalsStore.view())
   },
   getMemoryStore: memoryStore,
+  getMemoryCommands: () => memory?.commands ?? null,
   memoryNames,
   memoryActivity
 })

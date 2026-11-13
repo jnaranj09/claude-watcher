@@ -17,9 +17,17 @@
 // `sessionCount` and `removeSession` serve the session Delete confirm (owner, 2026-11-12): how
 // many items that session saved, and their removal when the operator ticks the confirm's box.
 // The id is the renderer's own for the pane; a session that saved nothing answers 0.
+//
+// `commands` and `removeCommand` serve the dialog's Commands page (memory phase 2): one workspace's
+// commands, with no folder filter (the operator has no "here"). A delete runs inside `store.batch`,
+// so it is one transaction whose commit tells the store's listeners once (the `memory:changed`
+// push lists the page again); an unknown id passes `memory_command_not_found` through, and a
+// write the disk refuses rolls back, reports and throws `store_write_failed`, with no push.
 import {
   MEMORY_ERROR,
   MemoryActivityGetSchema,
+  MemoryCommandDeleteSchema,
+  MemoryCommandsListSchema,
   MemoryCreateSchema,
   MemoryDeleteSchema,
   MemoryEditSchema,
@@ -32,8 +40,13 @@ import {
   type MemoryActivity,
   type MemoryItem
 } from '../../shared/schemas/memory'
-import type { MemoryGetResult, MemoryListResult } from '../../shared/ipc/contract'
+import type {
+  MemoryCommandsResult,
+  MemoryGetResult,
+  MemoryListResult
+} from '../../shared/ipc/contract'
 import type { MemoryActivityLog } from './memoryActivity'
+import type { MemoryCommands } from './memoryCommands'
 import type { MemoryNames } from './memoryNames'
 import type { MemoryStore } from './memoryStore'
 
@@ -58,10 +71,13 @@ export interface MemoryIpcHandlers {
   activity(raw: unknown): MemoryActivity
   sessionCount(raw: unknown): number
   removeSession(raw: unknown): number
+  commands(raw: unknown): MemoryCommandsResult
+  removeCommand(raw: unknown): void
 }
 
 export function createMemoryIpcHandlers(deps: {
   store: () => MemoryStore | null
+  commands: () => MemoryCommands | null
   names: MemoryNames
   activity: Pick<MemoryActivityLog, 'get'>
 }): MemoryIpcHandlers {
@@ -70,6 +86,12 @@ export function createMemoryIpcHandlers(deps: {
   function requireStore(): MemoryStore {
     const found = deps.store()
     // Every handler but `activity` while there is no store.
+    if (found === null) throw new Error(MEMORY_ERROR.unavailable)
+    return found
+  }
+
+  function requireCommands(): MemoryCommands {
+    const found = deps.commands()
     if (found === null) throw new Error(MEMORY_ERROR.unavailable)
     return found
   }
@@ -144,6 +166,21 @@ export function createMemoryIpcHandlers(deps: {
     removeSession(raw) {
       const { sessionId } = MemoryOfSessionSchema.parse(raw)
       return requireStore().removeBySession(sessionId)
+    },
+    commands(raw) {
+      const req = MemoryCommandsListSchema.parse(raw)
+      return requireCommands().list(req.workspaceId, {
+        query: req.query,
+        folder: null,
+        offset: req.offset,
+        limit: req.limit
+      })
+    },
+    removeCommand(raw) {
+      const { id } = MemoryCommandDeleteSchema.parse(raw)
+      const s = requireStore()
+      const commands = requireCommands()
+      s.batch(() => commands.remove(id))
     }
   }
 }

@@ -30,7 +30,7 @@ export interface AppExtractorIo {
   pastSessions: ExtractorDeps['pastSessions']
   sessionMeta: ExtractorDeps['sessionMeta']
   activity: ExtractorDeps['activity']
-  /** Where a save's result goes (Task 12 sends it to the renderer). */
+  /** Where a save's result goes: index.ts sends it to every window (ipc/sendMemoryExtractResult.ts). */
   push: ExtractorDeps['push']
   /** claude's projects folder on disk (`transcriptLookupDepsFromFs`). */
   lookup: () => TranscriptLookupDeps

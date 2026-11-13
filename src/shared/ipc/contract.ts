@@ -14,7 +14,7 @@ import type { Template } from '../schemas/template'
 import type { Tag } from '../schemas/tag'
 import type { Rule } from '../schemas/rule'
 import type { Goal, GoalsView, Task } from '../schemas/goal'
-import type { MemoryItem, MemoryRow, MemoryVersion } from '../schemas/memory'
+import type { MemoryCommand, MemoryItem, MemoryRow, MemoryVersion } from '../schemas/memory'
 import type { Shortcut } from '../schemas/shortcut'
 import type { FileVersion } from '../schemas/fileHistory'
 import type { DiffLine } from '../schemas/contextIpc'
@@ -190,6 +190,10 @@ export const CH = {
   // empty payload validated at source (sendMemoryChanged.ts); the renderer lists again.
   // `memory:session-count` / `memory:delete-session` serve the session Delete confirm: how many
   // items that session saved, and their removal when the operator asks for it (a number each).
+  // `memory:commands` / `memory:delete-command` serve the Commands page (one workspace's commands;
+  // a delete answers through `memory:changed`, `memory_command_not_found` for an unknown id).
+  // `memory:extract-result` is the PUSH after a save from a session (counts, the session's name
+  // and codes only, validated at source: sendMemoryExtractResult.ts).
   memoryList: 'memory:list',
   memoryGet: 'memory:get',
   memoryCreate: 'memory:create',
@@ -202,6 +206,9 @@ export const CH = {
   memorySessionCount: 'memory:session-count',
   memoryDeleteSession: 'memory:delete-session',
   memoryChanged: 'memory:changed',
+  memoryCommands: 'memory:commands',
+  memoryDeleteCommand: 'memory:delete-command',
+  memoryExtractResult: 'memory:extract-result',
   // Custom themes (spec 2026-09-20). `themes:list` rescans `<userData>/themes` and returns every
   // folder as a ThemeSummary (broken ones carry `error`). `theme:reload` re-applies the CHOSEN
   // theme id (settings.themeId) and pushes the result. `themes:open-folder` opens the folder in
@@ -756,12 +763,16 @@ export type {
   MemoryState,
   MemoryListRequest,
   MemoryCreateRequest,
-  MemoryEditRequest
+  MemoryEditRequest,
+  MemoryCommand,
+  MemoryExtractResult
 } from '../schemas/memory'
 /** `memory:list` result — one page of rows plus how many match in all. */
 export type MemoryListResult = { rows: MemoryRow[]; total: number }
 /** `memory:get` result — the item and its versions, newest first (`[0]` is the current text). */
 export type MemoryGetResult = { item: MemoryItem; versions: MemoryVersion[] }
+/** `memory:commands` result — one page of a workspace's commands plus how many match in all. */
+export type MemoryCommandsResult = { rows: MemoryCommand[]; total: number }
 
 // Workspaces — main-owned; the renderer holds a projection (workspacesStore.ts). The list result
 // is the file's VIEW, not a bare array: `activeId` and the list change together and must never be

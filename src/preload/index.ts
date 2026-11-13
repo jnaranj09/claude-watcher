@@ -64,8 +64,10 @@ import type {
   TaskSaveRequest,
   TaskStatus,
   MemoryActivity,
+  MemoryCommandsResult,
   MemoryCreateRequest,
   MemoryEditRequest,
+  MemoryExtractResult,
   MemoryGetResult,
   MemoryItem,
   MemoryListRequest,
@@ -584,7 +586,8 @@ export type GoalsApi = typeof goalsApi
 // reads and changes items; main stamps the writer (operator), basis and origin, never the renderer.
 // `onChanged` is main's push after any change, whoever made it: it carries nothing, so the dialog
 // lists again. Every refusal is a code (`memory_unavailable` while memory is off; `activity`
-// still answers).
+// still answers). `onExtractResult` is main's push after a save from a session: counts, the
+// session's name and codes, never memory text.
 const memoryApi = {
   list(req: MemoryListRequest): Promise<MemoryListResult> {
     return ipcRenderer.invoke(CH.memoryList, req)
@@ -630,6 +633,25 @@ const memoryApi = {
     const listener = (): void => cb()
     ipcRenderer.on(CH.memoryChanged, listener)
     return () => ipcRenderer.removeListener(CH.memoryChanged, listener)
+  },
+  /** One page of a workspace's commands that worked (the Commands page), newest first. */
+  commands(req: {
+    workspaceId: string
+    query: string | null
+    offset: number
+    limit: number
+  }): Promise<MemoryCommandsResult> {
+    return ipcRenderer.invoke(CH.memoryCommands, req)
+  },
+  /** Deletes one command row; the page lists again on `memory:changed`. */
+  removeCommand(id: string): Promise<void> {
+    return ipcRenderer.invoke(CH.memoryDeleteCommand, { id })
+  },
+  /** Subscribe to what each save from a session did; returns the unsubscribe. */
+  onExtractResult(cb: (result: MemoryExtractResult) => void): () => void {
+    const listener = (_evt: unknown, result: MemoryExtractResult): void => cb(result)
+    ipcRenderer.on(CH.memoryExtractResult, listener)
+    return () => ipcRenderer.removeListener(CH.memoryExtractResult, listener)
   }
 }
 export type MemoryApi = typeof memoryApi

@@ -51,8 +51,10 @@ import type {
   TaskSaveRequest,
   TaskStatus,
   MemoryActivity,
+  MemoryCommandsResult,
   MemoryCreateRequest,
   MemoryEditRequest,
+  MemoryExtractResult,
   MemoryGetResult,
   MemoryItem,
   MemoryListRequest,
@@ -240,6 +242,7 @@ declare global {
     }
     // Memory — mirrors src/preload/index.ts `memoryApi`. MAIN owns the items (one SQLite file) and
     // stamps the writer; `onChanged` is main's empty push, so the renderer lists again.
+    // `onExtractResult` is main's push after a save from a session (counts and a name only).
     memory: {
       list(req: MemoryListRequest): Promise<MemoryListResult>
       get(id: string): Promise<MemoryGetResult>
@@ -253,6 +256,14 @@ declare global {
       sessionCount(sessionId: string): Promise<number>
       removeSession(sessionId: string): Promise<number>
       onChanged(cb: () => void): () => void
+      commands(req: {
+        workspaceId: string
+        query: string | null
+        offset: number
+        limit: number
+      }): Promise<MemoryCommandsResult>
+      removeCommand(id: string): Promise<void>
+      onExtractResult(cb: (result: MemoryExtractResult) => void): () => void
     }
     // Story 3.5 (SM-2) — mirrors src/preload/index.ts `telemetryApi`. The renderer signals the
     // acknowledge moment ONLY through this typed bridge (never ipcRenderer directly — F4).

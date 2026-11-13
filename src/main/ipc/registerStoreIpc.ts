@@ -21,6 +21,7 @@ import { createGoalsIpcHandlers, goalPickerStart } from '../persistence/goalsIpc
 import type { Proposals } from '../goals/proposals'
 import type { MemoryStore } from '../memory/memoryStore'
 import type { MemoryActivityLog } from '../memory/memoryActivity'
+import type { MemoryCommands } from '../memory/memoryCommands'
 import type { MemoryNames } from '../memory/memoryNames'
 import { createMemoryIpcHandlers } from '../memory/memoryIpc'
 import type { TelemetryStore } from '../persistence/telemetry'
@@ -73,6 +74,8 @@ export interface StoreIpcDeps {
   rewriteGoalsFile: (folder: string) => void
   /** Memory: null while it is off (the file could not be opened, the smoke test, after quit). */
   getMemoryStore: () => MemoryStore | null
+  /** The commands that worked (the Commands page): null while memory is off, like the store. */
+  getMemoryCommands: () => MemoryCommands | null
   /** Memory filters name tags and goals; these turn a name into the ids a workspace sees. */
   memoryNames: MemoryNames
   /** What memory did for each session (Context reads it). */
@@ -121,6 +124,7 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     hookListening,
     rewriteGoalsFile,
     getMemoryStore,
+    getMemoryCommands,
     memoryNames,
     memoryActivity
   } = deps
@@ -357,6 +361,7 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
   function registerMemoryIpc(): void {
     const handlers = createMemoryIpcHandlers({
       store: getMemoryStore,
+      commands: getMemoryCommands,
       names: memoryNames,
       activity: memoryActivity
     })
@@ -371,6 +376,8 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     ipc.handle(CH.memoryActivity, (_evt, raw: unknown) => handlers.activity(raw))
     ipc.handle(CH.memorySessionCount, (_evt, raw: unknown) => handlers.sessionCount(raw))
     ipc.handle(CH.memoryDeleteSession, (_evt, raw: unknown) => handlers.removeSession(raw))
+    ipc.handle(CH.memoryCommands, (_evt, raw: unknown) => handlers.commands(raw))
+    ipc.handle(CH.memoryDeleteCommand, (_evt, raw: unknown) => handlers.removeCommand(raw))
   }
 
   // Workspaces — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
