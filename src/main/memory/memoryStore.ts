@@ -30,13 +30,17 @@ import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 import type { StorageReporter } from '../persistence/persistedBlob'
 import type { FilterContext } from './filterSql'
 import type { MemoryDb, SqlValue } from './memoryDb'
+import type { RecallTerm } from './recallTerms'
 import { CountRow, ItemRow, selectItems, type EpisodeRow } from './memoryRows'
 import {
   agentSpecificsNoSource,
   browseItems,
   extractScope,
+  folderSpecifics,
   indexItems,
+  recallItems,
   searchItems,
+  specificFolders,
   writerOfCurrent,
   type BrowseBy,
   type MemoryScope,
@@ -112,6 +116,26 @@ export interface MemoryStore {
     episodesHere: EpisodeRow[]
     more: number
   }
+  /** Recall (phase 3 addendum §6): the active, unpinned specifics and facts in scope, not in
+   *  `excludeIds`, that two distinct terms or one exact term match (one FTS5 phrase per term),
+   *  by exact terms matched, terms matched, newest, id; the first `limit`. */
+  recall(
+    scope: MemoryScope,
+    terms: readonly RecallTerm[],
+    excludeIds: readonly string[],
+    limit: number
+  ): MemoryItem[]
+  /** The folders of active specifics in scope not in `excludeIds`, by each folder's newest
+   *  change, at most `limit`. */
+  foldersWithSpecifics(scope: MemoryScope, excludeIds: readonly string[], limit: number): string[]
+  /** Active specifics in scope whose folder is exactly one of `folders`, not in `excludeIds`,
+   *  newest first, at most `limit`; `more` counts the rest. */
+  specificsInFolders(
+    scope: MemoryScope,
+    folders: readonly string[],
+    excludeIds: readonly string[],
+    limit: number
+  ): { rows: MemoryRow[]; more: number }
   /** Active specifics `originSessionId` saved with the tool that have no source yet. */
   agentSpecificsWithoutSource(originSessionId: string): { id: string; value: string }[]
   /** Who wrote the newest version; null for an unknown id. */
@@ -436,6 +460,15 @@ export function createMemoryStore(deps: {
     browse: (scope, by) => read(() => browseItems(db, scope, by)),
 
     indexRows: (workspaceId, folder) => read(() => indexItems(db, workspaceId, folder)),
+
+    recall: (scope, terms, excludeIds, limit) =>
+      read(() => recallItems(db, scope, terms, excludeIds, limit)),
+
+    foldersWithSpecifics: (scope, excludeIds, limit) =>
+      read(() => specificFolders(db, scope, excludeIds, limit)),
+
+    specificsInFolders: (scope, folders, excludeIds, limit) =>
+      read(() => folderSpecifics(db, scope, folders, excludeIds, limit)),
 
     agentSpecificsWithoutSource: (originSessionId) =>
       read(() => agentSpecificsNoSource(db, originSessionId)),

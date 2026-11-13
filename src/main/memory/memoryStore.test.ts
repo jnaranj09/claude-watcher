@@ -543,6 +543,19 @@ describe('SQLite failures', () => {
     ['browse', (s) => s.browse({ workspaceId: 'w1', includeGlobal: true }, 'kind')],
     ['indexRows', (s) => s.indexRows('w1', '/work/app')],
     [
+      'recall',
+      (s) =>
+        s.recall({ workspaceId: 'w1', includeGlobal: true }, [{ term: '9280', exact: true }], [], 3)
+    ],
+    [
+      'foldersWithSpecifics',
+      (s) => s.foldersWithSpecifics({ workspaceId: 'w1', includeGlobal: true }, [], 200)
+    ],
+    [
+      'specificsInFolders',
+      (s) => s.specificsInFolders({ workspaceId: 'w1', includeGlobal: true }, ['/work/app'], [], 10)
+    ],
+    [
       'search',
       (s) =>
         s.search(

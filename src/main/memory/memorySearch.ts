@@ -3,7 +3,8 @@
 // app metadata first (`filterSql.ts`), then ranks by the word index, then adds what only the
 // trigram index finds. The reads extraction needs (memory phase 2: the scope shown to the model,
 // the specifics a session saved without a source, who wrote an item's current text) live here
-// too. These functions throw on any SQLite or row failure; `memoryStore.ts` wraps them so a
+// too, and so do the reads recall needs while a session runs (phase 3 addendum §6): the items a
+// prompt's terms name, the folders that hold saved keys, and the keys of a folder. These functions throw on any SQLite or row failure; `memoryStore.ts` wraps them so a
 // failure is never mistaken for a result.
 import { z } from 'zod'
 import { MEMORY_FILTER_FIELDS, type MemoryFilters } from '../../shared/memory/filterFields'
@@ -23,7 +24,7 @@ import {
   type FilterContext,
   type SqlClause
 } from './filterSql'
-import type { MemoryDb } from './memoryDb'
+import type { MemoryDb, SqlValue } from './memoryDb'
 import {
   CountRow,
   CURRENT_JOIN,
@@ -35,6 +36,7 @@ import {
   selectItems,
   type EpisodeRow
 } from './memoryRows'
+import type { RecallTerm } from './recallTerms'
 
 export type MemoryScope = { workspaceId: string; includeGlobal: boolean }
 export type MemorySearchInput = {
@@ -50,6 +52,13 @@ const SPECIFICS_HERE_MAX = 50
 /** The trigram index cannot match fewer characters than this. */
 const TRIGRAM_MIN = 3
 const ACTIVE: SqlClause = { sql: "item.state = 'active'", params: [] }
+/** Row ids one recall term may bring. */
+const RECALL_HITS_PER_TERM = 200
+const RECALLABLE: SqlClause = {
+  sql: "item.pinned = 0 AND item.kind IN ('specific', 'fact')",
+  params: []
+}
+const SPECIFIC: SqlClause = { sql: "item.kind = 'specific'", params: [] }
 const BucketRow = z.object({ key: z.string(), count: z.number() })
 
 const BROWSE: Record<BrowseBy, { key: string; from: string }> = {
@@ -297,4 +306,111 @@ export function writerOfCurrent(db: MemoryDb, id: string): MemoryWriter | null {
       [id]
     )?.by ?? null
   )
+}
+
+/** `column` is one of `values`, each a parameter. `IN` compares with `=`: never a pattern. An
+ *  empty list is allowed in SQLite (`IN ()` matches nothing, `NOT IN ()` everything). */
+function inList(column: string, values: readonly SqlValue[], negate = false): SqlClause {
+  return {
+    sql: `${column} ${negate ? 'NOT IN' : 'IN'} (${values.map(() => '?').join(', ')})`,
+    params: [...values]
+  }
+}
+
+function notIdIn(ids: readonly string[]): SqlClause {
+  return inList('item.id', ids, true)
+}
+
+const RecallHitRow = z.object({ id: z.string(), updated_at: z.number() })
+type RecallTally = { exact: number; distinct: number; updatedAt: number }
+
+/** Exact terms matched (more first), terms matched (more first), newest, id. */
+function byRecallRank([aId, a]: [string, RecallTally], [bId, b]: [string, RecallTally]): number {
+  return (
+    b.exact - a.exact ||
+    b.distinct - a.distinct ||
+    b.updatedAt - a.updatedAt ||
+    (aId < bId ? -1 : aId > bId ? 1 : 0)
+  )
+}
+
+/** The active, unpinned specifics and facts in scope the terms name: one FTS5 phrase per term
+ *  (at most `RECALL_HITS_PER_TERM` rows each). An item qualifies with two distinct terms matched,
+ *  or one exact term. The first `limit` by rank, as whole items. */
+export function recallItems(
+  db: MemoryDb,
+  scope: MemoryScope,
+  terms: readonly RecallTerm[],
+  excludeIds: readonly string[],
+  limit: number
+): MemoryItem[] {
+  const where = and([scopeClause(scope), ACTIVE, RECALLABLE, notIdIn(excludeIds)])
+  const exactOf = new Map<string, boolean>()
+  for (const t of terms) exactOf.set(t.term, (exactOf.get(t.term) ?? false) || t.exact)
+  const tally = new Map<string, RecallTally>()
+  for (const [term, exact] of exactOf) {
+    const hits = db.all(
+      `SELECT item.id, item.updated_at FROM item_words JOIN item ON item.rid = item_words.rowid
+       WHERE item_words MATCH ? AND ${where.sql} LIMIT ?`,
+      RecallHitRow,
+      [ftsQuery([term]), ...where.params, RECALL_HITS_PER_TERM]
+    )
+    for (const hit of hits) {
+      const t = tally.get(hit.id) ?? { exact: 0, distinct: 0, updatedAt: hit.updated_at }
+      tally.set(hit.id, { ...t, exact: t.exact + (exact ? 1 : 0), distinct: t.distinct + 1 })
+    }
+  }
+  const winners = [...tally]
+    .filter(([, t]) => t.distinct >= 2 || t.exact >= 1)
+    .sort(byRecallRank)
+    .slice(0, limit)
+    .map(([id]) => id)
+  const items = db.all(`${selectItems()} WHERE ${inList('item.id', winners).sql}`, ItemRow, winners)
+  const byId = new Map(items.map((item) => [item.id, item]))
+  return winners.flatMap((id) => byId.get(id) ?? [])
+}
+
+const FolderRow = z.object({ folder: z.string() })
+
+/** The folders of active specifics in scope not in `excludeIds`, by each folder's newest
+ *  `updated_at`, at most `limit`. */
+export function specificFolders(
+  db: MemoryDb,
+  scope: MemoryScope,
+  excludeIds: readonly string[],
+  limit: number
+): string[] {
+  const where = and([scopeClause(scope), ACTIVE, SPECIFIC, notIdIn(excludeIds)])
+  return db
+    .all(
+      `SELECT item.folder AS folder FROM item WHERE ${where.sql} AND item.folder IS NOT NULL
+       GROUP BY item.folder ORDER BY MAX(item.updated_at) DESC, item.folder LIMIT ?`,
+      FolderRow,
+      [...where.params, limit]
+    )
+    .map((r) => r.folder)
+}
+
+/** Active specifics in scope whose folder EQUALS one of `folders` (never at or under it), not in
+ *  `excludeIds`, newest first, at most `limit`; `more` counts the rest. */
+export function folderSpecifics(
+  db: MemoryDb,
+  scope: MemoryScope,
+  folders: readonly string[],
+  excludeIds: readonly string[],
+  limit: number
+): { rows: MemoryRow[]; more: number } {
+  const where = and([
+    scopeClause(scope),
+    ACTIVE,
+    SPECIFIC,
+    inList('item.folder', folders),
+    notIdIn(excludeIds)
+  ])
+  const rows = db.all(
+    `${selectItems()} WHERE ${where.sql} ORDER BY ${NEWEST_FIRST} LIMIT ?`,
+    ListRow,
+    [...where.params, limit]
+  )
+  return { rows, more: count(db, where) - rows.length }
 }
