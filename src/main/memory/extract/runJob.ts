@@ -1,0 +1,407 @@
+// One extraction job (addendum "Save points and the job"): find the transcript (D1), read it ONCE
+// from the row's offset, clean it, check the substance guard (D22), split it into chunks, and for
+// each chunk: the version gate (asked once per job, R7), the input, the call, the check and the
+// write. After the last chunk of an end or a catch-up: the row is `done`, the Past sessions record
+// says what the whole session saved, and an end pushes its result.
+//
+// The check and the write run in ONE synchronous step, with no await between them (R19): no
+// operator edit can land between them. Nothing throws out of `runJob`: one bad session never stops
+// the extractor for the others. Transcript, candidate, note and memory text are SENSITIVE: logs
+// carry codes, counts and reasons only.
+import {
+  NO_COUNTS,
+  type DropReason,
+  type MemoryCounts,
+  type MemoryExtractResult
+} from '../../../shared/schemas/memory'
+import { EXTRACT_LIMITS, type ExtractOutput } from '../../../shared/schemas/memoryExtract'
+import type { PastSessionMemory } from '../../../shared/schemas/pastSession'
+import { scopeTasksForExtract } from '../memoryTasks'
+import { applyChunk } from './applyChunk'
+import { checkCandidates } from './checkCandidates'
+import { captureCommands } from './commandCapture'
+import { buildExtractInput, type ScopeItem, type ScopeTask } from './extractPrompt'
+import type { ExtractRow } from './extractState'
+import type { ExtractorDeps, ExtractTrigger } from './extractor'
+import type { ExtractCall, ExtractCallFailure } from './headlessClaude'
+import { chunkEntries, cleanSlice, type CleanEntry } from './sliceCleaner'
+
+const LOG_PREFIX = '[claude-watcher][memory]'
+
+/** One queued or running job, keyed by the TRANSCRIPT id (`row.sessionId`, which never changes;
+ *  the card's id is the row's `originSessionId`, which follows `/clear`). */
+export interface Job {
+  id: string
+  trigger: ExtractTrigger
+  /** Set by `forget` / `forgetWorkspace` / `quit`: the job writes and pushes nothing more. */
+  cancelled: boolean
+  /** The call in flight, for `cancel()` / `killNow()`. */
+  call: ExtractCall | null
+}
+
+export interface JobRun {
+  deps: ExtractorDeps
+  job: Job
+  /** A `claude_version` failure is pushed once per extractor. */
+  shared: { versionPushed: boolean }
+}
+
+type Mem = NonNullable<ReturnType<ExtractorDeps['memory']>>
+type FailReason = ExtractCallFailure | 'claude_version' | 'write'
+type Plan = { entries: CleanEntry[]; final: boolean; commands: string[]; end: number }
+type Scope = { items: ScopeItem[]; tasks: ScopeTask[]; tasksOn: boolean }
+/** `stop`: the job ends here (a failure under the limit, a cancel, a forgotten session). */
+type Step = { saved: number; dropped: number } | 'stop'
+
+const total = (c: MemoryCounts): number => c.specifics + c.facts + c.tasks + c.episodes
+
+function log(r: JobRun, code: string): void {
+  r.deps.log(`${LOG_PREFIX} code=${code}`)
+}
+
+/** The record is keyed by the TRANSCRIPT id: after a `/clear` the old id has none. */
+function setRecord(r: JobRun, row: ExtractRow, state: PastSessionMemory['state']): void {
+  r.deps
+    .pastSessions()
+    ?.setMemory(row.sessionId, { state, ...row.counts, episodeId: row.episodeId })
+}
+
+/** R24: a session with no name gets no push. A `claude_version` failure is pushed once. */
+function push(
+  r: JobRun,
+  row: ExtractRow,
+  outcome: MemoryExtractResult['outcome'],
+  reason: 'claude_version' | null
+): void {
+  const name = row.meta.sessionName
+  if (name === null || name === '') return
+  if (reason === 'claude_version') {
+    if (r.shared.versionPushed) return
+    r.shared.versionPushed = true
+  }
+  r.deps.push({ sessionName: name, trigger: r.job.trigger, outcome, counts: row.counts, reason })
+}
+
+/** The last chunk of an end or a catch-up was written: the row is done, the record says what the
+ *  whole session saved (D33, D38), an end pushes it. */
+function finishDone(r: JobRun, mem: Mem): void {
+  mem.state.setPhase(r.job.id, 'done', r.deps.now())
+  const row = mem.state.get(r.job.id)
+  if (row === null) return
+  const outcome = total(row.counts) === 0 ? 'nothing' : 'saved'
+  setRecord(r, row, outcome)
+  if (r.job.trigger === 'end') push(r, row, outcome, null)
+}
+
+/** The job stopped on a failure: an end or a catch-up sets the record `failed`, every trigger
+ *  pushes it. A catch-up whose row has now failed `EXTRACT_LIMITS.attempts` times in a row is
+ *  closed. An end's row stays `ending`: the next start catches it up. */
+function finishFailed(r: JobRun, mem: Mem, reason: 'claude_version' | null): void {
+  const row = mem.state.get(r.job.id)
+  if (row === null) return
+  if (r.job.trigger !== 'checkpoint') {
+    if (r.job.trigger === 'catchup' && row.attempts >= EXTRACT_LIMITS.attempts)
+      mem.state.setPhase(row.sessionId, 'done', r.deps.now())
+    setRecord(r, row, 'failed')
+  }
+  push(r, row, 'failed', reason)
+}
+
+function noTranscript(r: JobRun, mem: Mem): void {
+  log(r, 'memory_extract_no_transcript')
+  if (r.job.trigger === 'checkpoint') return
+  mem.state.setPhase(r.job.id, 'done', r.deps.now())
+  const row = mem.state.get(r.job.id)
+  if (row === null) return
+  setRecord(r, row, 'failed')
+  push(r, row, 'failed', null)
+}
+
+/** Where a chunk leaves the row: after its last line, its last entry's number, its prompts. */
+function nextOf(
+  row: ExtractRow,
+  plan: Plan
+): { byteOffset: number; entryCount: number; prompts: number } {
+  return {
+    byteOffset: plan.end,
+    entryCount: plan.entries.at(-1)?.n ?? row.entryCount,
+    prompts: row.prompts + plan.entries.filter((e) => e.kind === 'operator').length
+  }
+}
+
+/** A failed call, or a failed write (R21): under `attempts` failures in a row the job stops and
+ *  the slice stays unread; at `attempts` the chunk is given up (D20) and the job goes on. */
+function failedCall(r: JobRun, mem: Mem, row: ExtractRow, plan: Plan, reason: FailReason): Step {
+  log(r, `memory_extract_failed reason=${reason}`)
+  const at = r.deps.now()
+  if (mem.state.failed(row.sessionId, at) < EXTRACT_LIMITS.attempts) {
+    finishFailed(r, mem, null)
+    return 'stop'
+  }
+  log(r, 'memory_extract_gave_up')
+  mem.state.advance(row.sessionId, {
+    ...nextOf(row, plan),
+    note: null,
+    added: NO_COUNTS,
+    episodeId: null,
+    at
+  })
+  return { saved: 0, dropped: 0 }
+}
+
+/** Activity under the card's id, only while the card is on the board: an end's card is gone, and
+ *  its record would never be forgotten. */
+function recordActivity(
+  r: JobRun,
+  row: ExtractRow,
+  saved: readonly { itemId: string; action: 'saved' | 'updated' }[],
+  dropped: readonly DropReason[]
+): void {
+  const cardId = row.originSessionId
+  if (r.deps.sessionMeta(cardId) === null) return
+  const at = r.deps.now()
+  for (const s of saved) {
+    r.deps.activity.record(cardId, {
+      at,
+      action: s.action,
+      tool: 'extract',
+      itemId: s.itemId,
+      reason: null
+    })
+  }
+  for (const reason of dropped) {
+    r.deps.activity.record(cardId, { at, action: 'dropped', tool: 'extract', itemId: null, reason })
+  }
+}
+
+function logDrops(r: JobRun, dropped: readonly DropReason[]): void {
+  const byReason = new Map<DropReason, number>()
+  for (const reason of dropped) byReason.set(reason, (byReason.get(reason) ?? 0) + 1)
+  for (const [reason, count] of byReason)
+    log(r, `memory_candidates_dropped reason=${reason} count=${count}`)
+}
+
+/** The check (R23: the notes saved before this call, never its own note) and the write, in ONE
+ *  synchronous step (R19). Drops come from the check only (R28); counts from the write (R11). */
+function write(
+  r: JobRun,
+  mem: Mem,
+  row: ExtractRow,
+  ctx: { plan: Plan; scope: Scope; path: string; output: ExtractOutput }
+): Step {
+  const { plan, scope, output } = ctx
+  let checked: ReturnType<typeof checkCandidates>
+  let out: ReturnType<typeof applyChunk>
+  try {
+    checked = checkCandidates(output, {
+      entries: plan.entries,
+      notes: row.notes,
+      final: plan.final,
+      tasksOn: scope.tasksOn,
+      items: scope.items,
+      tasks: scope.tasks,
+      operatorWrote: (id) => mem.store.currentWriter(id) === 'operator'
+    })
+    out = applyChunk(
+      {
+        store: mem.store,
+        commands: mem.commands,
+        state: mem.state,
+        goals: r.deps.goals(),
+        now: r.deps.now,
+        log: r.deps.log
+      },
+      {
+        row,
+        transcriptPath: ctx.path,
+        kept: checked.kept,
+        note: output.note === '' ? null : output.note,
+        commands: plan.commands,
+        entries: plan.entries,
+        next: nextOf(row, plan)
+      }
+    )
+  } catch {
+    // The batch rolled back, so the offsets did not move (R21); logged as `reason=write`.
+    return failedCall(r, mem, row, plan, 'write')
+  }
+  logDrops(r, checked.dropped)
+  recordActivity(r, row, out.saved, checked.dropped)
+  return { saved: total(out.added), dropped: checked.dropped.length }
+}
+
+function scopeOf(r: JobRun, mem: Mem, row: ExtractRow): Scope {
+  const goals = r.deps.goals()
+  return {
+    items: mem.store.scopeForExtract(
+      row.workspaceId,
+      row.meta.folder,
+      row.originSessionId,
+      EXTRACT_LIMITS.scopeItems
+    ),
+    tasks:
+      goals === null
+        ? []
+        : scopeTasksForExtract(
+            goals.view(),
+            row.workspaceId,
+            row.meta.folder,
+            row.originSessionId,
+            EXTRACT_LIMITS.scopeTasks
+          ),
+    tasksOn: r.deps.tasksOn()
+  }
+}
+
+function cancelled(r: JobRun): 'stop' {
+  log(r, 'memory_extract_cancelled')
+  return 'stop'
+}
+
+/** One chunk: the input, the call, then the check and the write. The row is read again after the
+ *  call, so a `/clear` meanwhile (`rebind`) makes what is written carry the card's new id. */
+async function runChunk(r: JobRun, plan: Plan, path: string): Promise<Step> {
+  const { deps, job } = r
+  const before = deps.memory()
+  const row = before?.state.get(job.id) ?? null
+  if (before === null || row === null) return 'stop'
+  const scope = scopeOf(r, before, row)
+  const input = buildExtractInput({
+    final: plan.final,
+    sessionName: row.meta.sessionName ?? '',
+    folder: row.meta.folder,
+    tasksOn: scope.tasksOn,
+    notes: row.notes,
+    items: scope.items,
+    tasks: scope.tasks,
+    entries: plan.entries
+  })
+  const call = deps.call(deps.model(), input)
+  job.call = call
+  const result = await call.result
+  job.call = null
+  if (job.cancelled || (!result.ok && result.reason === 'cancelled')) return cancelled(r)
+  const mem = deps.memory()
+  const now = mem?.state.get(job.id) ?? null
+  if (mem === null || now === null) return 'stop'
+  if (!result.ok) {
+    if (result.issue !== null) {
+      const at = result.issue.path === '' ? 'root' : result.issue.path
+      log(r, `memory_extract_invalid path=${at} issue=${result.issue.code}`)
+    }
+    return failedCall(r, mem, now, plan, result.reason)
+  }
+  return write(r, mem, now, { plan, scope, path, output: result.output })
+}
+
+/** The chunks of one read, each with the commands whose result line falls inside it. An end (or
+ *  catch-up) with nothing new: one call with no entries for the episode, only while the session has
+ *  notes and no episode yet. */
+function plansOf(
+  row: ExtractRow,
+  lines: Parameters<typeof captureCommands>[0],
+  entries: CleanEntry[],
+  read: { nextOffset: number; final: boolean }
+): Plan[] {
+  const captured = captureCommands(lines)
+  const chunks =
+    entries.length > 0
+      ? chunkEntries(entries, EXTRACT_LIMITS.chunkChars)
+      : read.final && row.notes.length > 0 && row.episodeId === null
+        ? [[]]
+        : []
+  let from = row.byteOffset
+  return chunks.map((chunk, i) => {
+    const last = i === chunks.length - 1
+    const end = last ? read.nextOffset : (chunk.at(-1)?.lineEnd ?? read.nextOffset)
+    const commands = captured.filter((c) => c.lineEnd > from && c.lineEnd <= end).map((c) => c.text)
+    from = end
+    return { entries: chunk, final: read.final && last, commands, end }
+  })
+}
+
+async function run(r: JobRun): Promise<void> {
+  const { deps, job } = r
+  const mem = deps.memory()
+  const start = mem?.state.get(job.id) ?? null
+  if (mem === null || start === null) return
+  log(r, `memory_extract_started trigger=${job.trigger}`)
+  const path = deps.locate(start.sessionId)
+  const slice =
+    path === null ? null : await deps.read(path, start.byteOffset, EXTRACT_LIMITS.readBytesPerJob)
+  if (job.cancelled) {
+    cancelled(r)
+    return
+  }
+  const live = deps.memory()
+  const row = live?.state.get(job.id) ?? null
+  if (live === null || row === null) return
+  if (path === null || slice === null) {
+    noTranscript(r, live)
+    return
+  }
+  const { entries, prompts } = cleanSlice(slice.lines, row.entryCount)
+  const ending = job.trigger !== 'checkpoint'
+  if (entries.length === 0 && slice.nextOffset !== row.byteOffset) {
+    // Lines with no conversation entry: only the offset moves.
+    live.state.advance(row.sessionId, {
+      byteOffset: slice.nextOffset,
+      entryCount: row.entryCount,
+      prompts: row.prompts,
+      note: null,
+      added: NO_COUNTS,
+      episodeId: null,
+      at: deps.now()
+    })
+  }
+  if (!slice.more && row.prompts + prompts < EXTRACT_LIMITS.minPrompts) {
+    log(r, 'memory_extract_skipped reason=guard')
+    if (ending) {
+      live.state.setPhase(row.sessionId, 'done', deps.now())
+      setRecord(r, row, 'nothing')
+    }
+    return
+  }
+  const final = ending && !slice.more
+  const plans = plansOf(row, slice.lines, entries, { nextOffset: slice.nextOffset, final })
+  let calls = 0
+  let versionOk: boolean | null = null
+  let saved = 0
+  let dropped = 0
+  for (const plan of plans) {
+    if (!deps.enabled()) {
+      log(r, 'memory_extract_skipped reason=off')
+      return
+    }
+    if (calls >= EXTRACT_LIMITS.chunksPerJob) break
+    versionOk ??= deps.versionOk()
+    if (!versionOk) {
+      log(r, 'memory_extract_failed reason=claude_version')
+      live.state.failed(job.id, deps.now())
+      finishFailed(r, live, 'claude_version')
+      return
+    }
+    calls += 1
+    const step = await runChunk(r, plan, path)
+    if (step === 'stop') return
+    saved += step.saved
+    dropped += step.dropped
+  }
+  // R22 and the 12-call stop: what was written stays, the row stays as it is, nothing is pushed.
+  const stopped = slice.more || calls < plans.length
+  const done = deps.memory()
+  if (ending && !stopped && done !== null) finishDone(r, done)
+  log(r, `memory_extract_done trigger=${job.trigger} saved=${saved} dropped=${dropped}`)
+}
+
+/** Runs one job to its end. Never throws, never rejects: a throw from any step (the database, a
+ *  seam) is logged as a failed save and the extractor goes on with the next job. */
+export async function runJob(r: JobRun): Promise<void> {
+  try {
+    await run(r)
+  } catch {
+    // A step threw (most likely the memory database): the row is left as it was, so the next
+    // save point or start tries again. Logged as a code; the error's text is never read.
+    log(r, 'memory_extract_failed reason=write')
+  }
+}
