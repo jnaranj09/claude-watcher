@@ -135,7 +135,8 @@ describe('checkCandidates: the quote', () => {
     expect(
       check([specific('API address', '127.0.0.1:9281', 'http://127.0.0.1:9281')]).kept
     ).toHaveLength(1)
-    expect(check([specific('API url', 'http://', 'on http://127')]).kept).toHaveLength(1)
+    // the quote ends at the entry's end of token (`…9281`), not at `127` (R15: `127.0` is one token)
+    expect(check([specific('API url', 'http://', 'on http://127.0.0.1:9281')]).kept).toHaveLength(1)
   })
 
   it('drops a specific whose value is a reworded form of the evidence', () => {
@@ -191,6 +192,77 @@ describe('checkCandidates: the quote', () => {
     for (const [value, evidence] of cases) {
       expect(check([specific('Value', value, evidence)], { entries }).dropped).toEqual([])
     }
+  })
+
+  it('R15: a value or quote that stops or starts at a dot or dash inside a token is dropped', () => {
+    const cases: [entryText: string, value: string, evidence: string][] = [
+      ['version 1.2.34 ready', '1.2', 'version 1.2'],
+      ['version 1.2.34 ready', '1.2', 'version 1.2.'],
+      ['host 127.0.0.1 up', '127.0.0', 'host 127.0.0'],
+      ['version 1.2.34 ready', '2.34', '2.34 ready'],
+      ['version 1.2.34 ready', '2.34', '.2.34 ready'],
+      ['released 2026-11-12 today', '11-12', '11-12 today'],
+      ['open README.md now', 'README', 'open README']
+    ]
+    for (const [text, value, evidence] of cases) {
+      expect(
+        check([specific('Value', value, evidence)], { entries: [entry(4, 'result', text)] })
+      ).toEqual({ kept: [], dropped: ['evidence_not_found'] })
+    }
+  })
+
+  it('R15: a value inside a whole quote that stops at a dot or dash inside a token is dropped', () => {
+    const cases: [entryText: string, value: string, evidence: string][] = [
+      ['version 1.2.34 ready', '1.2', 'version 1.2.34 ready'],
+      ['host 127.0.0.1 up', '127.0.0', 'host 127.0.0.1 up'],
+      ['version 1.2.34 ready', '2.34', 'version 1.2.34 ready'],
+      ['released 2026-11-12 today', '11-12', 'released 2026-11-12 today'],
+      ['open README.md now', 'README', 'open README.md now']
+    ]
+    for (const [text, value, evidence] of cases) {
+      expect(
+        check([specific('Value', value, evidence)], { entries: [entry(4, 'result', text)] })
+      ).toEqual({ kept: [], dropped: ['evidence_not_found'] })
+    }
+  })
+
+  it('R15: a value after a colon, before a sentence-end dot, a comma, a spaced dash or a quote is kept', () => {
+    const cases: [entryText: string, value: string, evidence: string][] = [
+      ['open localhost:9281 now', '9281', 'localhost:9281'],
+      ['see config.json.', 'config.json', 'see config.json.'],
+      ['see config.json. Then run it', 'config.json', 'see config.json. Then'],
+      ['shipped version 1.2.34, then', '1.2.34', 'version 1.2.34,'],
+      ['port 9281 - the api', '9281', 'port 9281 - the api'],
+      ['name "api-main".', 'api-main', 'name "api-main".'],
+      ['the tag is v2.1.', 'v2.1', 'the tag is v2.1.']
+    ]
+    for (const [text, value, evidence] of cases) {
+      expect(
+        check([specific('Value', value, evidence)], { entries: [entry(4, 'result', text)] }).dropped
+      ).toEqual([])
+    }
+  })
+
+  it('a value written right after a letter, as in (v1.2.34), is not whole (the word rule, unchanged by R15)', () => {
+    expect(
+      check([specific('Version', '1.2.34', '(v1.2.34)')], {
+        entries: [entry(4, 'result', 'built (v1.2.34)')]
+      })
+    ).toEqual({ kept: [], dropped: ['evidence_not_found'] })
+  })
+
+  it('R15 also holds for a progress-note quote and for findValue', () => {
+    expect(
+      check([episode('Bumped', 'Bumped it.', 'Bumped to 1.2')], {
+        final: true,
+        notes: ['Bumped to 1.2.34 today.'],
+        entries: []
+      })
+    ).toEqual({ kept: [], dropped: ['evidence_not_found'] })
+    expect(findValue('README', [entry(4, 'result', 'open README.md now')])).toBeNull()
+    expect(findValue('README.md', [entry(4, 'result', 'open README.md now')])?.quote).toBe(
+      'open README.md now'
+    )
   })
 
   it('drops evidence that joins two entries', () => {

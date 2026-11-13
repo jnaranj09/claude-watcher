@@ -70,16 +70,26 @@ function strongest<T>(
 
 const WORD_START = /^[\p{L}\p{N}_]/u
 const WORD_END = /[\p{L}\p{N}_]$/u
+/** A `.` or `-` between two letters or digits joins them into one token (`1.2.34`, `2026-11-12`,
+ *  `README.md`); R15. */
+const JOIN_START = /^[.-][\p{L}\p{N}]/u
+const JOIN_END = /[\p{L}\p{N}][.-]$/u
 
-/** Where `value` stands in `text` as a whole: a value that starts (ends) with a letter, digit or `_`
- *  must not have one right before (after) it, so `928` is not found in `9281`. -1 when absent. */
+/** The text left of a cut and the text right of it are one token there: a word character on both
+ *  sides, or a word character on one side and `.` / `-` then a letter or digit on the other. */
+const joins = (left: string, right: string): boolean =>
+  (WORD_END.test(left) && (WORD_START.test(right) || JOIN_START.test(right))) ||
+  (JOIN_END.test(left) && WORD_START.test(right))
+
+/** Where `value` stands in `text` as a whole: it neither starts nor ends inside a token, so `928`
+ *  is not found in `9281`, nor `1.2` in `1.2.34`, nor `README` in `README.md` (R15). -1 when
+ *  absent. */
 function valueAt(text: string, value: string): number {
-  const startsWord = WORD_START.test(value)
-  const endsWord = WORD_END.test(value)
+  // Two characters on each side decide; 4 code units hold two even outside the BMP.
+  const cutAt = (at: number): boolean =>
+    joins(text.slice(Math.max(0, at - 4), at), text.slice(at, at + 4))
   for (let i = text.indexOf(value); i !== -1; i = text.indexOf(value, i + 1)) {
-    const joinsBefore = startsWord && WORD_END.test(text.slice(0, i))
-    const joinsAfter = endsWord && WORD_START.test(text.slice(i + value.length))
-    if (!joinsBefore && !joinsAfter) return i
+    if (!cutAt(i) && !cutAt(i + value.length)) return i
   }
   return -1
 }
