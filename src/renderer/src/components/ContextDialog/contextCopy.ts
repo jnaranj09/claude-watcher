@@ -4,7 +4,7 @@ import { formatVersion, MIN_MOD_CLAUDE_VERSION } from '../../../../shared/launch
 import type { ContextRefusalCode, ModSkipReason } from '../../../../shared/ipc/contract'
 import { CONTEXT_REFUSAL_CODES } from '../../../../shared/schemas/contextIpc'
 import { BRIDGE_MOD_FAILED_COPY, STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
-import { HISTORY_TERMS, MEMORY_TERMS } from '../../copy/terms'
+import { CONTEXT_TERMS, HISTORY_TERMS, MEMORY_TERMS } from '../../copy/terms'
 
 export type ContextCategoryId =
   | 'instructions'
@@ -22,7 +22,7 @@ export const CONTEXT_CATEGORIES: readonly { id: ContextCategoryId; label: string
   { id: 'skills', label: 'Skills' },
   { id: 'agents', label: 'Agents' },
   { id: 'mcp', label: 'MCP servers' },
-  { id: 'commands', label: 'Commands' },
+  { id: 'commands', label: CONTEXT_TERMS.commands },
   { id: 'hooks', label: 'Hooks' },
   { id: 'plugins', label: 'Plugins' },
   { id: 'memory', label: MEMORY_TERMS.label }

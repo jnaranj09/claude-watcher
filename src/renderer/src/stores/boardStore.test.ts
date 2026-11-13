@@ -12,6 +12,7 @@ import {
   selectColumnCount,
   selectTotalCount,
   selectColdLoaded,
+  selectMemoryDialogTarget,
   HERO_COLUMN,
   NO_FILTER,
   type BoardState
@@ -311,5 +312,31 @@ describe('boardStore — launchedAt projection', () => {
     store.getState().applyWatchEvent(watchUpdated(1, 'b', 'idle', 100))
     expect(store.getState().sessionsById['a']?.launchedAt).toBe(42)
     expect(store.getState().sessionsById['b']).not.toHaveProperty('launchedAt')
+  })
+})
+
+describe('boardStore — the Memory dialog and the session it opens on (memory phase 2)', () => {
+  it('opens with no target from the menu, with a session from a toast, and close clears both', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().openMemoryDialog()
+    expect(store.getState().memoryDialogOpen).toBe(true)
+    expect(selectMemoryDialogTarget(store.getState())).toBeNull()
+    store.getState().closeMemoryDialog()
+
+    store.getState().openMemoryDialog({ sessionName: 'fix api port' })
+    expect(store.getState().memoryDialogOpen).toBe(true)
+    expect(selectMemoryDialogTarget(store.getState())).toEqual({ sessionName: 'fix api port' })
+
+    store.getState().closeMemoryDialog()
+    expect(store.getState().memoryDialogOpen).toBe(false)
+    expect(selectMemoryDialogTarget(store.getState())).toBeNull()
+  })
+
+  it('an open dialog keeps its target: a second open changes nothing', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().openMemoryDialog({ sessionName: 'fix api port' })
+    store.getState().openMemoryDialog({ sessionName: 'other' })
+    store.getState().openMemoryDialog()
+    expect(selectMemoryDialogTarget(store.getState())).toEqual({ sessionName: 'fix api port' })
   })
 })

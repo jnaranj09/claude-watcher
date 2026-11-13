@@ -242,7 +242,8 @@ declare global {
     }
     // Memory — mirrors src/preload/index.ts `memoryApi`. MAIN owns the items (one SQLite file) and
     // stamps the writer; `onChanged` is main's empty push, so the renderer lists again.
-    // `onExtractResult` is main's push after a save from a session (counts and a name only).
+    // `onExtractResult` is main's push after a save from a session (counts and a name only); the
+    // preload holds results until a subscribe, then hands each over once, in order (ruling R39).
     memory: {
       list(req: MemoryListRequest): Promise<MemoryListResult>
       get(id: string): Promise<MemoryGetResult>

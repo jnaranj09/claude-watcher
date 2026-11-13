@@ -3,12 +3,15 @@
 // (one workspace: main lists a workspace's items, and the global ones beside it with Include
 // global), `Show stale`, and each page's filters, so a page switch closes what was open and keeps
 // the rest. Search lives in the page and goes with it. Filters and search are never persisted.
+// Opened from a result toast's `Show` (memory phase 2), every page starts filtered on that
+// session (`memoryDialogTarget`); the operator can remove the filter like any other.
 // UX-DR14: App guards the opener and closes it on the quit guard.
 import { useState, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { MEMORY_KINDS } from '../../../../shared/schemas/memory'
 import { MEMORY_TERMS } from '../../copy/terms'
 import { NO_FILTERS, type SessionFilters } from '../../lib/sessionFilters'
+import { selectMemoryDialogTarget, useBoard } from '../../stores/boardStore'
 import {
   selectActiveWorkspaceId,
   selectWorkspaces,
@@ -43,9 +46,12 @@ export function MemoryDialog({ onClose, now = Date.now }: MemoryDialogProps): JS
       : (workspaces[0]?.id ?? activeWorkspaceId)
   )
   const [showStale, setShowStale] = useState(false)
-  const [filters, setFilters] = useState<Readonly<Record<Kind, SessionFilters>>>({
-    specific: NO_FILTERS,
-    fact: NO_FILTERS
+  // Read once, for the first render only: the target is where the dialog STARTS.
+  const target = useBoard(selectMemoryDialogTarget)
+  const [filters, setFilters] = useState<Readonly<Record<Kind, SessionFilters>>>(() => {
+    const start: SessionFilters =
+      target === null ? NO_FILTERS : { ...NO_FILTERS, sessionNames: [target.sessionName] }
+    return { specific: start, fact: start }
   })
 
   function switchPage(next: Kind): void {

@@ -1,7 +1,9 @@
 // Which channel each `window.memory` bridge calls (the preload is the other half of the
-// registrar's binding, registerStoreIpc.memory.test.ts): a swapped channel goes red here.
+// registrar's binding, registerStoreIpc.memory.test.ts): a swapped channel goes red here. And the
+// result push's hold in the preload (ruling R39).
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { CH, type Channel } from '../shared/ipc/contract'
+import { NO_COUNTS, type MemoryExtractResult } from '../shared/schemas/memory'
 
 const ipc = vi.hoisted(() => ({
   invoke: vi.fn(() => Promise.resolve()),
@@ -16,11 +18,20 @@ vi.mock('electron', () => ({
 
 type MemoryBridge = Window['memory']
 let memory: MemoryBridge
+type PushListener = (evt: unknown, payload: unknown) => void
+/** The result listener the preload added while it loaded, and how many it added. */
+let startListener: PushListener | undefined
+let startResultListens = 0
 
 beforeAll(async () => {
   // jsdom has no `process.contextIsolated`, so the preload takes its assignment branch.
   await import('./index')
   memory = window.memory
+  const calls = (ipc.on.mock.calls as unknown as [Channel, PushListener][]).filter(
+    ([channel]) => channel === CH.memoryExtractResult
+  )
+  startResultListens = calls.length
+  startListener = calls[0]?.[1]
 })
 
 /** The channel and argument of the one invoke `run` made. */
@@ -79,13 +90,112 @@ describe('window.memory calls its own channel', () => {
     expect((await invoked(() => memory.removeCommand('c1')))[1]).toEqual({ id: 'c1' })
   })
 
-  it('onChanged and onExtractResult listen on their own pushes', () => {
+  it('onChanged listens on its own push', () => {
     ipc.on.mockClear()
     memory.onChanged(() => undefined)
-    memory.onExtractResult(() => undefined)
-    expect(ipc.on.mock.calls.map(([channel]) => channel)).toEqual([
-      CH.memoryChanged,
-      CH.memoryExtractResult
+    expect(ipc.on.mock.calls.map(([channel]) => channel)).toEqual([CH.memoryChanged])
+  })
+})
+
+// Ruling R39: the result push must not wait for React. The preload listens from its start and
+// holds what arrives until the renderer subscribes, then hands each result over once, in order.
+describe('window.memory.onExtractResult holds results until the renderer subscribes', () => {
+  const result = (n: number): MemoryExtractResult => ({
+    sessionName: `session ${n}`,
+    trigger: 'catchup',
+    outcome: 'saved',
+    counts: { ...NO_COUNTS, facts: n },
+    reason: null
+  })
+  /** Main's push on CH.memoryExtractResult, through the listener the preload added at start. */
+  const fromMain = (payload: unknown): void => {
+    const listener = startListener
+    if (listener === undefined) throw new Error('the preload never listened at start')
+    listener({}, payload)
+  }
+  /** Subscribes a collector and returns what it got plus the unsubscribe. */
+  function subscribe(): { got: MemoryExtractResult[]; off: () => void } {
+    const got: MemoryExtractResult[] = []
+    const off = memory.onExtractResult((r) => got.push(r))
+    return { got, off }
+  }
+  /** Each test starts with nothing held: a collector takes whatever an earlier test left. */
+  function drain(): void {
+    subscribe().off()
+  }
+
+  it('listens on the result push at preload start, once, and a subscribe adds no listener', () => {
+    expect(startListener).toBeTypeOf('function')
+    expect(startResultListens).toBe(1)
+    ipc.on.mockClear()
+    const { off } = subscribe()
+    off()
+    expect(ipc.on).not.toHaveBeenCalled()
+  })
+
+  it('gives results that came before the subscribe once, in order, then later ones at once', () => {
+    drain()
+    fromMain(result(1))
+    fromMain(result(2))
+    const first = subscribe()
+    expect(first.got).toEqual([result(1), result(2)])
+    fromMain(result(3))
+    expect(first.got).toEqual([result(1), result(2), result(3)])
+    first.off()
+  })
+
+  it('an unsubscribe and a subscribe again (strict mode, a remount) loses nothing and repeats nothing', () => {
+    drain()
+    const first = subscribe()
+    fromMain(result(1))
+    first.off()
+    fromMain(result(2))
+    const second = subscribe()
+    fromMain(result(3))
+    expect(first.got).toEqual([result(1)])
+    expect(second.got).toEqual([result(2), result(3)])
+    second.off()
+  })
+
+  it('holds the newest 50 and says it dropped the oldest', () => {
+    drain()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    for (let n = 1; n <= 52; n += 1) fromMain(result(n))
+    const { got, off } = subscribe()
+    off()
+    expect(got.map((r) => r.counts.facts)).toEqual(Array.from({ length: 50 }, (_, i) => i + 3))
+    expect(warn.mock.calls).toEqual([
+      ['[claude-watcher][memory] code=memory_extract_result_held_dropped'],
+      ['[claude-watcher][memory] code=memory_extract_result_held_dropped']
     ])
+    warn.mockRestore()
+  })
+
+  it.each<[string, unknown, string]>([
+    ['a payload that is not an object', 'x', 'path= issue=invalid_type'],
+    [
+      'a negative count',
+      { ...result(1), counts: { ...NO_COUNTS, tasks: -1 } },
+      'path=counts.tasks issue=too_small'
+    ],
+    [
+      'memory text riding along',
+      { ...result(1), body: 'a secret value' },
+      'path= issue=unrecognized_keys'
+    ],
+    ['an empty name', { ...result(1), sessionName: '' }, 'path=sessionName issue=too_small']
+  ])('drops %s with its path and code only, never the value', (_name, payload, where) => {
+    drain()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    fromMain(payload)
+    const { got, off } = subscribe()
+    fromMain(payload)
+    off()
+    expect(got).toEqual([])
+    expect(warn.mock.calls).toEqual([
+      [`[claude-watcher][memory] code=memory_extract_result_invalid ${where}`],
+      [`[claude-watcher][memory] code=memory_extract_result_invalid ${where}`]
+    ])
+    warn.mockRestore()
   })
 })

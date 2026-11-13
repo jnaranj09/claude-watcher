@@ -24,10 +24,12 @@ export const FAVORITE_TERMS = {
 } as const
 
 /** What a session's claude loaded, per its bridge mod (spec 2026-10-18 §5): the focused header's
- *  button and the dialog's title. */
+ *  button, the dialog's title, and its page of the slash commands claude loaded (its own owner:
+ *  Memory's `Commands`, shell commands that worked, is a different thing that shares the word). */
 export const CONTEXT_TERMS = {
   label: 'Context',
-  open: 'See what Claude loaded for this session'
+  open: 'See what Claude loaded for this session',
+  commands: 'Commands'
 } as const
 
 /** Goals and tasks, planned in the header's Goals sheet (spec 2026-10-19-goals). */
@@ -100,14 +102,20 @@ export const SELECTION_TERMS = {
   count: (n: number): string => `${n} selected`
 } as const
 
-/** Memory (spec 2026-11-11 memory §8): the ☰ row and the dialog's title, its two pages, the
- *  header's stale switch, and the marker (and filter) on an item whose session was deleted. */
+/** Memory (spec 2026-11-11 memory §8, phase 2 addendum): the ☰ row and the dialog's title, its
+ *  pages, the header's stale switch, the marker (and filter) on an item whose session was deleted,
+ *  and the three Settings rows that say when and with which model a session's memory is saved. */
 export const MEMORY_TERMS = {
   label: 'Memory',
   specifics: 'Specifics',
   facts: 'Facts',
+  episodes: 'Episodes',
+  commands: 'Commands',
   showStale: 'Show stale',
-  sessionDeleted: 'Session deleted'
+  sessionDeleted: 'Session deleted',
+  checkpoint: 'Memory checkpoint',
+  saveTasks: 'Save open work as tasks',
+  model: 'Memory model'
 } as const
 
 /** A thing's earlier versions and the way back to one: Context's instruction files and Memory's

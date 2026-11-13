@@ -161,10 +161,16 @@ session has a **Memory** page: what the session got at launch, what it read and 
 Everything stays on your machine, in `claude-watcher-memory.db` in the app's data folder. Memory
 text is never written to a log, a notification or the local API.
 
-**Settings → Memory** has two separate choices:
+**Settings → Memory**:
 
 - **Memory** (on by default) — off means sessions start with no memory tools and no index.
-  Items already saved are kept.
+  Items already saved are kept. While it is on, three more choices show:
+  - **Memory checkpoint** — saves from a running session every 10, 15 (the default) or 25
+    turns, or **Off**: only when a session ends.
+  - **Save open work as tasks** (on by default) — work a session leaves open becomes a task in
+    Goals.
+  - **Memory model** — **Haiku** or **Sonnet** (the default): the model that reads a session to
+    save from it, on your own Claude account.
 - **Claude's auto memory** — Claude Code's own memory, in the sessions this app starts: **Off**,
   **On**, or **Claude decides** (the default: the app changes nothing, so your Claude settings
   apply). The two memories work side by side. A change applies to sessions started after it.

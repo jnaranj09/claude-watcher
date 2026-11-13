@@ -118,7 +118,8 @@ function optionalBridgeDefaults(): Partial<Record<OptionalBridgeName, Bridge>> {
       list: vi.fn(() => Promise.resolve({ rows: [], total: 0 })),
       // The Delete confirm asks what the session saved: nothing, so it shows no memory row.
       sessionCount: vi.fn(() => Promise.resolve(0)),
-      onChanged: vi.fn(() => () => {})
+      onChanged: vi.fn(() => () => {}),
+      onExtractResult: vi.fn(() => () => {})
     }
   }
 }
@@ -145,6 +146,7 @@ export function resetBoardView(): void {
     workspacesDialogOpen: false,
     goalsDialogOpen: false,
     memoryDialogOpen: false,
+    memoryDialogTarget: null,
     quitGuard: null,
     stopConfirm: null
   })

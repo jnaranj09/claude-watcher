@@ -122,6 +122,7 @@ import { submitLaunch, submitRename } from './lib/namePromptFlow'
 import { moveCardToWorkspace } from './lib/cardActions'
 import { runStartupLoads } from './lib/startupLoads'
 import { toast } from './stores/toastStore'
+import { openMemoryForSession, showExtractResult } from './lib/memoryToasts'
 import { useAsyncAction } from './hooks/useAsyncAction'
 
 function App(): React.JSX.Element {
@@ -248,6 +249,18 @@ function App(): React.JSX.Element {
     const off = window.themes.onApplied((bundle) => themeStore.getState().setBundle(bundle))
     window.themes.reload().catch(() => console.warn('[claude-watcher][themes] code=reload_failed'))
     return off
+  }, [smoke])
+
+  // Memory phase 2 — what each save from a session did, as a board toast; `Show` opens Memory on
+  // that session (nothing while a modal is open). Results main sent before this effect ran wait in
+  // the preload (ruling R39) and arrive here once, in order. Guarded like `window.themes`: older
+  // App tests stub only what they touch.
+  useEffect(() => {
+    if (smoke !== false) return
+    if (typeof window.memory !== 'object') return
+    return window.memory.onExtractResult((result) =>
+      showExtractResult(result, openMemoryForSession)
+    )
   }, [smoke])
 
   // Story 5.6 (AC-5) — subscribe to the terminal-exit push ONCE (non-smoke only).

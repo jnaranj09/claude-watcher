@@ -66,6 +66,11 @@ export type SessionsPage = 'active' | 'past' | 'templates' | 'import'
 /** The Tags dialog's pages (spec 2026-10-03 C). Transient view-state, never persisted. */
 export type TagsDialogPage = 'tags' | 'rules'
 
+/** Memory (phase 2) — what the Memory dialog opens on: a session's name, its filter on every page. */
+export interface MemoryDialogTarget {
+  sessionName: string
+}
+
 export interface StopConfirmPayload {
   /** The opaque terminalId to delete (via window.launch.deleteSession — CH.sessionDelete). */
   terminalId: string
@@ -363,6 +368,12 @@ export interface BoardState {
    */
   memoryDialogOpen: boolean
   /**
+   * Memory (phase 2) — the session the open dialog starts filtered on (a result toast's `Show`),
+   * else null (RENDERER VIEW-STATE). Set only by `openMemoryDialog`, cleared by
+   * `closeMemoryDialog`.
+   */
+  memoryDialogTarget: MemoryDialogTarget | null
+  /**
    * Tags (spec 2026-10-03 C) — the Tags dialog's page (Tags · Rules) while open, else null
    * (RENDERER VIEW-STATE). [state.md: modal open/closed = renderer view-state]
    */
@@ -561,9 +572,10 @@ export interface BoardState {
   openGoalsDialog: () => void
   /** Goals — close the Goals sheet. No-op if already closed. */
   closeGoalsDialog: () => void
-  /** Memory — open the Memory dialog. No-op if already open. */
-  openMemoryDialog: () => void
-  /** Memory — close the Memory dialog. No-op if already closed. */
+  /** Memory — open the Memory dialog, on `target`'s session when given (a result toast's
+   *  `Show`). No-op if already open: the open dialog keeps its target. */
+  openMemoryDialog: (target?: MemoryDialogTarget) => void
+  /** Memory — close the Memory dialog and drop its target. No-op if already closed. */
   closeMemoryDialog: () => void
   /** Tags — open the dialog on `page`, or switch to it while open. Same page: no-op. */
   openTagsDialog: (page: TagsDialogPage) => void
@@ -672,6 +684,7 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     workspacesDialogOpen: false,
     goalsDialogOpen: false,
     memoryDialogOpen: false,
+    memoryDialogTarget: null,
     // Tags — the Manage-tags dialog starts closed.
     tagsDialog: null,
     // Rules — the Manage-rules dialog starts closed.
@@ -1051,11 +1064,12 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       if (get().goalsDialogOpen) set({ goalsDialogOpen: false })
     },
 
-    openMemoryDialog: () => {
-      if (!get().memoryDialogOpen) set({ memoryDialogOpen: true })
+    openMemoryDialog: (target) => {
+      if (!get().memoryDialogOpen)
+        set({ memoryDialogOpen: true, memoryDialogTarget: target ?? null })
     },
     closeMemoryDialog: () => {
-      if (get().memoryDialogOpen) set({ memoryDialogOpen: false })
+      if (get().memoryDialogOpen) set({ memoryDialogOpen: false, memoryDialogTarget: null })
     },
 
     openTagsDialog: (page) => {
@@ -1306,6 +1320,9 @@ export const selectWorkspacesDialogOpen = (state: BoardState): boolean => state.
 export const selectGoalsDialogOpen = (state: BoardState): boolean => state.goalsDialogOpen
 /** Memory — whether the Memory dialog is open (RENDERER VIEW-STATE). */
 export const selectMemoryDialogOpen = (state: BoardState): boolean => state.memoryDialogOpen
+/** Memory — the session the open dialog starts filtered on, or null (RENDERER VIEW-STATE). */
+export const selectMemoryDialogTarget = (state: BoardState): MemoryDialogTarget | null =>
+  state.memoryDialogTarget
 
 /** Tags — the open page (Tags · Rules), or null while the dialog is closed (RENDERER VIEW-STATE). */
 export const selectTagsDialog = (state: BoardState): TagsDialogPage | null => state.tagsDialog

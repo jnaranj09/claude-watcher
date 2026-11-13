@@ -15,6 +15,9 @@ import {
   selectNotificationsEnabled,
   selectMemoryEnabled,
   selectClaudeAutoMemory,
+  selectMemoryCheckpoint,
+  selectMemorySaveTasks,
+  selectMemoryModel,
   selectTerminalFontSize,
   selectReminderCount,
   selectReminderFirstDelayMinutes,
@@ -34,6 +37,7 @@ import {
   REMINDER_FIRST_DELAY_OPTIONS,
   API_PORT_MIN,
   API_PORT_MAX,
+  MEMORY_CHECKPOINT_OPTIONS,
   expanderChord
 } from '../../../../shared/schemas/settings'
 import { useTheme, selectThemeBundle } from '../../stores/themeStore'
@@ -59,6 +63,7 @@ import { useFlash } from '../../hooks/useFlash'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import type {
   ClaudeAutoMemory,
+  MemoryModel,
   SettingsPatch,
   TerminalMenuTrigger,
   TerminalScheme
@@ -97,6 +102,17 @@ const CLAUDE_AUTO_MEMORY_OPTIONS: readonly SelectOption<ClaudeAutoMemory>[] = [
   { value: 'claude', label: 'Claude decides' }
 ]
 
+/** Memory phase 2 — how often a running session saves (`Off` = only when it ends). A Select value
+ *  is a string, like the reminder count. */
+const MEMORY_CHECKPOINT_SELECT: readonly SelectOption<string>[] = MEMORY_CHECKPOINT_OPTIONS.map(
+  (n) => ({ value: String(n), label: n === 0 ? 'Off' : `${n} turns` })
+)
+/** Memory phase 2 — the model that reads a session to save from it (claude's own model names). */
+const MEMORY_MODEL_OPTIONS: readonly SelectOption<MemoryModel>[] = [
+  { value: 'haiku', label: 'Haiku' },
+  { value: 'sonnet', label: 'Sonnet' }
+]
+
 /** `#terminals`' gear passes no onClose in tests; a module constant keeps the actions memo
  *  stable. (The header ✕ always renders; with NO_CLOSE it does nothing — the real app always
  *  passes `onClose`.) */
@@ -122,6 +138,9 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   const terminalFontSize = useSettings(selectTerminalFontSize)
   const memoryEnabled = useSettings(selectMemoryEnabled)
   const claudeAutoMemory = useSettings(selectClaudeAutoMemory)
+  const memoryCheckpoint = useSettings(selectMemoryCheckpoint)
+  const memorySaveTasks = useSettings(selectMemorySaveTasks)
+  const memoryModel = useSettings(selectMemoryModel)
   const reminderCount = useSettings(selectReminderCount)
   const reminderFirstDelayMinutes = useSettings(selectReminderFirstDelayMinutes)
 
@@ -679,6 +698,84 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                   <p className={styles.hint}>
                     Sessions this app starts can save exact values and facts, and find them again.
                   </p>
+
+                  {/* Memory phase 2 — when and with which model memory saves from a session. NOT
+                    rendered while Memory is off (design.md: a control the operator must not use is
+                    not rendered). */}
+                  {memoryEnabled && (
+                    <>
+                      <div className={styles.row}>
+                        <span className={styles.label}>{MEMORY_TERMS.checkpoint}</span>
+                        <div className={styles.controlGroup}>
+                          <Select
+                            value={String(memoryCheckpoint)}
+                            options={MEMORY_CHECKPOINT_SELECT}
+                            onChange={(next) => {
+                              const turns = MEMORY_CHECKPOINT_OPTIONS.find(
+                                (n) => String(n) === next
+                              )
+                              if (turns !== undefined) {
+                                void persistSetting(
+                                  { memoryCheckpoint: turns },
+                                  'the memory checkpoint'
+                                )
+                              }
+                            }}
+                            ariaLabel={MEMORY_TERMS.checkpoint}
+                            testId="settings-memory-checkpoint"
+                            align="end"
+                          />
+                        </div>
+                      </div>
+                      <p className={styles.hint}>
+                        Saves from a running session every this many turns, so a long session or a
+                        crash loses nothing. Off: only when a session ends.
+                      </p>
+
+                      <div className={styles.row}>
+                        <label className={styles.label} htmlFor="settings-memory-save-tasks">
+                          {MEMORY_TERMS.saveTasks}
+                        </label>
+                        <div className={styles.controlGroup}>
+                          <Switch
+                            id="settings-memory-save-tasks"
+                            testId="settings-memory-save-tasks"
+                            checked={memorySaveTasks}
+                            onChange={(on) => {
+                              void persistSetting(
+                                { memorySaveTasks: on },
+                                'saving open work as tasks'
+                              )
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <p className={styles.hint}>
+                        Work a session leaves open becomes a task in Goals. Off: open work is not
+                        saved.
+                      </p>
+
+                      <div className={styles.row}>
+                        <span className={styles.label}>{MEMORY_TERMS.model}</span>
+                        <div className={styles.controlGroup}>
+                          <Select
+                            value={memoryModel}
+                            options={MEMORY_MODEL_OPTIONS}
+                            onChange={(next) =>
+                              void persistSetting({ memoryModel: next }, 'the memory model')
+                            }
+                            ariaLabel={MEMORY_TERMS.model}
+                            testId="settings-memory-model"
+                            align="end"
+                          />
+                        </div>
+                      </div>
+                      <p className={styles.hint}>
+                        The model that reads a session to save from it. It uses your Claude account,
+                        like a session does. Haiku uses less.
+                      </p>
+                    </>
+                  )}
 
                   <div className={styles.row}>
                     <span className={styles.label}>{CLAUDE_AUTO_MEMORY_LABEL}</span>

@@ -9,6 +9,8 @@ import { flush } from '../../test/renderComponent'
 import { MemoryDialog } from './MemoryDialog'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { settingsStore } from '../../stores/settingsStore'
+import { boardStore } from '../../stores/boardStore'
+import type { MemoryListRequest } from '../../../../shared/ipc/contract'
 import {
   MEMORY_NOW,
   factItem,
@@ -247,5 +249,37 @@ describe('MemoryDialog — History', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'History' }))
     await userEvent.click(screen.getAllByRole('radio')[0] as HTMLElement)
     expect(screen.getByText('Reason: port moved')).toBeVisible()
+  })
+})
+
+describe('MemoryDialog — opened from a result toast', () => {
+  /** The filters of every list the page asked for, of one kind (the rows and the facets read). */
+  const filtersOf = (kind: MemoryListRequest['kind']): MemoryListRequest['filters'][] =>
+    bridge.list.mock.calls
+      .map(([req]) => req)
+      .filter((req) => req.kind === kind)
+      .map((req) => req.filters)
+  afterEach(() => {
+    act(() => boardStore.getState().closeMemoryDialog())
+  })
+
+  it('the Memory dialog opened from Show starts with that session as its filter', async () => {
+    bridge = installMemoryBridge([specificItem(), factItem()])
+    act(() => boardStore.getState().openMemoryDialog({ sessionName: 'fix api port' }))
+    await open()
+    expect(filtersOf('specific')).toContainEqual({ session: 'fix api port' })
+    await userEvent.click(screen.getByRole('button', { name: 'Facts' }))
+    await flush(4)
+    expect(filtersOf('fact')).toContainEqual({ session: 'fix api port' })
+  })
+
+  it('opened from the menu it starts with no filter', async () => {
+    bridge = installMemoryBridge([specificItem()])
+    act(() => boardStore.getState().openMemoryDialog())
+    await open()
+    expect(filtersOf('specific')).toContainEqual({})
+    expect(filtersOf('specific').map((f) => f.session)).toEqual(
+      filtersOf('specific').map(() => undefined)
+    )
   })
 })
