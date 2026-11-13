@@ -434,6 +434,37 @@ describe('the episode', () => {
     expect(state.get('t-1')?.episodeId).toBe(first.episodeId)
   })
 
+  it('the next end re-versions an episode the operator restored, keeping the restored version (R27)', () => {
+    let clock = NOW
+    const timed = createMemoryStore({
+      db,
+      now: () => clock,
+      newId: () => `m${++ids}`,
+      report: () => undefined,
+      log: () => undefined
+    })
+    const at = { ...deps, store: timed, now: () => clock }
+    const first = applyChunk(at, write({ kept: [episode('A', 'one')] }))
+    const id = first.episodeId ?? ''
+    clock = NOW + 10
+    applyChunk(at, write({ row: { ...row, episodeId: id }, kept: [episode('A', 'two')] }))
+    clock = NOW + 20
+    timed.restore(id, NOW)
+    expect(timed.currentWriter(id)).toBe('operator')
+    clock = NOW + 30
+    const again = applyChunk(
+      at,
+      write({ row: { ...row, episodeId: id }, kept: [episode('A', 'three')] })
+    )
+    expect(again.episodeId).toBe(id)
+    expect(timed.versions(id).map((v) => [v.body, v.by])).toEqual([
+      ['three', 'extract'],
+      ['one', 'operator'],
+      ['two', 'extract'],
+      ['one', 'extract']
+    ])
+  })
+
   it('a new episode is added when the one the row names was deleted', () => {
     const first = applyChunk(deps, write({ kept: [episode('A', 'one')] }))
     store.remove(first.episodeId ?? '')
@@ -483,6 +514,34 @@ describe("the session's own tool saves (D26)", () => {
     const id = addSaved(specific('API port', '9281'), 'agent')
     applyChunk(deps, write({ entries: [entry(5, 'result', 'listening on 92810')] }))
     expect(store.get(id)).toMatchObject({ basis: 'inferred', source: null })
+  })
+
+  it('leaves a tool save the operator edited alone, its version row included (D16)', () => {
+    const id = addSaved(specific('API port', '9281'), 'agent')
+    store.edit(id, { text: specific('API port', '9283'), check: null }, 'operator', null)
+    const VersionRow = z.object({
+      item_id: z.string(),
+      at: z.number(),
+      by: z.string(),
+      basis: z.string(),
+      reason: z.string().nullable(),
+      head: z.string(),
+      body: z.string()
+    })
+    const ItemCols = z.object({ basis: z.string(), updated_at: z.number() })
+    const snapshot = (): unknown => ({
+      versions: db.all(
+        'SELECT item_id, at, by, basis, reason, head, body FROM version WHERE item_id = ? ORDER BY seq',
+        VersionRow,
+        [id]
+      ),
+      item: db.get('SELECT basis, updated_at FROM item WHERE id = ?', ItemCols, [id]),
+      source: sourceRow(id)
+    })
+    const before = snapshot()
+    applyChunk(deps, write({ entries: [entry(5, 'result', 'listening on 9283')] }))
+    expect(snapshot()).toEqual(before)
+    expect(store.get(id)).toMatchObject({ value: '9283', basis: 'stated', source: null })
   })
 
   it("leaves another session's tool save alone", () => {

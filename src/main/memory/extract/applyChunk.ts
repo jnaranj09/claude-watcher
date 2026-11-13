@@ -178,9 +178,11 @@ function writeEpisode(deps: ApplyDeps, write: ChunkWrite, c: EpisodeCandidate, a
 }
 
 /** D26: the session's own `memory_save` specifics with no source get the basis and source of
- *  where their value is in this slice. Not counted, not a save. */
+ *  where their value is in this slice. Not counted, not a save. Only while the tool's text is
+ *  still the current one: an operator edit clears the source, and D16 keeps its basis. */
 function giveToolSavesEvidence(deps: ApplyDeps, write: ChunkWrite): void {
   for (const own of deps.store.agentSpecificsWithoutSource(write.row.originSessionId)) {
+    if (deps.store.currentWriter(own.id) !== 'agent') continue
     const found = findValue(own.value, write.entries)
     if (found === null) continue
     deps.store.setEvidence(own.id, {
