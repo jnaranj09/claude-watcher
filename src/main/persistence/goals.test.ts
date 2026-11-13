@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createGoalsStore, GOAL_ERROR, type GoalsBlobStore } from './goals'
-import { GOAL_FOLDER_MISSING, type GoalsFile, type GoalsView } from '../../shared/schemas/goal'
+import {
+  GOAL_FOLDER_MISSING,
+  type GoalsFile,
+  type GoalsView,
+  type TaskReport
+} from '../../shared/schemas/goal'
 import type { GoalsSnapshot } from '../goals/goalsFile'
 
 function fakeBlob(seed: unknown): {
@@ -358,5 +363,231 @@ describe('createGoalsStore', () => {
     const lines = log.mock.calls.map((c) => String(c[0]))
     expect(lines).toContain('[claude-watcher][goals] code=goals_corrupt_reset_to_defaults')
     for (const line of lines) expect(line).not.toContain('SECRET')
+  })
+})
+
+describe('tasks from memory extraction', () => {
+  const CHECK = 'grep -n sandbox config/app.yml'
+
+  function extracted(): {
+    store: ReturnType<typeof createGoalsStore>
+    id: string
+    taskOf: (id: string) => unknown
+  } {
+    const { store } = make()
+    const t = store.addTaskFromExtraction({
+      workspaceId: 'w1',
+      goalId: null,
+      title: 'Set sandbox: true',
+      check: CHECK,
+      leftWith: 'operator',
+      originSessionId: 's1',
+      folder: '/work/acme/shop',
+      at: 5
+    })
+    const taskOf = (id: string): unknown => store.view().tasks.find((x) => x.id === id)
+    return { store, id: t.id, taskOf }
+  }
+
+  function report(outcome: TaskReport['outcome'], at = 20): TaskReport {
+    return {
+      at,
+      sessionId: 's1',
+      sessionName: 'fix api port',
+      outcome,
+      evidence: 'line 4 says true'
+    }
+  }
+
+  it('adds an extracted task to Daily tasks when its goal is gone, with no session link', () => {
+    const { store } = make()
+    const t = store.addTaskFromExtraction({
+      workspaceId: 'w1',
+      goalId: 'gone',
+      title: 'Set sandbox: true',
+      check: CHECK,
+      leftWith: 'operator',
+      originSessionId: 's1',
+      folder: '/work/acme/shop',
+      at: 5
+    })
+    expect(t).toMatchObject({
+      goalId: null,
+      status: 'open',
+      sessionIds: [],
+      lastSeenAt: 5,
+      originSessionId: 's1'
+    })
+    expect(store.view().tasks).toEqual([t])
+  })
+
+  it("an extracted task whose goal sits in another workspace goes to the workspace's Daily tasks", () => {
+    const { store } = make()
+    const goalId = store.saveGoal({ workspaceId: 'w2', name: 'G' }, '/work').saved.id
+    const t = store.addTaskFromExtraction({
+      workspaceId: 'w1',
+      goalId,
+      title: 'x',
+      check: null,
+      leftWith: 'session',
+      originSessionId: 's1',
+      folder: null,
+      at: 5
+    })
+    expect(t.goalId).toBeNull()
+  })
+
+  it('an extracted task keeps a goal of its own workspace', () => {
+    const { store } = make()
+    const goalId = store.saveGoal({ workspaceId: 'w1', name: 'G' }, '/work').saved.id
+    const t = store.addTaskFromExtraction({
+      workspaceId: 'w1',
+      goalId,
+      title: 'x',
+      check: null,
+      leftWith: 'session',
+      originSessionId: 's1',
+      folder: null,
+      at: 5
+    })
+    expect(t.goalId).toBe(goalId)
+  })
+
+  it('an extracted task with a check the schema refuses throws and adds nothing', () => {
+    const { store } = make()
+    expect(() =>
+      store.addTaskFromExtraction({
+        workspaceId: 'w1',
+        goalId: null,
+        title: 'x',
+        check: 'one\ntwo',
+        leftWith: 'session',
+        originSessionId: 's1',
+        folder: null,
+        at: 5
+      })
+    ).toThrow()
+    expect(store.view().tasks).toEqual([])
+  })
+
+  it('an extracted task with a refused write keeps it and reports the disk', () => {
+    const fake = fakeBlob(undefined)
+    const report = vi.fn()
+    const store = createGoalsStore({ blobStore: fake.blobStore, log: () => {}, report })
+    fake.blobStore.write = () => {
+      throw new Error('disk full')
+    }
+    store.addTaskFromExtraction({
+      workspaceId: 'w1',
+      goalId: null,
+      title: 'x',
+      check: null,
+      leftWith: 'session',
+      originSessionId: 's1',
+      folder: null,
+      at: 5
+    })
+    expect(store.view().tasks).toHaveLength(1)
+    expect(report).toHaveBeenCalledWith('write_failed')
+  })
+
+  it('an extraction update never closes a task and keeps its check when none is given', () => {
+    const { store, id, taskOf } = extracted()
+    expect(store.updateTaskFromExtraction(id, { check: null, leftWith: 'session', at: 9 })).toBe(
+      true
+    )
+    expect(taskOf(id)).toMatchObject({
+      status: 'open',
+      check: CHECK,
+      leftWith: 'session',
+      lastSeenAt: 9
+    })
+  })
+
+  it('an extraction update with a check replaces the check but never the title', () => {
+    const { store, id, taskOf } = extracted()
+    store.updateTaskFromExtraction(id, { check: 'npm test', leftWith: 'operator', at: 9 })
+    expect(taskOf(id)).toMatchObject({ title: 'Set sandbox: true', check: 'npm test' })
+  })
+
+  it('an extraction update of a done task changes nothing', () => {
+    const { store, id, taskOf } = extracted()
+    store.setTaskStatus(id, 'done', 'operator')
+    const before = taskOf(id)
+    expect(
+      store.updateTaskFromExtraction(id, { check: 'npm test', leftWith: 'session', at: 9 })
+    ).toBe(false)
+    expect(taskOf(id)).toEqual(before)
+    expect(
+      store.updateTaskFromExtraction('gone', { check: null, leftWith: 'session', at: 9 })
+    ).toBe(false)
+  })
+
+  it('a done report flags an open task and leaves it open', () => {
+    const { store, id, taskOf } = extracted()
+    expect(store.reportTask(id, report('done'))).toBe('ok')
+    expect(taskOf(id)).toMatchObject({
+      status: 'open',
+      lastSeenAt: 5,
+      report: { outcome: 'done', sessionName: 'fix api port' }
+    })
+  })
+
+  it('an open report refreshes lastSeenAt', () => {
+    const { store, id, taskOf } = extracted()
+    expect(store.reportTask(id, report('open', 33))).toBe('ok')
+    expect(taskOf(id)).toMatchObject({
+      status: 'open',
+      lastSeenAt: 33,
+      report: { outcome: 'open' }
+    })
+  })
+
+  it('a report on a done task answers ok and changes nothing', () => {
+    const { store, id, taskOf } = extracted()
+    store.setTaskStatus(id, 'done', 'operator')
+    const before = taskOf(id)
+    expect(store.reportTask(id, report('open', 33))).toBe('ok')
+    expect(taskOf(id)).toEqual(before)
+  })
+
+  it('a report on an unknown task answers not_found', () => {
+    const { store } = extracted()
+    expect(store.reportTask('gone', report('done'))).toBe('not_found')
+  })
+
+  it('/clear moves the origin and the reporting session of a task', () => {
+    const { store, id, taskOf } = extracted()
+    store.reportTask(id, report('done'))
+    store.rebindSession('s1', 's2')
+    expect(taskOf(id)).toMatchObject({ originSessionId: 's2', report: { sessionId: 's2' } })
+  })
+
+  it("the operator's title edit keeps the check and the report", () => {
+    const { store, id, taskOf } = extracted()
+    store.reportTask(id, report('done'))
+    store.saveTask({ id, workspaceId: 'w1', goalId: null, title: 'Sandbox on' })
+    expect(taskOf(id)).toMatchObject({
+      title: 'Sandbox on',
+      check: CHECK,
+      leftWith: 'operator',
+      lastSeenAt: 5,
+      originSessionId: 's1',
+      folder: '/work/acme/shop',
+      report: { outcome: 'done' }
+    })
+  })
+
+  it('a task the operator adds has none of the six fields', () => {
+    const { store } = make()
+    const { saved } = store.saveTask({ workspaceId: 'w1', goalId: null, title: 't' })
+    expect(saved).toMatchObject({
+      check: null,
+      leftWith: null,
+      lastSeenAt: null,
+      report: null,
+      originSessionId: null,
+      folder: null
+    })
   })
 })

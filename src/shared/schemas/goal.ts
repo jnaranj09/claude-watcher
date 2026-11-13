@@ -9,12 +9,21 @@ export const GOAL_NAME_MAX = 80
 export const TASK_TITLE_MAX = 200
 export const PROPOSAL_GROUPS_MAX = 10
 export const PROPOSAL_NOTE_MAX = 200
+export const TASK_CHECK_MAX = 300
+export const TASK_REPORT_EVIDENCE_MAX = 300
 
 /** Not `.uuid()` — existence is the store's call (`goal_not_found`, `task_not_found`). */
 const IdSchema = z.string().min(1)
 
 function singleLine(max: number): z.ZodString {
   return z.string().trim().min(1).max(max)
+}
+
+/** One trimmed line, 1..max, with no control characters. */
+function plainLine(max: number): z.ZodType<string> {
+  return singleLine(max).refine((v) => !hasControlChar(v), {
+    error: 'must not contain control characters'
+  })
 }
 
 export const GoalNameSchema = singleLine(GOAL_NAME_MAX).refine((v) => !hasControlChar(v), {
@@ -30,6 +39,25 @@ export type TaskStatus = z.infer<typeof TaskStatusValueSchema>
 
 export const TASK_DONE_BY = ['operator', 'session'] as const
 export type TaskDoneBy = (typeof TASK_DONE_BY)[number]
+
+/** Who a task was left with when a session last saw it (memory extraction). */
+export const TASK_LEFT_WITH = ['operator', 'session'] as const
+export type TaskLeftWith = (typeof TASK_LEFT_WITH)[number]
+
+/** How to check a task is done: a recipe the operator or a session runs. The app never runs it.
+ *  SENSITIVE like memory text: never logged. */
+export const TaskCheckSchema = plainLine(TASK_CHECK_MAX)
+
+/** What a session saw when it checked a task (`task_report`). A `done` outcome only flags the
+ *  task: the operator closes it. The evidence is SENSITIVE: never logged. */
+export const TaskReportSchema = z.object({
+  at: z.number(),
+  sessionId: IdSchema,
+  sessionName: z.string(),
+  outcome: z.enum(['done', 'open']),
+  evidence: plainLine(TASK_REPORT_EVIDENCE_MAX)
+})
+export type TaskReport = z.infer<typeof TaskReportSchema>
 
 export const GoalSchema = z.object({
   id: IdSchema,
@@ -56,7 +84,18 @@ export const TaskSchema = z.object({
   sessionIds: z.array(z.string().min(1)).default([]),
   createdAt: z.number(),
   doneAt: z.number().nullable().default(null),
-  doneBy: z.enum(TASK_DONE_BY).nullable().default(null)
+  doneBy: z.enum(TASK_DONE_BY).nullable().default(null),
+  // Memory phase 2, each null on a task from before it and on one the operator or a planner adds.
+  // None of them is written to `GOALS.md`, and nothing here closes a task.
+  check: TaskCheckSchema.nullable().default(null),
+  leftWith: z.enum(TASK_LEFT_WITH).nullable().default(null),
+  // When a session last saw the task open (extraction, or an `open` report).
+  lastSeenAt: z.number().nullable().default(null),
+  report: TaskReportSchema.nullable().default(null),
+  // The session whose extraction made the task; `/clear` moves it with the card.
+  originSessionId: IdSchema.nullable().default(null),
+  // The folder the task was seen in; null = its goal's folder.
+  folder: z.string().min(1).nullable().default(null)
 })
 export type Task = z.infer<typeof TaskSchema>
 

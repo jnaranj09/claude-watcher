@@ -10,12 +10,17 @@
 // `afterChange` (the `GOALS.md` exporter, goals/goalsFile.ts), then tells the listeners, so a new
 // store method reaches a goal's `GOALS.md` by emitting like every other one. A new goal needs a
 // folder (spec 2026-10-29); a goal from before that rule keeps `defaultCwd: null`.
+//
+// Memory extraction adds and refreshes open tasks and a session reports what it saw, but only the
+// operator (or a session's `mark_task_done`) closes one: none of the extraction methods touches a
+// status. Their check and report are SENSITIVE like memory text: never logged.
 import { randomUUID } from 'node:crypto'
 import {
   EMPTY_GOALS_FILE,
   GOAL_FOLDER_MISSING,
   GOALS_FILE_VERSION,
   GoalsFileSchema,
+  TaskSchema,
   type Goal,
   type GoalFileProblem,
   type GoalSaveRequest,
@@ -24,6 +29,8 @@ import {
   type Proposal,
   type Task,
   type TaskDoneBy,
+  type TaskLeftWith,
+  type TaskReport,
   type TaskSaveRequest,
   type TaskStatus
 } from '../../shared/schemas/goal'
@@ -82,6 +89,30 @@ export interface GoalsStore {
   setSaveToFile(goalId: string, on: boolean): GoalsView
   /** Throws taskNotFound / goalNotFound / workspaceMismatch. */
   saveTask(req: TaskSaveRequest): GoalsSaveTaskResult
+  /** A NEW open task from extraction. `goalId` that is not a goal of `workspaceId` becomes null
+   *  (Daily tasks). Not put in `sessionIds`. Sets `lastSeenAt = at`. Throws on a title or check the
+   *  schemas refuse. A background write: keeps the change, reports the disk (`persistOrReport`). */
+  addTaskFromExtraction(req: {
+    workspaceId: string
+    goalId: string | null
+    title: string
+    check: string | null
+    leftWith: TaskLeftWith
+    originSessionId: string
+    folder: string | null
+    at: number
+  }): Task
+  /** An OPEN task: sets `leftWith` and `lastSeenAt = at`, and `check` when it is not null (null
+   *  keeps the task's check). Never the title or the status. false: unknown id or a done task. A
+   *  background write; throws on a check the schema refuses. */
+  updateTaskFromExtraction(
+    id: string,
+    patch: { check: string | null; leftWith: TaskLeftWith; at: number }
+  ): boolean
+  /** Sets `report`; an `open` outcome also sets `lastSeenAt = report.at`. A done task: 'ok',
+   *  nothing changes. Never changes the status (only the operator closes a task). A background
+   *  write; throws on a report the schema refuses. */
+  reportTask(id: string, report: TaskReport): 'ok' | 'not_found'
   /** A planner session's `create_task`: a NEW task (`req.id` is ignored). Throws goalNotFound /
    *  workspaceMismatch; a refused write is reported, not thrown (the change holds for this run). */
   addTaskFromSession(req: TaskSaveRequest): Task
@@ -92,7 +123,8 @@ export interface GoalsStore {
   unlink(taskId: string, sessionId: string): GoalsView
   /** Launch path: unknown ids are skipped, and a refused write is reported, not thrown. */
   linkMany(taskIds: readonly string[], sessionId: string): void
-  /** `/clear`: every link to `oldId` now names `newId`. A refused write is reported, not thrown. */
+  /** `/clear`: every link to `oldId` now names `newId`, and so do a task's `originSessionId` and
+   *  its report's `sessionId`. A refused write is reported, not thrown. */
   rebindSession(oldId: string, newId: string): void
   tasksForSession(sessionId: string): Task[]
   /** The workspace delete cascade: its goals and every task of the workspace. Returns the count. */
@@ -266,7 +298,13 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
       sessionIds: [],
       createdAt: now(),
       doneAt: null,
-      doneBy: null
+      doneBy: null,
+      check: null,
+      leftWith: null,
+      lastSeenAt: null,
+      report: null,
+      originSessionId: null,
+      folder: null
     }
   }
 
@@ -288,6 +326,56 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
     const saved = freshTask(req)
     applyTasks([...tasks, saved])
     return saved
+  }
+
+  /** A task built from a session's words: the schema checks it before it is kept, so a refused
+   *  field throws here and never reaches the file (where it would reset the whole store). */
+  function checked(task: Task): Task {
+    return TaskSchema.parse(task)
+  }
+
+  function addTaskFromExtraction(req: Parameters<GoalsStore['addTaskFromExtraction']>[0]): Task {
+    const goal = req.goalId === null ? undefined : goals.find((g) => g.id === req.goalId)
+    const goalId = goal !== undefined && goal.workspaceId === req.workspaceId ? goal.id : null
+    const saved = checked({
+      ...freshTask({ workspaceId: req.workspaceId, goalId, title: req.title }),
+      check: req.check,
+      leftWith: req.leftWith,
+      lastSeenAt: req.at,
+      originSessionId: req.originSessionId,
+      folder: req.folder
+    })
+    applyTasks([...tasks, saved])
+    return saved
+  }
+
+  function updateTaskFromExtraction(
+    id: string,
+    patch: { check: string | null; leftWith: TaskLeftWith; at: number }
+  ): boolean {
+    const task = tasks.find((t) => t.id === id)
+    if (task === undefined || task.status !== 'open') return false
+    const next = checked({
+      ...task,
+      check: patch.check ?? task.check,
+      leftWith: patch.leftWith,
+      lastSeenAt: patch.at
+    })
+    applyTasks(tasks.map((t) => (t === task ? next : t)))
+    return true
+  }
+
+  function reportTask(id: string, report: TaskReport): 'ok' | 'not_found' {
+    const task = tasks.find((t) => t.id === id)
+    if (task === undefined) return 'not_found'
+    if (task.status === 'done') return 'ok'
+    const next = checked({
+      ...task,
+      report,
+      lastSeenAt: report.outcome === 'open' ? report.at : task.lastSeenAt
+    })
+    applyTasks(tasks.map((t) => (t === task ? next : t)))
+    return 'ok'
   }
 
   function removeTask(id: string): GoalsView {
@@ -353,14 +441,22 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
     if (changed) applyTasks(next)
   }
 
+  function namesSession(t: Task, id: string): boolean {
+    return t.sessionIds.includes(id) || t.originSessionId === id || t.report?.sessionId === id
+  }
+
   function rebindSession(oldId: string, newIdValue: string): void {
-    if (oldId === newIdValue || !tasks.some((t) => t.sessionIds.includes(oldId))) return
+    if (oldId === newIdValue || !tasks.some((t) => namesSession(t, oldId))) return
+    const move = (s: string): string => (s === oldId ? newIdValue : s)
     applyTasks(
       tasks.map((t) =>
-        t.sessionIds.includes(oldId)
+        namesSession(t, oldId)
           ? {
               ...t,
-              sessionIds: [...new Set(t.sessionIds.map((s) => (s === oldId ? newIdValue : s)))]
+              sessionIds: [...new Set(t.sessionIds.map(move))],
+              originSessionId: t.originSessionId === null ? null : move(t.originSessionId),
+              report:
+                t.report === null ? null : { ...t.report, sessionId: move(t.report.sessionId) }
             }
           : t
       )
@@ -398,6 +494,9 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
     setSaveToFile,
     saveTask,
     addTaskFromSession,
+    addTaskFromExtraction,
+    updateTaskFromExtraction,
+    reportTask,
     removeTask,
     setTaskStatus,
     link,

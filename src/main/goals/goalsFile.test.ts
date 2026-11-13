@@ -10,6 +10,7 @@ import {
   type GoalsFileFs,
   type GoalsSnapshot
 } from './goalsFile'
+import { createGoalsStore } from '../persistence/goals'
 
 const A = '/work/a'
 const B = '/work/b'
@@ -34,6 +35,12 @@ function task(over: Partial<Task> & Pick<Task, 'id' | 'goalId'>): Task {
     createdAt: 1,
     doneAt: null,
     doneBy: null,
+    check: null,
+    leftWith: null,
+    lastSeenAt: null,
+    report: null,
+    originSessionId: null,
+    folder: null,
     ...over
   }
 }
@@ -302,5 +309,29 @@ describe('createGoalsFileExporter', () => {
     fs.writes.length = 0
     exporter.rewrite(A, snap)
     expect(fs.writes).toEqual([])
+  })
+
+  it('a report on a task does not rewrite GOALS.md', () => {
+    const { fs, exporter } = setup()
+    let n = 0
+    const store = createGoalsStore({
+      newId: () => `id${++n}`,
+      afterChange: (before, after) => exporter.afterChange(before, after)
+    })
+    const goalId = store.saveGoal({ workspaceId: 'w1', name: 'Ship' }, A).saved.id
+    store.setSaveToFile(goalId, true)
+    const task = store.saveTask({ workspaceId: 'w1', goalId, title: 'Draft' }).saved
+    const writes = fs.writes.length
+    expect(writes).toBeGreaterThan(0)
+    expect(
+      store.reportTask(task.id, {
+        at: 9,
+        sessionId: 's1',
+        sessionName: 'fix api port',
+        outcome: 'done',
+        evidence: 'the table renders'
+      })
+    ).toBe('ok')
+    expect(fs.writes).toHaveLength(writes)
   })
 })

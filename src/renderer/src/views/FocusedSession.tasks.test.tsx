@@ -25,7 +25,13 @@ const linked: Task = {
   sessionIds: ['a'],
   createdAt: 1,
   doneAt: null,
-  doneBy: null
+  doneBy: null,
+  check: null,
+  leftWith: null,
+  lastSeenAt: null,
+  report: null,
+  originSessionId: null,
+  folder: null
 }
 
 beforeEach(() => {

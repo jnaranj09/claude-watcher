@@ -9,7 +9,11 @@ import {
   ProposalDecideSchema,
   TASK_REPEATED,
   TaskSaveSchema,
+  TaskCheckSchema,
+  TaskReportSchema,
   TaskSchema,
+  TASK_CHECK_MAX,
+  TASK_REPORT_EVIDENCE_MAX,
   TASK_TITLE_MAX
 } from './goal'
 
@@ -137,6 +141,50 @@ describe('goal schemas', () => {
     ).toBe(true)
     expect(
       GoalsViewSchema.safeParse({ ...view, fileProblems: [{ goalId: 'g1', code: 'nope' }] }).success
+    ).toBe(false)
+  })
+
+  it('a goals file written before the six fields loads with null for each', () => {
+    const file = GoalsFileSchema.parse({
+      version: 1,
+      goals: [],
+      tasks: [{ id: 't1', workspaceId: 'w1', title: 'a', status: 'open', createdAt: 1 }]
+    })
+    expect(file.tasks[0]).toMatchObject({
+      check: null,
+      leftWith: null,
+      lastSeenAt: null,
+      report: null,
+      originSessionId: null,
+      folder: null
+    })
+  })
+
+  it('a check is one trimmed line of at most 300 characters with no control characters', () => {
+    expect(TaskCheckSchema.parse(' grep -n sandbox config/app.yml ')).toBe(
+      'grep -n sandbox config/app.yml'
+    )
+    expect(TaskCheckSchema.safeParse('x'.repeat(TASK_CHECK_MAX)).success).toBe(true)
+    expect(TaskCheckSchema.safeParse('x'.repeat(TASK_CHECK_MAX + 1)).success).toBe(false)
+    expect(TaskCheckSchema.safeParse('one\ntwo').success).toBe(false)
+    expect(TaskCheckSchema.safeParse('  ').success).toBe(false)
+  })
+
+  it('a report needs a session id and one line of evidence of at most 300 characters', () => {
+    const report = { at: 1, sessionId: 's1', sessionName: 'fix api port', outcome: 'done' }
+    const ok = TaskReportSchema.safeParse({
+      ...report,
+      evidence: 'x'.repeat(TASK_REPORT_EVIDENCE_MAX)
+    })
+    expect(ok.success).toBe(true)
+    const long = 'x'.repeat(TASK_REPORT_EVIDENCE_MAX + 1)
+    expect(TaskReportSchema.safeParse({ ...report, evidence: long }).success).toBe(false)
+    expect(TaskReportSchema.safeParse({ ...report, evidence: 'a\tb' }).success).toBe(false)
+    expect(TaskReportSchema.safeParse({ ...report, evidence: 'seen', sessionId: '' }).success).toBe(
+      false
+    )
+    expect(
+      TaskReportSchema.safeParse({ ...report, evidence: 'seen', outcome: 'maybe' }).success
     ).toBe(false)
   })
 })

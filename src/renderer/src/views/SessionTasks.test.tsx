@@ -29,6 +29,12 @@ const task = (over: Partial<Task> = {}): Task => ({
   createdAt: 1,
   doneAt: null,
   doneBy: null,
+  check: null,
+  leftWith: null,
+  lastSeenAt: null,
+  report: null,
+  originSessionId: null,
+  folder: null,
   ...over
 })
 

@@ -622,7 +622,13 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
       sessionIds: ['s1'],
       createdAt: 1,
       doneAt: null,
-      doneBy: null
+      doneBy: null,
+      check: null,
+      leftWith: null,
+      lastSeenAt: null,
+      report: null,
+      originSessionId: null,
+      folder: null
     }
     act(() =>
       goalsStore
