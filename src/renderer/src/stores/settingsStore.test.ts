@@ -22,7 +22,10 @@ import {
   selectShowAllTagsByWorkspace,
   selectTerminalMenuTrigger,
   selectMemoryEnabled,
-  selectClaudeAutoMemory
+  selectClaudeAutoMemory,
+  selectMemoryCheckpoint,
+  selectMemorySaveTasks,
+  selectMemoryModel
 } from './settingsStore'
 import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
 
@@ -57,7 +60,10 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
       showAllTagsByWorkspace: {},
       windowSize: null,
       memoryEnabled: true,
-      claudeAutoMemory: 'claude'
+      claudeAutoMemory: 'claude',
+      memoryCheckpoint: 15,
+      memorySaveTasks: true,
+      memoryModel: 'sonnet'
     })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
@@ -120,6 +126,21 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
     expect(selectClaudeAutoMemory(store.getState())).toBe('off')
     store.getState().hydrate({ ...DEFAULT_SETTINGS, claudeAutoMemory: 'on' })
     expect(selectClaudeAutoMemory(store.getState())).toBe('on')
+  })
+
+  it('the three save-from-sessions settings: hydrate and applyPatch carry them', () => {
+    const store = createSettingsStore()
+    expect(selectMemoryCheckpoint(store.getState())).toBe(15)
+    expect(selectMemorySaveTasks(store.getState())).toBe(true)
+    expect(selectMemoryModel(store.getState())).toBe('sonnet')
+    store.getState().applyPatch({ memoryCheckpoint: 0, memorySaveTasks: false })
+    expect(selectMemoryCheckpoint(store.getState())).toBe(0)
+    expect(selectMemorySaveTasks(store.getState())).toBe(false)
+    expect(selectMemoryModel(store.getState())).toBe('sonnet')
+    store.getState().hydrate({ ...DEFAULT_SETTINGS, memoryModel: 'haiku' })
+    expect(selectMemoryCheckpoint(store.getState())).toBe(15)
+    expect(selectMemorySaveTasks(store.getState())).toBe(true)
+    expect(selectMemoryModel(store.getState())).toBe('haiku')
   })
 
   it('an empty patch is a no-op', () => {

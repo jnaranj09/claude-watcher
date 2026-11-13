@@ -78,6 +78,8 @@ export const ItemRow = StoredRow.transform((r): z.input<typeof MemoryItemSchema>
     updatedAt: r.updated_at,
     origin: { by: r.origin_by, sessionId: r.origin_session_id },
     originDeletedAt: r.origin_deleted_at,
+    // No source column yet: every stored item reads as not extracted.
+    source: null,
     meta: { folder: r.folder, ...r.meta }
   }
   return r.kind === 'specific'

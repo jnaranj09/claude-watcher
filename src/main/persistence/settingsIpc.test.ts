@@ -56,7 +56,10 @@ describe('settings IPC handler logic — get/set round-trip + parse-and-throw (A
       showAllTagsByWorkspace: {},
       windowSize: null,
       memoryEnabled: true,
-      claudeAutoMemory: 'claude'
+      claudeAutoMemory: 'claude',
+      memoryCheckpoint: 15,
+      memorySaveTasks: true,
+      memoryModel: 'sonnet'
     })
     expect(get()).toEqual(result)
   })

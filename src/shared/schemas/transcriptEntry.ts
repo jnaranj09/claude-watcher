@@ -1,14 +1,14 @@
 // The claude TRANSCRIPT-LINE adapter — the second external Zod boundary of the app.
 //
 // Claude Code appends one JSON object per line to the session transcript named by every
-// hook payload's `transcript_path`. The app tails that file to learn two things no hook
-// reports (both PROBE-VERIFIED on claude 2.1.250, 2026-08-27):
+// hook payload's `transcript_path`. The app reads that file for two things:
 //
-//   1. THE TURN WAS INTERRUPTED. Pressing Esc emits NO hook at all — not `Stop`, not
-//      `Notification`, nothing, not even after 90s. The transcript is the only place it
-//      is recorded, and it lands there the instant it happens.
-//   2. BACKGROUND WORK FINISHED. There is no "task done" hook either; claude writes a
-//      `<task-notification>` block carrying the same task id the tool returned at start.
+//   1. THE TURN WAS INTERRUPTED (PROBE-VERIFIED on claude 2.1.250, 2026-08-27). Pressing
+//      Esc emits NO hook at all — not `Stop`, not `Notification`, nothing, not even after
+//      90s. The transcript is the only place it is recorded, and it lands there the
+//      instant it happens (`hooks/transcriptSignal.ts`).
+//   2. SAVING MEMORY FROM A SESSION (memory phase 2): the conversation itself — prompts,
+//      tool calls and tool results — read past the bytes already saved.
 //
 // FAIL-CLOSED, DROP-QUIETLY. A transcript holds many entry types the app does not care
 // about, so an unparseable or uninteresting line is simply DROPPED — it yields no signal
@@ -23,22 +23,46 @@
 import { z } from 'zod'
 
 /**
- * One transcript line, narrowed to the two fields the app reads.
+ * One transcript line: the fields the interrupt watcher reads, plus the keys saving memory from
+ * a session reads (memory phase 2).
  *
  * `message.content` is POLYMORPHIC — a plain string for simple messages, an array of
  * parts (`{ type, text }`) for structured ones. Both observed live; accept both and do
  * NOT narrow to one. `.passthrough()` throughout so claude's many other fields ride along
  * untouched and a new entry type never fails the line.
+ *
+ * The memory keys are LOOSE on purpose (`z.unknown().optional()`): no new key can fail a line,
+ * so the interrupt watcher never loses one to them. Their reader narrows each key where it reads
+ * it, and skips a part or line whose key has another type there, never here.
  */
+const LooseKey = z.unknown().optional()
+
+const ContentPartSchema = z
+  .object({
+    text: z.string().optional(),
+    type: LooseKey,
+    id: LooseKey,
+    name: LooseKey,
+    input: LooseKey,
+    tool_use_id: LooseKey,
+    is_error: LooseKey,
+    content: LooseKey
+  })
+  .passthrough()
+
 export const TranscriptEntrySchema = z
   .object({
     type: z.string().optional(), // 'user' | 'assistant' | many others; NOT enum-locked
     sessionId: z.string().optional(), // matches the hook `session_id` when present
+    uuid: LooseKey,
+    isSidechain: LooseKey,
+    isMeta: LooseKey,
+    isCompactSummary: LooseKey,
+    promptSource: LooseKey,
+    toolUseResult: LooseKey,
     message: z
       .object({
-        content: z
-          .union([z.string(), z.array(z.object({ text: z.string().optional() }).passthrough())])
-          .optional()
+        content: z.union([z.string(), z.array(ContentPartSchema)]).optional()
       })
       .passthrough()
       .optional()

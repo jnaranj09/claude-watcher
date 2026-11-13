@@ -93,3 +93,21 @@ describe('transcriptSignal — never throws, drops quietly', () => {
     ).toBeNull()
   })
 })
+
+describe('transcriptSignal — the widened transcript schema (ruling R6)', () => {
+  it('an interrupt marker line whose other keys carry unexpected types is still an interrupt', () => {
+    expect(
+      transcriptSignal({
+        type: 'user',
+        uuid: 7,
+        isMeta: 'yes',
+        message: {
+          content: [
+            { type: 'text', text: '[Request interrupted by user]' },
+            { type: 'tool_result', is_error: 'x' }
+          ]
+        }
+      })
+    ).toEqual({ kind: 'interrupted' })
+  })
+})

@@ -394,4 +394,65 @@ describe('createPastSessionsStore — archive / get / remove', () => {
     workspaces.remove(saved.id)
     expect(past.get('s1')).toBeNull()
   })
+
+  it('setMemory writes the field and a later archive of the same id keeps it', () => {
+    const fake = fakeBlob()
+    const store = createPastSessionsStore({ blobStore: fake.blobStore })
+    const record = ROW
+    store.archive(record)
+    store.setMemory(record.id, {
+      state: 'saving',
+      specifics: 0,
+      facts: 0,
+      tasks: 0,
+      episodes: 0,
+      episodeId: null
+    })
+    store.archive({ ...record, endedAt: 9 })
+    expect(store.get(record.id)?.memory?.state).toBe('saving')
+    expect((fake.current() as PastSessionsFile).sessions[0]?.memory?.state).toBe('saving')
+  })
+
+  it('markLive keeps an earlier memory of the same id', () => {
+    const store = createPastSessionsStore({ blobStore: fakeBlob().blobStore })
+    store.archive(ROW)
+    store.setMemory(ROW.id, {
+      state: 'saved',
+      specifics: 1,
+      facts: 0,
+      tasks: 0,
+      episodes: 0,
+      episodeId: null
+    })
+    store.markLive(ROW)
+    store.archive(ROW)
+    expect(store.get(ROW.id)?.memory?.specifics).toBe(1)
+  })
+
+  it('setMemory on an unknown id changes nothing and writes nothing', () => {
+    const fake = fakeBlob()
+    let writes = 0
+    const write = fake.blobStore.write
+    const store = createPastSessionsStore({
+      blobStore: {
+        ...fake.blobStore,
+        write: (value) => {
+          writes++
+          write(value)
+        }
+      }
+    })
+    store.archive(ROW)
+    const before = writes
+    store.setMemory('nope', {
+      state: 'off',
+      specifics: 0,
+      facts: 0,
+      tasks: 0,
+      episodes: 0,
+      episodeId: null
+    })
+    expect(writes).toBe(before)
+    expect(store.get('nope')).toBeNull()
+  })
 })

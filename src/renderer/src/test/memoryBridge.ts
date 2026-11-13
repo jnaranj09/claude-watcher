@@ -27,6 +27,7 @@ const BASE = {
   updatedAt: MEMORY_NOW - 2 * DAY,
   origin: { by: 'agent', sessionId: 's-1' },
   originDeletedAt: null,
+  source: null,
   meta: {
     folder: '/srv/acme/api',
     sessionName: 'fix-health-check',

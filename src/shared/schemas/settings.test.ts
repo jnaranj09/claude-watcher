@@ -33,6 +33,9 @@ import {
   SHELL_PANE_RATIO_MAX,
   DEFAULT_SHELL_PANE_RATIO,
   expanderChord,
+  DEFAULT_MEMORY_CHECKPOINT,
+  DEFAULT_MEMORY_MODEL,
+  MEMORY_CHECKPOINT_OPTIONS,
   type Settings
 } from './settings'
 
@@ -58,7 +61,10 @@ describe('SettingsSchema — versioned, our-shape, fail-closed (AC-4/5/6)', () =
       showAllTagsByWorkspace: {},
       windowSize: null,
       memoryEnabled: true,
-      claudeAutoMemory: 'claude'
+      claudeAutoMemory: 'claude',
+      memoryCheckpoint: 15,
+      memorySaveTasks: true,
+      memoryModel: 'sonnet'
     }
     const parsed = parseSettings(valid)
     expect(parsed).toEqual(valid)
@@ -570,5 +576,32 @@ describe('claudeAutoMemory — additive on v1', () => {
     })
     expect(SettingsPatchSchema.parse({ memoryEnabled: false })).toEqual({ memoryEnabled: false })
     expect(SettingsPatchSchema.safeParse({ claudeAutoMemory: 'auto' }).success).toBe(false)
+  })
+})
+
+describe('saving memory from sessions — additive on v1', () => {
+  it('a file from before the three keys loads with 15, true and sonnet', () => {
+    expect(
+      SettingsSchema.parse({ version: 1, soundEnabled: true, terminalFontSize: 14 })
+    ).toMatchObject({ memoryCheckpoint: 15, memorySaveTasks: true, memoryModel: 'sonnet' })
+    expect(DEFAULT_SETTINGS).toMatchObject({
+      memoryCheckpoint: DEFAULT_MEMORY_CHECKPOINT,
+      memorySaveTasks: true,
+      memoryModel: DEFAULT_MEMORY_MODEL
+    })
+  })
+
+  it('refuses a checkpoint of 12 and a model of opus', () => {
+    expect(SettingsPatchSchema.safeParse({ memoryCheckpoint: 12 }).success).toBe(false)
+    expect(SettingsPatchSchema.safeParse({ memoryModel: 'opus' }).success).toBe(false)
+    for (const minutes of MEMORY_CHECKPOINT_OPTIONS) {
+      expect(SettingsPatchSchema.parse({ memoryCheckpoint: minutes })).toEqual({
+        memoryCheckpoint: minutes
+      })
+    }
+  })
+
+  it('a patch of one key does not reset the other two', () => {
+    expect(SettingsPatchSchema.parse({ memoryModel: 'haiku' })).toEqual({ memoryModel: 'haiku' })
   })
 })

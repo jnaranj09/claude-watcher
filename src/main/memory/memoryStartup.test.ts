@@ -103,14 +103,26 @@ describe('the memory:changed push', () => {
 
   it('an activity change pushes (a pull changes no stored item)', () => {
     const memory = open()
-    activity.record('s1', { at: NOW, action: 'pulled', tool: 'memory_get', itemId: 'm1' })
+    activity.record('s1', {
+      at: NOW,
+      action: 'pulled',
+      tool: 'memory_get',
+      itemId: 'm1',
+      reason: null
+    })
     expect(pushes).toBe(1)
     memory?.close()
   })
 
   it('memory off pushes nothing for an activity change', () => {
     expect(open(true)).toBeNull()
-    activity.record('s1', { at: NOW, action: 'pulled', tool: 'memory_get', itemId: 'm1' })
+    activity.record('s1', {
+      at: NOW,
+      action: 'pulled',
+      tool: 'memory_get',
+      itemId: 'm1',
+      reason: null
+    })
     expect(pushes).toBe(0)
   })
 })

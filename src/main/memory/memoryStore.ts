@@ -16,6 +16,7 @@ import {
   MemoryVersionSchema,
   type MemoryItem,
   type MemoryRow,
+  type EpisodeText,
   type MemoryText,
   type MemoryVersion,
   type MemoryWriter
@@ -106,7 +107,8 @@ const WRITER_BASIS: Readonly<Record<MemoryWriter, Basis>> = {
   extract: 'inferred'
 }
 
-function textParts(text: MemoryText): [head: string, body: string] {
+/** A text's head and body; `setState` hands it a whole item, which may be an episode. */
+function textParts(text: MemoryText | EpisodeText): [head: string, body: string] {
   return text.kind === 'specific' ? [text.key, text.value] : [text.title, text.body]
 }
 

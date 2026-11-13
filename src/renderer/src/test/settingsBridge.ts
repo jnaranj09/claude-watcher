@@ -35,7 +35,10 @@ export function mergedSettings(patch: SettingsPatch): Settings {
     showAllTagsByWorkspace: patch.showAllTagsByWorkspace ?? DEFAULT_SETTINGS.showAllTagsByWorkspace,
     windowSize: patch.windowSize !== undefined ? patch.windowSize : DEFAULT_SETTINGS.windowSize,
     memoryEnabled: patch.memoryEnabled ?? DEFAULT_SETTINGS.memoryEnabled,
-    claudeAutoMemory: patch.claudeAutoMemory ?? DEFAULT_SETTINGS.claudeAutoMemory
+    claudeAutoMemory: patch.claudeAutoMemory ?? DEFAULT_SETTINGS.claudeAutoMemory,
+    memoryCheckpoint: patch.memoryCheckpoint ?? DEFAULT_SETTINGS.memoryCheckpoint,
+    memorySaveTasks: patch.memorySaveTasks ?? DEFAULT_SETTINGS.memorySaveTasks,
+    memoryModel: patch.memoryModel ?? DEFAULT_SETTINGS.memoryModel
   }
 }
 

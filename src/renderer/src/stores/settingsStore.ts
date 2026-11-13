@@ -21,6 +21,8 @@ import {
   DEFAULT_SETTINGS,
   type ReminderFirstDelayMinutes,
   type ClaudeAutoMemory,
+  type MemoryCheckpoint,
+  type MemoryModel,
   type TerminalScheme,
   type TerminalMenuTrigger
 } from '../../../shared/schemas/settings'
@@ -65,6 +67,12 @@ export interface SettingsState {
   /** Claude's own auto memory in launched sessions (off / on / claude decides). Main reads its
    *  own copy at each spawn; this drives Settings. */
   claudeAutoMemory: ClaudeAutoMemory
+  /** Saving memory from sessions — checkpoint turns (0 = Off). Main reads its own copy. */
+  memoryCheckpoint: MemoryCheckpoint
+  /** Saving memory from sessions — whether open work is saved as Goals tasks. */
+  memorySaveTasks: boolean
+  /** Saving memory from sessions — the model that reads a session. */
+  memoryModel: MemoryModel
   /** Action feedback (spec 2026-09-29 §2.1) — the last Settings MAIN returned (DEFAULT_SETTINGS
    *  before the first load). A refused write rolls the projection back to it. */
   authoritative: Settings
@@ -103,6 +111,9 @@ export function createSettingsStore(): SettingsStoreApi {
     showAllTagsByWorkspace: DEFAULT_SETTINGS.showAllTagsByWorkspace,
     memoryEnabled: DEFAULT_SETTINGS.memoryEnabled,
     claudeAutoMemory: DEFAULT_SETTINGS.claudeAutoMemory,
+    memoryCheckpoint: DEFAULT_SETTINGS.memoryCheckpoint,
+    memorySaveTasks: DEFAULT_SETTINGS.memorySaveTasks,
+    memoryModel: DEFAULT_SETTINGS.memoryModel,
     authoritative: DEFAULT_SETTINGS,
 
     hydrate: (settings) => {
@@ -125,6 +136,9 @@ export function createSettingsStore(): SettingsStoreApi {
         showAllTagsByWorkspace: settings.showAllTagsByWorkspace,
         memoryEnabled: settings.memoryEnabled,
         claudeAutoMemory: settings.claudeAutoMemory,
+        memoryCheckpoint: settings.memoryCheckpoint,
+        memorySaveTasks: settings.memorySaveTasks,
+        memoryModel: settings.memoryModel,
         authoritative: settings
       })
     },
@@ -163,7 +177,12 @@ export function createSettingsStore(): SettingsStoreApi {
         ...(patch.memoryEnabled !== undefined ? { memoryEnabled: patch.memoryEnabled } : {}),
         ...(patch.claudeAutoMemory !== undefined
           ? { claudeAutoMemory: patch.claudeAutoMemory }
-          : {})
+          : {}),
+        ...(patch.memoryCheckpoint !== undefined
+          ? { memoryCheckpoint: patch.memoryCheckpoint }
+          : {}),
+        ...(patch.memorySaveTasks !== undefined ? { memorySaveTasks: patch.memorySaveTasks } : {}),
+        ...(patch.memoryModel !== undefined ? { memoryModel: patch.memoryModel } : {})
       })
     }
   }))
@@ -180,6 +199,13 @@ export const selectMemoryEnabled = (state: SettingsState): boolean => state.memo
 /** Claude's own auto memory in launched sessions (primitive). */
 export const selectClaudeAutoMemory = (state: SettingsState): ClaudeAutoMemory =>
   state.claudeAutoMemory
+/** Saving memory from sessions — checkpoint turns, 0 = Off (primitive). */
+export const selectMemoryCheckpoint = (state: SettingsState): MemoryCheckpoint =>
+  state.memoryCheckpoint
+/** Saving memory from sessions — open work saved as Goals tasks (primitive). */
+export const selectMemorySaveTasks = (state: SettingsState): boolean => state.memorySaveTasks
+/** Saving memory from sessions — the model (primitive). */
+export const selectMemoryModel = (state: SettingsState): MemoryModel => state.memoryModel
 /** UX-13 — the live desktop-popup toggle (primitive). */
 export const selectNotificationsEnabled = (state: SettingsState): boolean =>
   state.notificationsEnabled

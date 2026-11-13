@@ -9,6 +9,7 @@ import {
   PAST_SESSIONS_MAX,
   PastSessionsFileSchema,
   type PastSession,
+  type PastSessionMemory,
   type PastSessionsFile
 } from '../../shared/schemas/pastSession'
 import {
@@ -70,6 +71,9 @@ export interface PastSessionsStore {
   /** The card left WITHOUT an archive (a `/clear` rebind's old id): drop its record, but ONLY
    *  while it is still live — an archived or deleted one is not this call's to touch. */
   dropLive(id: string): void
+  /** Sets a record's `memory` (live or ended). No record: nothing. A background write
+   *  (`persistOrReport`). */
+  setMemory(sessionId: string, memory: PastSessionMemory): void
   /** Idempotent. Returns the new list. */
   remove(id: string): PastSession[]
   /** Workspaces — delete every record in `workspaceId`. Called ONLY by the workspaces store's
@@ -196,11 +200,15 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   }
 
   /** The new record, keeping the transcript path an earlier write learned: the hook that
-   *  carries it may not have reached this run yet (a resumed session writes the same file). */
+   *  carries it may not have reached this run yet (a resumed session writes the same file).
+   *  It keeps an earlier `memory` the same way, until the new end sets its own (`setMemory`). */
   function merged(record: PastSession): PastSession {
     const next: PastSession = { ...record, tagIds: [...record.tagIds] }
-    const known = byId.get(record.id)?.transcriptPath
-    if (next.transcriptPath === undefined && known !== undefined) next.transcriptPath = known
+    const known = byId.get(record.id)
+    if (next.transcriptPath === undefined && known?.transcriptPath !== undefined) {
+      next.transcriptPath = known.transcriptPath
+    }
+    if (next.memory === undefined && known?.memory !== undefined) next.memory = known.memory
     return next
   }
 
@@ -231,6 +239,13 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
     persistOrReport()
   }
 
+  function setMemory(sessionId: string, memory: PastSessionMemory): void {
+    const record = byId.get(sessionId)
+    if (record === undefined) return
+    byId.set(sessionId, { ...record, memory: { ...memory } })
+    persistOrReport()
+  }
+
   function remove(id: string): PastSession[] {
     // Forget — the dialog's own action (UX-06): a record the disk kept must not vanish from it.
     const previous = byId.get(id)
@@ -254,7 +269,7 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
     return removed.length
   }
 
-  return { list, get, archive, markLive, dropLive, remove, removeByWorkspace }
+  return { list, get, archive, markLive, dropLive, setMemory, remove, removeByWorkspace }
 }
 
 /** The record without its `live` mark. */

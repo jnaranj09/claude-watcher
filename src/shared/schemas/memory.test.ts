@@ -5,12 +5,16 @@ import {
   MemoryActivitySchema,
   MemoryCreateSchema,
   MemoryEditSchema,
+  MemoryExtractResultSchema,
   MemoryItemSchema,
   MemoryListSchema,
   MemoryRestoreSchema,
   MemoryRowSchema,
   MemorySetStateSchema,
-  MemoryVersionSchema
+  MemorySourceSchema,
+  MemoryTextSchema,
+  MemoryVersionSchema,
+  NO_COUNTS
 } from './memory'
 
 const specific = { kind: 'specific', key: 'API port', value: '8080' } as const
@@ -28,6 +32,10 @@ describe('memory text limits', () => {
       specificValue: 500,
       factTitle: 120,
       factBody: 2000,
+      episodeTitle: 120,
+      episodeBody: 2000,
+      sourceQuote: 500,
+      commandText: 500,
       check: 300,
       reason: 200,
       query: 200,
@@ -152,6 +160,7 @@ describe('memory records', () => {
     updatedAt: 1,
     origin: { by: 'agent', sessionId: null },
     originDeletedAt: null,
+    source: null,
     meta: {
       folder: null,
       sessionName: null,
@@ -220,9 +229,46 @@ describe('memory records', () => {
     expect(
       MemoryActivitySchema.safeParse({
         injected: { tokens: 3, itemIds: ['m1'] },
-        entries: [{ at: 1, action: 'pulled', tool: 'memory_get', itemId: null }]
+        entries: [{ at: 1, action: 'pulled', tool: 'memory_get', itemId: null, reason: null }]
       }).success
     ).toBe(true)
     expect(MemoryActivitySchema.safeParse({ injected: null, entries: [] }).success).toBe(true)
+  })
+
+  const episodeItem = {
+    ...item,
+    kind: 'episode',
+    title: 'Fixed the login bug',
+    body: 'The session found the cause and fixed it.',
+    endedAt: 5,
+    source: { entryId: 'e12', quote: 'the token check was off by one' }
+  }
+
+  it('accepts an episode item and refuses an episode as a text to save', () => {
+    expect(MemoryItemSchema.safeParse(episodeItem).success).toBe(true)
+    expect(
+      MemoryTextSchema.safeParse({ kind: 'episode', title: 'a', body: 'b', endedAt: 1 }).success
+    ).toBe(false)
+  })
+
+  it('refuses a source quote over 500 characters', () => {
+    const at = { entryId: 'e1', quote: 'x'.repeat(MEMORY_LIMITS.sourceQuote) }
+    expect(MemorySourceSchema.safeParse(at).success).toBe(true)
+    expect(MemorySourceSchema.safeParse({ ...at, quote: 'x'.repeat(501) }).success).toBe(false)
+  })
+
+  it('a push with an unknown key or a negative count is refused', () => {
+    const push = {
+      sessionName: 'billing api',
+      trigger: 'end',
+      outcome: 'saved',
+      counts: { ...NO_COUNTS, facts: 2 },
+      reason: null
+    }
+    expect(MemoryExtractResultSchema.safeParse(push).success).toBe(true)
+    expect(MemoryExtractResultSchema.safeParse({ ...push, extra: 1 }).success).toBe(false)
+    expect(
+      MemoryExtractResultSchema.safeParse({ ...push, counts: { ...NO_COUNTS, tasks: -1 } }).success
+    ).toBe(false)
   })
 })

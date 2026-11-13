@@ -101,6 +101,18 @@ export const ClaudeAutoMemorySchema = z.enum(['off', 'on', 'claude'])
 export type ClaudeAutoMemory = z.infer<typeof ClaudeAutoMemorySchema>
 export const DEFAULT_CLAUDE_AUTO_MEMORY: ClaudeAutoMemory = 'claude'
 
+/** Saving memory from a session (memory phase 2): a live session saves at every Nth turn (`Stop`)
+ *  since its last save point; 0 = Off (it saves only when it ends). A stored value outside this
+ *  list fails closed. */
+export const MEMORY_CHECKPOINT_OPTIONS = [0, 10, 15, 25] as const
+export type MemoryCheckpoint = (typeof MEMORY_CHECKPOINT_OPTIONS)[number]
+export const DEFAULT_MEMORY_CHECKPOINT: MemoryCheckpoint = 15
+const MemoryCheckpointSchema = z.literal(MEMORY_CHECKPOINT_OPTIONS)
+/** The model that reads a session to save memory from it. */
+export const MemoryModelSchema = z.enum(['haiku', 'sonnet'])
+export type MemoryModel = z.infer<typeof MemoryModelSchema>
+export const DEFAULT_MEMORY_MODEL: MemoryModel = 'sonnet'
+
 /**
  * The versioned settings shape (v1): `version` + `soundEnabled` + `terminalFontSize` +
  * `reminderCount` + `reminderFirstDelayMinutes` + `expanderKey` + `apiEnabled` + `apiPort` +
@@ -202,7 +214,12 @@ export const SettingsSchema = z.object({
   memoryEnabled: z.boolean().default(true),
   // Claude's own auto memory in launched sessions. Additive on v1, same `.default()` reasoning as
   // above: an older file leaves the choice to Claude.
-  claudeAutoMemory: ClaudeAutoMemorySchema.default(DEFAULT_CLAUDE_AUTO_MEMORY)
+  claudeAutoMemory: ClaudeAutoMemorySchema.default(DEFAULT_CLAUDE_AUTO_MEMORY),
+  // Saving memory from sessions (memory phase 2): checkpoint turns, whether open work is saved
+  // as Goals tasks, and the model. Additive on v1, same `.default()` reasoning as above.
+  memoryCheckpoint: MemoryCheckpointSchema.default(DEFAULT_MEMORY_CHECKPOINT),
+  memorySaveTasks: z.boolean().default(true),
+  memoryModel: MemoryModelSchema.default(DEFAULT_MEMORY_MODEL)
 })
 
 /** The settings type — INFERRED from the schema (one source of truth). */
@@ -239,7 +256,10 @@ export const SettingsPatchSchema = z
     showAllTagsByWorkspace: ShowAllTagsByWorkspaceSchema,
     windowSize: WindowSizeSchema.nullable(),
     memoryEnabled: z.boolean(),
-    claudeAutoMemory: ClaudeAutoMemorySchema
+    claudeAutoMemory: ClaudeAutoMemorySchema,
+    memoryCheckpoint: MemoryCheckpointSchema,
+    memorySaveTasks: z.boolean(),
+    memoryModel: MemoryModelSchema
   })
   .partial()
 
@@ -269,7 +289,10 @@ export const DEFAULT_SETTINGS: Settings = {
   showAllTagsByWorkspace: {},
   windowSize: null,
   memoryEnabled: true,
-  claudeAutoMemory: DEFAULT_CLAUDE_AUTO_MEMORY
+  claudeAutoMemory: DEFAULT_CLAUDE_AUTO_MEMORY,
+  memoryCheckpoint: DEFAULT_MEMORY_CHECKPOINT,
+  memorySaveTasks: true,
+  memoryModel: DEFAULT_MEMORY_MODEL
 }
 
 /**

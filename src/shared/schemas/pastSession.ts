@@ -9,6 +9,23 @@ import { WorkspaceIdSchema } from './workspace'
 /** Not `.uuid()` — existence is the store's call (`not_found`), same reasoning as TemplateIdSchema. */
 export const PastSessionIdSchema = z.string().min(1)
 
+const MemoryCountSchema = z.number().int().nonnegative().default(0)
+
+/** Memory (phase 2): how saving memory from this session went. State and counts only, never
+ *  memory text. Every key but `state` defaults, so the field stays additive on v1. */
+export const PastSessionMemorySchema = z
+  .object({
+    state: z.enum(['saving', 'saved', 'nothing', 'failed', 'off']),
+    specifics: MemoryCountSchema,
+    facts: MemoryCountSchema,
+    tasks: MemoryCountSchema,
+    episodes: MemoryCountSchema,
+    /** The episode written for this session, when one was. */
+    episodeId: z.string().min(1).nullable().default(null)
+  })
+  .strict()
+export type PastSessionMemory = z.infer<typeof PastSessionMemorySchema>
+
 export const PastSessionSchema = z
   .object({
     /** Claude's LATEST session id (D-8) — a `/clear` re-keys the card, and the archive writes
@@ -39,7 +56,10 @@ export const PastSessionSchema = z
     /** Present (and `true`) when the session could mark tasks done (the `mark_task_done` MCP
      *  tool, goals), so a Resume after a restart brings the tool back. A flag only: no task ids or
      *  titles (the links live in the goals store). Optional like `live`: absent = off, v1. */
-    tasksMarkDone: z.literal(true).optional()
+    tasksMarkDone: z.literal(true).optional(),
+    /** Memory (phase 2): absent = a record from before saving from sessions existed, or one no
+     *  save has touched. A later `archive` of the same id keeps it until the new end sets it. */
+    memory: PastSessionMemorySchema.optional()
   })
   .strict()
 export type PastSession = z.infer<typeof PastSessionSchema>

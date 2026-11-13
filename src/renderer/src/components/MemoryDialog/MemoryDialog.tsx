@@ -6,7 +6,7 @@
 // UX-DR14: App guards the opener and closes it on the quit guard.
 import { useState, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import type { MemoryRow } from '../../../../shared/schemas/memory'
+import type { MEMORY_KINDS } from '../../../../shared/schemas/memory'
 import { MEMORY_TERMS } from '../../copy/terms'
 import { NO_FILTERS, type SessionFilters } from '../../lib/sessionFilters'
 import {
@@ -17,7 +17,8 @@ import {
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
 import { MemoryPage } from './MemoryPage'
 
-type Kind = MemoryRow['kind']
+// The two pages the operator writes to; an episode (extraction only) has no page here.
+type Kind = (typeof MEMORY_KINDS)[number]
 
 const PAGES: readonly { id: Kind; label: string }[] = [
   { id: 'specific', label: MEMORY_TERMS.specifics },

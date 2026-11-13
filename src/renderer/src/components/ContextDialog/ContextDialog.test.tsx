@@ -537,10 +537,28 @@ describe('ContextDialog — the Memory page', () => {
     await openMemory({
       injected: null,
       entries: [
-        { at: NOW - 5 * 60_000, action: 'pulled', tool: 'memory_search', itemId: 'm1' },
-        { at: NOW - 2 * 3_600_000, action: 'saved', tool: 'memory_save', itemId: 'm2' },
-        { at: NOW - 60_000, action: 'updated', tool: 'memory_update', itemId: 'm2' },
-        { at: NOW - 30_000, action: 'marked_stale', tool: 'memory_mark_stale', itemId: 'm3' }
+        {
+          at: NOW - 5 * 60_000,
+          action: 'pulled',
+          tool: 'memory_search',
+          itemId: 'm1',
+          reason: null
+        },
+        {
+          at: NOW - 2 * 3_600_000,
+          action: 'saved',
+          tool: 'memory_save',
+          itemId: 'm2',
+          reason: null
+        },
+        { at: NOW - 60_000, action: 'updated', tool: 'memory_update', itemId: 'm2', reason: null },
+        {
+          at: NOW - 30_000,
+          action: 'marked_stale',
+          tool: 'memory_mark_stale',
+          itemId: 'm3',
+          reason: null
+        }
       ]
     })
     const pulled = screen.getByTestId('context-memory-pulled')
@@ -582,7 +600,9 @@ describe('ContextDialog — the Memory page', () => {
 describe('ContextDialog — memory without a setup report', () => {
   const GIVEN: MemoryActivity = {
     injected: { tokens: 1250, itemIds: IDS },
-    entries: [{ at: NOW - 60_000, action: 'pulled', tool: 'memory_search', itemId: 'm1' }]
+    entries: [
+      { at: NOW - 60_000, action: 'pulled', tool: 'memory_search', itemId: 'm1', reason: null }
+    ]
   }
   const NO_REPORT: [string, SessionSetupState, string][] = [
     ['waiting', { state: 'waiting' }, 'Waiting for Claude to report its setup.'],

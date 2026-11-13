@@ -31,6 +31,7 @@ function specific(over: Partial<Extract<MemoryItem, { kind: 'specific' }>> = {})
     updatedAt: NOV_11,
     origin: { by: 'agent', sessionId: null },
     originDeletedAt: null,
+    source: null,
     meta: META,
     ...over
   }
@@ -52,6 +53,7 @@ function fact(over: Partial<Extract<MemoryItem, { kind: 'fact' }>> = {}): Memory
     updatedAt: NOV_10,
     origin: { by: 'operator', sessionId: null },
     originDeletedAt: null,
+    source: null,
     meta: META,
     ...over
   }

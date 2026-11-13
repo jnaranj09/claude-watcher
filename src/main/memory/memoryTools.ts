@@ -421,7 +421,13 @@ export function createMemoryTools(deps: {
         goalIdsByName: (n) => names.goalIdsByName(workspaceId, n)
       },
       record: (action, tool, itemId) =>
-        deps.activity.record(grant.sessionId, { at: deps.now(), action, tool, itemId }),
+        deps.activity.record(grant.sessionId, {
+          at: deps.now(),
+          action,
+          tool,
+          itemId,
+          reason: null
+        }),
       tagNames,
       visible: (id) => {
         const item = store.get(id)

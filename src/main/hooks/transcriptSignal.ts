@@ -28,14 +28,10 @@ export type TranscriptSignalResult = { kind: 'interrupted' }
  * DISCUSS interrupts (this feature was designed in one), and a substring match would flip
  * those sessions to idle in the middle of a real turn.
  */
-const INTERRUPT_MARKERS: ReadonlySet<string> = new Set([
+export const INTERRUPT_MARKERS: ReadonlySet<string> = new Set([
   '[Request interrupted by user]',
   '[Request interrupted by user for tool use]'
 ])
-
-/** A completed `<task-notification>` block: the wrapper, a task id, and a completed
- *  status. All three are required — an INTERMEDIATE monitor event carries the wrapper and
- *  the id but NO completed status, and the monitor is still armed at that point. */
 
 /**
  * Read one raw (already `JSON.parse`d) transcript line and return the signal it carries,

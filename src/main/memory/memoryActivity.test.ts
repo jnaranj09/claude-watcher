@@ -7,7 +7,8 @@ const entry = (n: number): MemoryActivity['entries'][number] => ({
   at: n,
   action: 'pulled',
   tool: 'memory_get',
-  itemId: `item-${n}`
+  itemId: `item-${n}`,
+  reason: null
 })
 
 describe('memory activity', () => {

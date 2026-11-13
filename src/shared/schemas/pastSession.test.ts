@@ -43,6 +43,20 @@ describe('PastSessionSchema', () => {
   it('trims the name at the boundary like every session name', () => {
     expect(PastSessionSchema.parse({ ...ROW, name: '  x ' }).name).toBe('x')
   })
+  it('a record written before the memory field loads, and one with it loads', () => {
+    expect(PastSessionSchema.parse(ROW).memory).toBeUndefined()
+    expect(
+      PastSessionSchema.parse({ ...ROW, memory: { state: 'saved', facts: 2 } }).memory
+    ).toEqual({ state: 'saved', specifics: 0, facts: 2, tasks: 0, episodes: 0, episodeId: null })
+  })
+  it('the memory field is strict and holds no negative count', () => {
+    expect(
+      PastSessionSchema.safeParse({ ...ROW, memory: { state: 'off', note: 'x' } }).success
+    ).toBe(false)
+    expect(
+      PastSessionSchema.safeParse({ ...ROW, memory: { state: 'saved', facts: -1 } }).success
+    ).toBe(false)
+  })
   it('file: version 1, a list of records; the cap is 200', () => {
     expect(PAST_SESSIONS_FILE_VERSION).toBe(1)
     expect(PAST_SESSIONS_MAX).toBe(200)

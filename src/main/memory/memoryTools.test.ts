@@ -549,11 +549,11 @@ describe('activity', () => {
     call('memory_get', { id: 'nope' })
     const { entries } = activity.get('s1')
     expect(entries).toEqual([
-      { at: NOW, action: 'saved', tool: 'memory_save', itemId: id },
-      { at: NOW, action: 'pulled', tool: 'memory_search', itemId: null },
-      { at: NOW, action: 'pulled', tool: 'memory_get', itemId: id },
-      { at: NOW, action: 'updated', tool: 'memory_update', itemId: id },
-      { at: NOW, action: 'marked_stale', tool: 'memory_mark_stale', itemId: id }
+      { at: NOW, action: 'saved', tool: 'memory_save', itemId: id, reason: null },
+      { at: NOW, action: 'pulled', tool: 'memory_search', itemId: null, reason: null },
+      { at: NOW, action: 'pulled', tool: 'memory_get', itemId: id, reason: null },
+      { at: NOW, action: 'updated', tool: 'memory_update', itemId: id, reason: null },
+      { at: NOW, action: 'marked_stale', tool: 'memory_mark_stale', itemId: id, reason: null }
     ])
     expect(JSON.stringify(entries)).not.toContain(SECRET)
   })
