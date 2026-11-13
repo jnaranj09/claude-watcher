@@ -2,7 +2,7 @@
 //
 // Runs under the `main-unit` Vitest project (node).
 //
-// Both signal shapes are VERBATIM from live captures (claude 2.1.250, 2026-08-27):
+// The signal's shape is VERBATIM from live captures (claude 2.1.250, 2026-08-27):
 //
 //   interrupt   {"type":"user","sessionId":"…","message":{"role":"user",
 //                "content":[{"type":"text","text":"[Request interrupted by user]"}]}}

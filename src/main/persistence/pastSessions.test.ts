@@ -408,6 +408,8 @@ describe('createPastSessionsStore — archive / get / remove', () => {
       episodes: 0,
       episodeId: null
     })
+    // setMemory writes on its own: the record may never be archived again.
+    expect((fake.current() as PastSessionsFile).sessions[0]?.memory?.state).toBe('saving')
     store.archive({ ...record, endedAt: 9 })
     expect(store.get(record.id)?.memory?.state).toBe('saving')
     expect((fake.current() as PastSessionsFile).sessions[0]?.memory?.state).toBe('saving')

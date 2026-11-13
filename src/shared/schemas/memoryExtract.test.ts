@@ -39,9 +39,15 @@ describe('ExtractOutputSchema', () => {
   })
 
   it('cuts a note to 500 characters', () => {
-    expect(
-      ExtractOutputSchema.parse({ candidates: [], note: ' ' + 'n'.repeat(600) }).note
-    ).toHaveLength(500)
+    expect(ExtractOutputSchema.parse({ candidates: [], note: ' ' + 'n'.repeat(600) }).note).toBe(
+      'n'.repeat(500)
+    )
+  })
+
+  it('trims a note', () => {
+    expect(ExtractOutputSchema.parse({ candidates: [], note: '  carry on  ' }).note).toBe(
+      'carry on'
+    )
   })
 })
 

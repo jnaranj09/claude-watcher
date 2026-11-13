@@ -21,7 +21,13 @@ const toolResult = {
   message: {
     role: 'user',
     content: [
-      { type: 'tool_result', tool_use_id: 'toolu_1', content: 'Exit code 2', is_error: true }
+      {
+        type: 'tool_result',
+        tool_use_id: 'toolu_1',
+        content: 'Exit code 2',
+        is_error: true,
+        cache_control: { type: 'ephemeral' }
+      }
     ]
   }
 }

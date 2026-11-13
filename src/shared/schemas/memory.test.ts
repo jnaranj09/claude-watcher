@@ -141,6 +141,26 @@ describe('memory IPC requests', () => {
     expect(MemoryListSchema.safeParse(over).success).toBe(false)
   })
 
+  it('list and a list row take the episode kind', () => {
+    expect(MemoryListSchema.safeParse({ ...list, kind: 'episode' }).success).toBe(true)
+    const row = {
+      id: 'e1',
+      kind: 'episode',
+      head: 'Fixed the login bug',
+      body: 'Found the cause and fixed it.',
+      updatedAt: 1,
+      basis: 'observed',
+      state: 'active',
+      pinned: false,
+      workspaceId: null,
+      folder: null,
+      sessionName: null,
+      tagIds: [],
+      originDeletedAt: null
+    }
+    expect(MemoryRowSchema.safeParse(row).success).toBe(true)
+  })
+
   it('list refuses an unknown key and an unknown filter key', () => {
     expect(MemoryListSchema.safeParse({ ...list, extra: 1 }).success).toBe(false)
     expect(MemoryListSchema.safeParse({ ...list, filters: { nope: true } }).success).toBe(false)
@@ -233,6 +253,21 @@ describe('memory records', () => {
       }).success
     ).toBe(true)
     expect(MemoryActivitySchema.safeParse({ injected: null, entries: [] }).success).toBe(true)
+  })
+
+  it('an activity entry may be a drop with a known reason, and only a known one', () => {
+    const drop = {
+      at: 1,
+      action: 'dropped',
+      tool: 'extract',
+      itemId: null,
+      reason: 'evidence_not_found'
+    }
+    expect(MemoryActivitySchema.safeParse({ injected: null, entries: [drop] }).success).toBe(true)
+    expect(
+      MemoryActivitySchema.safeParse({ injected: null, entries: [{ ...drop, reason: 'other' }] })
+        .success
+    ).toBe(false)
   })
 
   const episodeItem = {

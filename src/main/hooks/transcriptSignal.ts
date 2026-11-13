@@ -1,5 +1,5 @@
-// Transcript signals — the PURE reader that turns one transcript line into the two facts
-// no Claude Code hook reports.
+// Transcript signals — the PURE reader that turns one transcript line into the one fact
+// no Claude Code hook reports: the turn was interrupted.
 //
 // WHY THIS EXISTS. Pressing Esc fires NO hook whatsoever — probe-verified twice on claude
 // 2.1.250 (2026-08-27), with both `command` and `http` hooks: 12 events captured before
@@ -42,7 +42,7 @@ export function transcriptSignal(raw: unknown): TranscriptSignalResult | null {
   if (!parsed.success) return null // drop quietly — never log, never throw
 
   const entry = parsed.data
-  // Both signals are delivered as `user` entries (claude injects them into the
+  // The interrupt marker is delivered as a `user` entry (claude injects it into the
   // conversation). Ignoring other types stops an assistant message that QUOTES a marker
   // from firing it.
   if (entry.type !== 'user') return null

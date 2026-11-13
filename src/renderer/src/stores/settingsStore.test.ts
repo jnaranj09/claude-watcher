@@ -133,14 +133,16 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
     expect(selectMemoryCheckpoint(store.getState())).toBe(15)
     expect(selectMemorySaveTasks(store.getState())).toBe(true)
     expect(selectMemoryModel(store.getState())).toBe('sonnet')
-    store.getState().applyPatch({ memoryCheckpoint: 0, memorySaveTasks: false })
+    store
+      .getState()
+      .applyPatch({ memoryCheckpoint: 0, memorySaveTasks: false, memoryModel: 'haiku' })
     expect(selectMemoryCheckpoint(store.getState())).toBe(0)
     expect(selectMemorySaveTasks(store.getState())).toBe(false)
-    expect(selectMemoryModel(store.getState())).toBe('sonnet')
-    store.getState().hydrate({ ...DEFAULT_SETTINGS, memoryModel: 'haiku' })
+    expect(selectMemoryModel(store.getState())).toBe('haiku')
+    store.getState().hydrate(DEFAULT_SETTINGS)
     expect(selectMemoryCheckpoint(store.getState())).toBe(15)
     expect(selectMemorySaveTasks(store.getState())).toBe(true)
-    expect(selectMemoryModel(store.getState())).toBe('haiku')
+    expect(selectMemoryModel(store.getState())).toBe('sonnet')
   })
 
   it('an empty patch is a no-op', () => {
