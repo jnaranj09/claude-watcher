@@ -6,7 +6,13 @@ import { execFileSync } from 'node:child_process'
 import * as os from 'os'
 import { CH } from '../../shared/ipc/contract'
 import type { PastSessionOpenResult, ShellOpenResult } from '../../shared/ipc/contract'
-import { resolveClaudeBin, composeClaudeCommand, prependToPath, shellQuote } from '../pty/claudeBin'
+import {
+  resolveClaudeBin,
+  composeClaudeCommand,
+  prependToPath,
+  shellQuote,
+  type ClaudeBinResolution
+} from '../pty/claudeBin'
 import { ShellOpenSchema } from '../../shared/schemas/terminal'
 import {
   SessionLaunchSchema,
@@ -68,6 +74,26 @@ import { spawnExtras } from '../pty/spawnExtras'
 import type { TrustedIpc } from './trustedIpc'
 import { boardWorkspaceOf } from './boardWorkspaceOf'
 
+/** claude resolved on disk the way every spawn does it (a launch, the version probe, a memory
+ *  save call), from `env`'s PATH and `CLAUDE_WATCHER_CLAUDE_BIN`. Never throws. */
+export function resolveClaudeOnDisk(
+  env: Readonly<Record<string, string | undefined>>
+): ClaudeBinResolution {
+  return resolveClaudeBin({
+    isExecutable: (p) => {
+      try {
+        accessSync(p, fsConstants.X_OK)
+        return true
+      } catch {
+        return false // missing / not executable / unreadable dir — never throws out
+      }
+    },
+    path: env.PATH,
+    home: os.homedir(),
+    override: env.CLAUDE_WATCHER_CLAUDE_BIN
+  })
+}
+
 // Claude version gate — read the installed version the SAME way the spawn resolves it.
 //
 // The spawn runs `$SHELL -l -c "<claude> ..."`, and `resolveClaudeBin` may legitimately hand
@@ -82,19 +108,7 @@ import { boardWorkspaceOf } from './boardWorkspaceOf'
 // NEVER-LOG-THE-VALUE: the resolved command is never logged, only a `code=`.
 export function readClaudeVersionRaw(shell: string): string | null {
   try {
-    const claude = resolveClaudeBin({
-      isExecutable: (p) => {
-        try {
-          accessSync(p, fsConstants.X_OK)
-          return true
-        } catch {
-          return false
-        }
-      },
-      path: process.env.PATH,
-      home: os.homedir(),
-      override: process.env.CLAUDE_WATCHER_CLAUDE_BIN
-    })
+    const claude = resolveClaudeOnDisk(process.env)
     return execFileSync(shell, ['-l', '-c', `${shellQuote(claude.command)} --version`], {
       encoding: 'utf8',
       timeout: 10_000,
@@ -277,19 +291,7 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     env: Record<string, string>
   } {
     const env = buildPtyEnv()
-    const claude = resolveClaudeBin({
-      isExecutable: (p) => {
-        try {
-          accessSync(p, fsConstants.X_OK)
-          return true
-        } catch {
-          return false // missing / not executable / unreadable dir — never throws out
-        }
-      },
-      path: env.PATH,
-      home: os.homedir(),
-      override: env.CLAUDE_WATCHER_CLAUDE_BIN
-    })
+    const claude = resolveClaudeOnDisk(env)
 
     // Log the PROVENANCE CODE only — never the resolved path (it leaks the operator's
     // filesystem layout; zod-boundaries.md never-log-the-value). `unresolved` is the code to

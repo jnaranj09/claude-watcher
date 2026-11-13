@@ -14,15 +14,18 @@
 // server's `<userData>/mcp/` folder, and the goals instance's one start sweep clears both, so this
 // instance has no `clearStale` (a second sweep could only delete live files).
 //
-// The `/clear` rebind and the card drop live in `window/cardState.ts`; a removed past record marks
-// the session's items `Session deleted` (`markSessionsDeletedInMemory`). Memory text never reaches
+// The `/clear` rebind and the card drop live in `window/cardState.ts`; a removed past record
+// forgets the session's save and marks its items and commands `Session deleted`
+// (`markSessionsDeletedInMemory`). Memory text never reaches
 // a log here: lines carry `code=` only.
 import type { Session } from '../../shared/schemas/session'
 import type { StorageProblemCode } from '../../shared/schemas/storageHealth'
 import { createMcpConfigs, grantMcpConfig, type McpConfigs } from '../goals/mcp/mcpConfigFile'
 import { createMcpEndpoint, type McpEndpoint } from '../mcp/mcpEndpoint'
 import { createSessionTokens, type SessionTokens } from '../mcp/sessionTokens'
+import type { Extractor } from './extract/extractor'
 import type { MemoryActivityLog } from './memoryActivity'
+import type { MemoryCommands } from './memoryCommands'
 import { buildMemoryIndex } from './memoryIndex'
 import type { MemoryStore } from './memoryStore'
 import {
@@ -197,14 +200,27 @@ export function memoryStep(log: (line: string) => void, code: string, step: () =
 }
 
 /** Deleted sessions (a past record forgotten, a card deleted, or a record a workspace cascade or
- *  the cap dropped): their items stay, marked `Session deleted`. Each id is its own step, so one
- *  failure does not stop the rest. Nothing while memory is off; never throws. */
+ *  the cap dropped): their save is forgotten first (its job cancelled, its save state deleted:
+ *  `forget` learns the jobs from the rows it removes), then their items and the commands they
+ *  ran last stay, marked `Session deleted`. Each id and each part is its own step, so one failure
+ *  does not stop the rest. A part that is null (memory off) is skipped; never throws. */
 export function markSessionsDeletedInMemory(
-  store: () => Pick<MemoryStore, 'markSessionDeleted'> | null,
+  memory: {
+    store: () => Pick<MemoryStore, 'markSessionDeleted'> | null
+    commands: () => Pick<MemoryCommands, 'markSessionDeleted'> | null
+    extractor: () => Pick<Extractor, 'forget'> | null
+    now: () => number
+  },
   sessionIds: readonly string[],
   log: (line: string) => void
 ): void {
   for (const sessionId of sessionIds) {
-    memoryStep(log, 'memory_mark_deleted_failed', () => store()?.markSessionDeleted(sessionId))
+    memoryStep(log, 'memory_forget_failed', () => memory.extractor()?.forget(sessionId))
+    memoryStep(log, 'memory_mark_deleted_failed', () =>
+      memory.store()?.markSessionDeleted(sessionId)
+    )
+    memoryStep(log, 'memory_mark_deleted_failed', () =>
+      memory.commands()?.markSessionDeleted(sessionId, memory.now())
+    )
   }
 }

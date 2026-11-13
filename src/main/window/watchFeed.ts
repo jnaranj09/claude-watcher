@@ -60,13 +60,16 @@ import type { LaunchService } from '../pty/launchSession'
 import type { LaunchedSet } from '../pty/launchedSet'
 import type { SessionSetup } from '../mods/sessionSetup'
 import { dropCardState, moveCardState } from './cardState'
+import { runRemoval, savePointForHook, savePointForRemoval } from './memorySavePoints'
 import type { GoalsStore } from '../persistence/goals'
 import type { GoalTokens, Grant } from '../goals/mcp/goalTokens'
 import type { Proposals } from '../goals/proposals'
 import type { McpConfigs } from '../goals/mcp/mcpConfigFile'
 import { appMcpRoutes, type McpEndpoint } from '../mcp/mcpEndpoint'
-import type { MemoryMcp } from '../memory/memoryLaunch'
+import { memoryStep, type MemoryMcp } from '../memory/memoryLaunch'
 import type { MemoryActivityLog } from '../memory/memoryActivity'
+import type { MemoryCommands } from '../memory/memoryCommands'
+import type { Extractor } from '../memory/extract/extractor'
 import type { MemoryStore } from '../memory/memoryStore'
 import type { TerminalManager } from '../pty/terminalManager'
 import type { ShellCompanionRegistry } from '../pty/shellCompanion'
@@ -118,7 +121,8 @@ export interface LaunchBoardSeam {
   /** Past sessions — is this id a live card on THIS window's board? Read-only. */
   hasSession(sessionId: string): boolean
   /** Memory — the live card for this id on THIS window's board, or undefined. Read-only; the
-   *  memory tools stamp what they save from it (memory/memoryLaunch.ts `liveSessionMeta`). */
+   *  memory tools and the extractor stamp what they save from it (memory/memoryLaunch.ts
+   *  `liveSessionMeta`). */
   sessionOf(sessionId: string): Session | undefined
   /** Story 6.3 removal, now with the exit's REASON (D-3): `archive` snapshots the card into the
    *  past-sessions store BEFORE it goes; `delete` drops any record. Idempotent either way. */
@@ -199,6 +203,10 @@ export interface WatchFeedDeps {
   memoryMcp: MemoryMcp
   memoryActivity: MemoryActivityLog
   getMemoryStore: () => MemoryStore | null
+  getMemoryCommands: () => MemoryCommands | null
+  /** Saving memory from sessions (memory phase 2): a launched session's `Stop`, its end (archive,
+   *  `/clear`) and its delete reach it here (`memorySavePoints.ts`); its save follows a `/clear`. */
+  extractor: Pick<Extractor, 'stop' | 'ended' | 'forget' | 'rebind'>
 }
 
 export interface WatchFeed {
@@ -235,7 +243,9 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
     goalMcp,
     memoryMcp,
     memoryActivity,
-    getMemoryStore
+    getMemoryStore,
+    getMemoryCommands,
+    extractor
   } = deps
 
   // Transcript watchers — per-window handles, disposed in teardownWatchFeed so no fs watch
@@ -525,8 +535,20 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       memoryConfigs: memoryMcp.configs,
       memoryActivity,
       memoryStore: getMemoryStore(),
+      memoryCommands: getMemoryCommands(),
+      memoryExtract: extractor,
       log: (line) => console.warn(line)
     })
+
+    /** One save point (`memorySavePoints.ts`). The extractor never throws; guarded anyway, so
+     *  memory can never break a hook or a removal. */
+    function memorySavePoint(sessionId: string, point: 'stop' | 'ended' | 'forget'): void {
+      memoryStep(
+        (line) => console.warn(line),
+        'memory_save_point_failed',
+        () => extractor[point](sessionId)
+      )
+    }
 
     /** D-3 — the ONE removal chokepoint for this window. Reads the card BEFORE the reducer drops
      *  it, then hands the reason → history decision to the PURE, unit-tested
@@ -534,19 +556,27 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
      *  `archive` snapshots it into the past-sessions store (a card that already left is a quiet
      *  no-op — no record, no log); `delete` drops any record for the id instead. Rides the SAME hook-removal reducer path as Story 6.3
      *  (applyHookStatus removed → handleDelta), so the card-removal delta is unchanged — only the
-     *  store side-effect is new. */
+     *  store side-effect is new. Memory's save point (an archive ends the session's save, a
+     *  delete forgets it) runs after the record and while the card is still on the board, once
+     *  per card exit; the order is `runRemoval`'s (memorySavePoints.ts). */
     function removeLaunchedSession(sessionId: string, reason: RemovalReason): void {
       const stored = reducer.snapshotMap().get(sessionId)
-      recordRemoval(
-        { pastSessions: getPastSessionsStore(), tokens: goalMcp.tokens, now: Date.now },
-        reason,
-        sessionId,
-        stored
-      )
-      // A removed card can have no pending rename to push, no setup to show, no live MCP token and
-      // no memory activity (its memory items stay).
-      dropCardState(cardStateDeps(), sessionId)
-      reducer.applyHookStatus(sessionId, { kind: 'removed' }).forEach(handleDelta)
+      runRemoval({
+        onBoard: stored !== undefined,
+        recordRemoval: () =>
+          recordRemoval(
+            { pastSessions: getPastSessionsStore(), tokens: goalMcp.tokens, now: Date.now },
+            reason,
+            sessionId,
+            stored
+          ),
+        memorySavePoint: () => memorySavePoint(sessionId, savePointForRemoval(reason)),
+        // A removed card can have no pending rename to push, no setup to show, no live MCP token
+        // and no memory activity (its memory items stay).
+        dropCardState: () => dropCardState(cardStateDeps(), sessionId),
+        removeFromBoard: () =>
+          reducer.applyHookStatus(sessionId, { kind: 'removed' }).forEach(handleDelta)
+      })
     }
 
     launchBoardSeams.set(wc, {
@@ -881,11 +911,8 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
         // UX-08 — the record learns where claude keeps this conversation, so Open can tell when
         // claude has since deleted it. Known, launched ids only (the same gate as the tail).
         const knownSession = reducer.snapshotMap().get(evt.session_id)
-        if (
-          knownSession !== undefined &&
-          launchedSet.has(evt.session_id) &&
-          evt.transcript_path !== undefined
-        ) {
+        const knownLaunched = knownSession !== undefined && launchedSet.has(evt.session_id)
+        if (knownLaunched && evt.transcript_path !== undefined) {
           livePastSessions.notePath(knownSession, evt.transcript_path)
         }
 
@@ -897,10 +924,11 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
         // and remember the terminal so the new id can adopt it below.
         const launchService = getLaunchService()
         const terminalManager = getTerminalManager()
+        let kept = false
         if (change.kind === 'removed' && launchService !== null && terminalManager !== null) {
           // ST-7 — on a /clear the kept card also goes idle under its old id (no SessionStart
           // reaches an http hook); the new id's first hook adopts it as usual.
-          const kept = keepCardOnLiveSessionEnd(evt, {
+          kept = keepCardOnLiveSessionEnd(evt, {
             launch: launchService,
             live: terminalManager,
             orphans: orphanRegistry,
@@ -910,8 +938,14 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
               reducer.applyHookStatus(sessionId, status).forEach(handleDelta),
             log: (message) => console.warn(message)
           })
-          if (kept) return
         }
+        // Memory's save points (memorySavePoints.ts): a `Stop` counts toward a checkpoint; a kept
+        // `/clear` ends the OLD id here, while the card still holds it. Never after the adoption:
+        // the rebind (`adoptCard` → `moveCardState`) comes with a later hook of the new id (R34).
+        const savePoint = knownLaunched ? savePointForHook(evt, kept) : null
+        if (savePoint !== null)
+          memorySavePoint(evt.session_id, savePoint === 'stop' ? 'stop' : 'ended')
+        if (kept) return
 
         // Past sessions (D-3) — a SessionEnd that reaches here (the pty-alive guard above did NOT
         // keep the card) is a real removal: archive it, belt-and-suspenders behind Stop/exit. Rides

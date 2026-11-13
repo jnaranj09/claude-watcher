@@ -167,6 +167,35 @@ describe('the opened memory', () => {
     memory?.close()
   })
 
+  it('a workspace delete removes its commands and save state with its items', () => {
+    const memory = open()
+    const meta = PORT_ITEM.meta
+    for (const workspaceId of ['w1', 'w2']) {
+      memory?.commands.record({
+        workspaceId,
+        folder: '/work/acme/shop',
+        text: 'npm test',
+        sessionId: `s-${workspaceId}`,
+        at: NOW
+      })
+      memory?.extractState.track({
+        sessionId: `s-${workspaceId}`,
+        originSessionId: `s-${workspaceId}`,
+        workspaceId,
+        meta,
+        phase: 'live',
+        at: NOW
+      })
+    }
+    memory?.removeByWorkspace('w1')
+    const all = { query: null, folder: null, offset: 0, limit: 10 }
+    expect(memory?.commands.list('w1', all).total).toBe(0)
+    expect(memory?.commands.list('w2', all).total).toBe(1)
+    expect(memory?.extractState.get('s-w1')).toBeNull()
+    expect(memory?.extractState.get('s-w2')).not.toBeNull()
+    memory?.close()
+  })
+
   it('a cascade the disk refuses logs a code and never throws', () => {
     const memory = open()
     memory?.close()

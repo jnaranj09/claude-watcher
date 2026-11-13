@@ -21,11 +21,15 @@ import { createExtractor } from './extractor'
 import { EXTRACT_SYSTEM_PROMPT } from './extractPrompt'
 import {
   EXTRACT_DIR,
+  createTimerPair,
+  extractSources,
   createExtractCall,
   createExtractVersionGate,
   memoryCascadeStep
 } from './extractWiring'
 import { composeExtractCommand, type ChildSeam, type SpawnSeam } from './headlessClaude'
+import type { TranscriptLookupDeps } from '../../pty/claudeTranscript'
+import type { OpenedMemory } from '../memoryStartup'
 
 const PID = 4242
 const CLAUDE = '/opt/my tools/claude'
@@ -434,5 +438,53 @@ describe('the workspace cascade step', () => {
       '[claude-watcher][memory] code=memory_cascade_failed step=rows'
     ])
     warn.mockRestore()
+  })
+})
+
+describe('the real timer pair', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('a cleared timer never fires, and a handle it did not make is ignored', () => {
+    vi.useFakeTimers()
+    const { setTimer, clearTimer } = createTimerPair()
+    const fired: string[] = []
+    const kept = setTimer(() => fired.push('kept'), 10)
+    const cleared = setTimer(() => fired.push('cleared'), 10)
+    clearTimer(cleared)
+    const foreign = setTimeout(() => fired.push('foreign'), 10)
+    clearTimer(foreign)
+    clearTimer(42)
+    vi.advanceTimersByTime(10)
+    expect(fired).toEqual(['kept', 'foreign'])
+    clearTimer(kept)
+  })
+})
+
+describe("the extractor's view of main", () => {
+  const ID = '4f9a3c1e-2b7d-4e8a-9c6f-1a2b3c4d5e6f'
+  /** claude's projects folder holding `folders`, where only the paths in `files` exist. */
+  const lookup = (folders: string[], files: string[]) => (): TranscriptLookupDeps => ({
+    projectsDir: '/claude/projects',
+    listDir: () => folders,
+    fileState: (path) => (files.includes(path) ? 'file' : 'missing')
+  })
+
+  it('memory is null until it is open, then names the store, the commands and the save state', () => {
+    const h = createHarness()
+    let opened: Pick<OpenedMemory, 'store' | 'commands' | 'extractState'> | null = null
+    const sources = extractSources({ memory: () => opened, lookup: lookup([], []) })
+    expect(sources.memory()).toBeNull()
+    opened = { store: h.store, commands: h.commands, extractState: h.state }
+    expect(sources.memory()).toEqual({ store: h.store, commands: h.commands, state: h.state })
+  })
+
+  it('locates a transcript claude has, and nothing for one it does not', () => {
+    const path = `/claude/projects/-work-acme/${ID}.jsonl`
+    const sources = extractSources({ memory: () => null, lookup: lookup(['-work-acme'], [path]) })
+    expect(sources.locate(ID)).toBe(path)
+    expect(sources.locate('6e5d4c3b-2a1f-4e9c-8a7d-b2e1f0a9c8d7')).toBeNull()
+    expect(sources.locate('not-a-uuid')).toBeNull()
   })
 })

@@ -1,8 +1,9 @@
 // What a launched card carries beside the reducer: its pending rename (pendingTitles.ts), its
 // Context setup (mods/sessionSetup.ts), and for a session started from goal tasks its task links,
 // MCP token and `--mcp-config` file (goals/), and for a planner its proposal (goals/proposals.ts),
-// and with memory on its memory token, config file and activity record, and the origin of the
-// items it saved (memory/). All of it follows the card when a `/clear` re-keys it. When the card is
+// and with memory on its memory token, config file and activity record, the origin of the items
+// and commands it saved, and its save state (memory/). All of it follows the card when a `/clear`
+// re-keys it (the save state AFTER the old id's end: `memorySavePoints.ts`). When the card is
 // removed, the rename, the setup, the tokens, the proposal, the files and the activity go; the
 // task links and the memory items stay (spec 2026-10-19 goals: a link to a gone session is hidden,
 // not dropped; spec 2026-11-11 memory: an item outlives its session). A seam moved out of
@@ -14,7 +15,9 @@ import type { GoalTokens } from '../goals/mcp/goalTokens'
 import type { McpConfigs } from '../goals/mcp/mcpConfigFile'
 import type { Proposals } from '../goals/proposals'
 import type { SessionTokens } from '../mcp/sessionTokens'
+import type { Extractor } from '../memory/extract/extractor'
 import type { MemoryActivityLog } from '../memory/memoryActivity'
+import type { MemoryCommands } from '../memory/memoryCommands'
 import { memoryStep } from '../memory/memoryLaunch'
 import type { MemoryStore } from '../memory/memoryStore'
 import type { MemoryGrant } from '../memory/memoryTools'
@@ -32,6 +35,10 @@ interface CardStateDeps {
   memoryActivity: Pick<MemoryActivityLog, 'rebind' | 'forget'>
   /** null while memory is off (database not open, SMOKE, quitting). */
   memoryStore: Pick<MemoryStore, 'rebindSession'> | null
+  /** null while memory is off, as `memoryStore`. */
+  memoryCommands: Pick<MemoryCommands, 'rebindSession'> | null
+  /** The extractor (`extract/extractor.ts`): its save state and jobs follow the card. */
+  memoryExtract: Pick<Extractor, 'rebind'> | null
   /** Code-only log sink (a memory failure here never stops the card's own step). */
   log: (line: string) => void
 }
@@ -49,10 +56,18 @@ export function moveCardState(deps: CardStateDeps, oldId: string, newId: string)
   deps.memoryTokens.rebind(oldId, newId)
   deps.memoryConfigs.rebind(oldId, newId)
   deps.memoryActivity.rebind(oldId, newId)
-  // The items it saved name the new id. Last, and guarded: a database write that fails is logged
+  // Its save state and a queued or running save follow (the old id's end already ran: the kept
+  // `SessionEnd` of a `/clear` came before the adoption that calls this). Then the items and
+  // commands it saved name the new id. Last, and guarded: a database write that fails is logged
   // (and reported by the store), and the card has already moved.
+  const extract = deps.memoryExtract
+  memoryStep(deps.log, 'memory_rebind_failed', () => extract?.rebind(oldId, newId))
   const store = deps.memoryStore
-  memoryStep(deps.log, 'memory_rebind_failed', () => store?.rebindSession(oldId, newId))
+  const commands = deps.memoryCommands
+  memoryStep(deps.log, 'memory_rebind_failed', () => {
+    store?.rebindSession(oldId, newId)
+    commands?.rebindSession(oldId, newId)
+  })
 }
 
 export function dropCardState(deps: CardStateDeps, sessionId: string): void {

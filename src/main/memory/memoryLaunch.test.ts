@@ -12,6 +12,7 @@ import { createSessionTokens, type SessionTokens } from '../mcp/sessionTokens'
 import { createMcpEndpoint, mcpRoute, type JsonRpcResponse } from '../mcp/mcpEndpoint'
 import { createGoalTokens } from '../goals/mcp/goalTokens'
 import { MCP_SERVER_NAME, createMcpConfigs } from '../goals/mcp/mcpConfigFile'
+import { META, T0, createHarness, flush, prompt, said } from '../../__fixtures__/extractorHarness'
 import { createMemoryActivity } from './memoryActivity'
 import { openMemoryDb } from './memoryDb'
 import { createMemoryStore, type MemoryStore } from './memoryStore'
@@ -389,6 +390,11 @@ describe('liveSessionMeta', () => {
   })
 })
 
+/** Memory as `markSessionsDeletedInMemory` reads it: only the item store (null = memory off). */
+function memoryOf(store: MemoryStore | null): Parameters<typeof markSessionsDeletedInMemory>[0] {
+  return { store: () => store, commands: () => null, extractor: () => null, now: () => NOW }
+}
+
 describe('markSessionsDeletedInMemory', () => {
   it("marks the session's items deleted and keeps them", () => {
     const store = openStore()
@@ -408,11 +414,7 @@ describe('markSessionsDeletedInMemory', () => {
       },
       source: null
     })
-    markSessionsDeletedInMemory(
-      () => store,
-      ['s1'],
-      () => undefined
-    )
+    markSessionsDeletedInMemory(memoryOf(store), ['s1'], () => undefined)
     expect(store.get(item.id)?.originDeletedAt).toBe(NOW)
   })
 
@@ -426,11 +428,7 @@ describe('markSessionsDeletedInMemory', () => {
       marked.push(id)
       return markOne(id)
     }
-    markSessionsDeletedInMemory(
-      () => store,
-      ['s1', 'bad', 's2'],
-      (line) => lines.push(line)
-    )
+    markSessionsDeletedInMemory(memoryOf(store), ['s1', 'bad', 's2'], (line) => lines.push(line))
     expect(marked).toEqual(['s1', 's2'])
     expect(lines).toEqual(['[claude-watcher][memory] code=memory_mark_deleted_failed'])
   })
@@ -442,22 +440,71 @@ describe('markSessionsDeletedInMemory', () => {
       throw new Error('store_write_failed')
     }
     expect(() =>
-      markSessionsDeletedInMemory(
-        () => store,
-        ['s1'],
-        (line) => lines.push(line)
-      )
+      markSessionsDeletedInMemory(memoryOf(store), ['s1'], (line) => lines.push(line))
     ).not.toThrow()
     expect(lines).toEqual(['[claude-watcher][memory] code=memory_mark_deleted_failed'])
   })
 
   it('does nothing while memory is off', () => {
-    expect(() =>
-      markSessionsDeletedInMemory(
-        () => null,
-        ['s1'],
-        () => undefined
-      )
-    ).not.toThrow()
+    expect(() => markSessionsDeletedInMemory(memoryOf(null), ['s1'], () => undefined)).not.toThrow()
+  })
+
+  it('a deleted session marks its commands and forgets its save', async () => {
+    const h = createHarness()
+    h.meta.set('s1', META)
+    h.set.manual = true
+    h.write('s1', prompt('the api now listens on port 9281'), said('moved it'), prompt('ok'))
+    h.commands.record({
+      workspaceId: 'w1',
+      folder: '/work/acme/shop',
+      text: 'npm test',
+      sessionId: 's1',
+      at: T0
+    })
+    h.ex.ended('s1')
+    await flush()
+    expect(h.calls).toHaveLength(1)
+    markSessionsDeletedInMemory(
+      { store: () => h.store, commands: () => h.commands, extractor: () => h.ex, now: () => NOW },
+      ['s1'],
+      () => undefined
+    )
+    expect(h.calls[0]?.cancel).toHaveBeenCalledTimes(1)
+    expect(h.state.get('s1')).toBeNull()
+    const all = { query: null, folder: null, offset: 0, limit: 10 }
+    expect(h.commands.list('w1', all).rows.map((c) => c.sessionDeletedAt)).toEqual([NOW])
+    h.calls[0]?.resolve({ ok: false, reason: 'cancelled', issue: null })
+    await h.ex.idle()
+  })
+
+  it('a failed forget still marks the items and the commands', () => {
+    const lines: string[] = []
+    const store = openStore()
+    const marked: string[] = []
+    store.markSessionDeleted = (id) => {
+      marked.push(`item ${id}`)
+      return 0
+    }
+    markSessionsDeletedInMemory(
+      {
+        store: () => store,
+        commands: () => ({
+          markSessionDeleted: (id) => {
+            marked.push(`command ${id}`)
+            return 0
+          }
+        }),
+        extractor: () => ({
+          forget: () => {
+            throw new Error('boom')
+          }
+        }),
+        now: () => NOW
+      },
+      ['s1'],
+      (line) => lines.push(line)
+    )
+    expect(marked).toEqual(['item s1', 'command s1'])
+    expect(lines).toEqual(['[claude-watcher][memory] code=memory_forget_failed'])
   })
 })

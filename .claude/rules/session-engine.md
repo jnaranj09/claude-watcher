@@ -163,14 +163,23 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   the token, the file, the activity record (kept in RAM; Context's `Memory` page reads it through
   `memory:activity`, with or without the mod's report, and lists again on `memory:changed`, which
   a store change and an activity change both push: `memoryStartup.ts`) and the origin of the items the session
-  saved (`window/cardState.ts`; the items last, guarded: `code=memory_rebind_failed`); a removed
-  card drops token, file and activity, never the items. A
-  deleted session (Past sessions `Forget`, or a card's `Delete`) keeps its items, marked
+  saved, the commands it ran and its save state (`window/cardState.ts`; the items last, guarded:
+  `code=memory_rebind_failed`); a removed card drops token, file and activity, never the items.
+  Saving from sessions (phase 2, `memory/extract/`): the hooks add save points, never a status
+  transition (`window/memorySavePoints.ts`): a launched session's `Stop` counts toward a
+  checkpoint; its end (archive, and the kept `SessionEnd` of a `/clear`, which ends the OLD id
+  before a hook of the new id adopts the card) runs once per card exit while the card still holds
+  the id; a delete forgets its save. The quit path stops the extractor first (a running call gets
+  SIGKILL at once); the start catches up what the last run owed, after the goals and past-sessions
+  stores exist. A
+  deleted session (Past sessions `Forget`, or a card's `Delete`) has its save forgotten and keeps
+  its items and commands, marked
   `Session deleted` (`pastSessions.ts` `onRemove` → `markSessionsDeletedInMemory`), and so does a
   session whose record left without one: a workspace cascade's (its workspace items are already
   deleted, memory runs first in `persistence/workspaceCascade.ts`, so only its global items are
   marked) or the 200 cap's (`onDropped`). A workspace delete's cascade deletes the workspace's
-  items. The card's Delete confirm (`StopConfirm`) asks how many items the session saved
+  items, commands and save state, after the extractor cancels that workspace's saves
+  (`memoryCascadeStep`). The card's Delete confirm (`StopConfirm`) asks how many items the session saved
   (`memory:session-count`, by the renderer's session id) and, only when the operator ticks its
   box, deletes them (`memory:delete-session`) AFTER main confirmed the session delete
   (`lib/sessionExit.ts`): a refused session delete never costs memory, and a refused memory

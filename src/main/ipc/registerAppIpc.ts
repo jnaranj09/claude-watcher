@@ -26,6 +26,9 @@ export interface AppIpcDeps {
   externalLinks: ExternalLinks
   quitGuardState: QuitGuardState
   archiveLiveSessions: () => void
+  /** Stops saving memory for good (`Extractor.quit`: SIGKILL to a running save call, R17). Runs
+   *  first on the quit path, only once the quit goes ahead; never throws. */
+  quitExtractor: () => void
   getTerminalManager: () => TerminalManager | null
   terminalOwners: Map<string, Electron.WebContents>
   reducers: Map<Electron.WebContents, ReducerLike>
@@ -48,6 +51,7 @@ export function createAppIpc(deps: AppIpcDeps): AppIpc {
     externalLinks,
     quitGuardState,
     archiveLiveSessions,
+    quitExtractor,
     getTerminalManager,
     terminalOwners,
     reducers,
@@ -114,8 +118,12 @@ export function createAppIpc(deps: AppIpcDeps): AppIpc {
       handleQuitConfirm(quitGuardState, {
         teardownAllSessions,
         teardownDeps: {
-          // Past sessions (D-3) — "Quit anyway" archives every live session before the kill.
-          archiveLiveSessions: () => archiveLiveSessions(),
+          // Past sessions (D-3) — "Quit anyway" archives every live session before the kill. A
+          // running memory save is killed first, so the archive's ends queue nothing new.
+          archiveLiveSessions: () => {
+            quitExtractor()
+            archiveLiveSessions()
+          },
           terminalManager: getTerminalManager(),
           clearTerminalOwners: () => terminalOwners.clear()
         },

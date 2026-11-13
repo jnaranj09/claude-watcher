@@ -6,7 +6,9 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { META, createHarness, prompt, said, stops } from '../../__fixtures__/extractorHarness'
 import { dropCardState, moveCardState } from './cardState'
+import { savePointForHook } from './memorySavePoints'
 import { createGoalsStore } from '../persistence/goals'
 import { createGoalTokens } from '../goals/mcp/goalTokens'
 import { MCP_SERVER_NAME, createMcpConfigs } from '../goals/mcp/mcpConfigFile'
@@ -16,6 +18,7 @@ import { mcpRoute } from '../mcp/mcpEndpoint'
 import { createMemoryActivity } from '../memory/memoryActivity'
 import { openMemoryDb } from '../memory/memoryDb'
 import { createMemoryMcp } from '../memory/memoryLaunch'
+import { createMemoryCommands } from '../memory/memoryCommands'
 import { createMemoryStore, type MemoryStore } from '../memory/memoryStore'
 import type { MemorySessionMeta } from '../memory/memoryTools'
 
@@ -90,6 +93,8 @@ function deps(): Parameters<typeof moveCardState>[0] & {
     memoryConfigs: memoryMcp.configs,
     memoryActivity,
     memoryStore,
+    memoryCommands: createMemoryCommands({ db: open.db, newId: () => `c${++n}` }),
+    memoryExtract: null,
     lines,
     log: (line) => lines.push(line)
   }
@@ -246,5 +251,55 @@ describe('card state', () => {
     const d = { ...deps(), memoryStore: null }
     expect(() => moveCardState(d, 'old', 'new')).not.toThrow()
     expect(d.sessionSetup.rebind).toHaveBeenCalledWith('old', 'new')
+  })
+
+  it('a /clear moves the save state and the commands to the new id', async () => {
+    const h = createHarness()
+    h.meta.set('old', META)
+    h.ex.stop('old')
+    h.commands.record({
+      workspaceId: 'w1',
+      folder: '/work/acme/shop',
+      text: 'npm test',
+      sessionId: 'old',
+      at: 1
+    })
+    moveCardState(
+      { ...deps(), memoryStore: h.store, memoryCommands: h.commands, memoryExtract: h.ex },
+      'old',
+      'new'
+    )
+    expect(h.state.get('old')?.originSessionId).toBe('new')
+    expect(h.commands.markSessionDeleted('old', 2)).toBe(0)
+    expect(h.commands.markSessionDeleted('new', 2)).toBe(1)
+    await h.ex.idle()
+  })
+
+  it('the /clear path ends the old id before the rebind, so no end is missing', async () => {
+    // R34. The feed's order: the kept SessionEnd (reason clear) of the OLD id is a save point while
+    // the card still holds that id; the rebind comes later, when a hook of the new id adopts it.
+    const h = createHarness()
+    h.meta.set('old', META)
+    h.write('old', prompt('the api now listens on port 9281'), said('moved it'), prompt('ok'))
+    stops(h, 'old', 2)
+    // The card moves with the rebind: from here only the new id has a stamp.
+    const moveCard = {
+      rebind: (oldId: string, newId: string): void => {
+        h.meta.delete(oldId)
+        h.meta.set(newId, META)
+        h.ex.rebind(oldId, newId)
+      }
+    }
+    expect(savePointForHook({ hook_event_name: 'SessionEnd', reason: 'clear' }, true)).toBe('clear')
+    h.ex.ended('old')
+    moveCardState({ ...deps(), memoryExtract: moveCard }, 'old', 'new')
+    await h.ex.idle()
+    expect(h.logs).not.toContain('[claude-watcher][memory] code=memory_extract_end_missing')
+    expect(h.calls).toHaveLength(1)
+    expect(h.state.get('old')?.phase).toBe('done')
+    expect(h.setMemory).toHaveBeenLastCalledWith(
+      'old',
+      expect.objectContaining({ state: 'nothing' })
+    )
   })
 })

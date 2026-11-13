@@ -1,6 +1,8 @@
 import { app, shell, BrowserWindow, ipcMain, nativeTheme, Menu } from 'electron'
 import { join } from 'path'
 import { randomUUID } from 'node:crypto'
+import { spawn } from 'node:child_process'
+import { mkdirSync } from 'node:fs'
 import { electronApp, is } from '@electron-toolkit/utils'
 import type { IPty } from 'node-pty'
 import icon from '../../resources/icon.png?asset'
@@ -36,7 +38,11 @@ import { createPastSessionsStore, type PastSessionsStore } from './persistence/p
 import { createLivePastSessions } from './persistence/livePastSessions'
 import { pastTasksMarkDone } from './persistence/pastSessionRecord'
 import { createElectronPastSessionsBlobStore } from './persistence/electronPastSessionsBlobStore'
-import { archiveTranscriptCheck, createTranscriptLookupFromFs } from './pty/claudeTranscript'
+import {
+  archiveTranscriptCheck,
+  createTranscriptLookupFromFs,
+  transcriptLookupDepsFromFs
+} from './pty/claudeTranscript'
 import { createTranscriptInfoReaderFromFs } from './pty/claudeTranscriptInfo'
 import { createTagsStore, type TagsStore } from './persistence/tags'
 import { createElectronTagsBlobStore } from './persistence/electronTagsBlobStore'
@@ -59,8 +65,19 @@ import {
   createMemoryMcp,
   liveSessionMeta,
   markSessionsDeletedInMemory,
-  memorySpawnExtras
+  memorySpawnExtras,
+  memoryStep
 } from './memory/memoryLaunch'
+import { createExtractor } from './memory/extract/extractor'
+import {
+  createExtractCall,
+  createExtractVersionGate,
+  createTimerPair,
+  extractSources,
+  memoryCascadeStep
+} from './memory/extract/extractWiring'
+import { readTranscriptSlice, transcriptFsOnDisk } from './memory/extract/transcriptReader'
+import { buildPtyEnv } from './pty/ptyEnv'
 import { goalSpawnExtras } from './goals/goalLaunch'
 import { createGoalTokens } from './goals/mcp/goalTokens'
 import { MCP_SERVER_NAME, createMcpConfigs } from './goals/mcp/mcpConfigFile'
@@ -154,7 +171,8 @@ import { createAppIpc } from './ipc/registerAppIpc'
 import {
   isExistingDirectory,
   readClaudeVersionRaw,
-  registerLaunchIpc
+  registerLaunchIpc,
+  resolveClaudeOnDisk
 } from './ipc/registerLaunchIpc'
 import { createWatchFeed, type LaunchBoardSeam } from './window/watchFeed'
 import { makeCreateWindow } from './window/createWindow'
@@ -491,7 +509,11 @@ function cascade(workspaceId: string): void {
     tags: tagsStore,
     rules: rulesStore,
     goals: goalsStore,
-    memory,
+    // The extractor forgets the workspace's saves (cancelling a running one) BEFORE the rows go.
+    memory: memoryCascadeStep(
+      () => extractor,
+      () => memory
+    ),
     pastSessions: pastSessionsStore,
     // A deleted workspace had no live cards (W-6), so this cancels nothing today; it keeps the
     // timers honest if that guard ever loosens.
@@ -573,6 +595,11 @@ const memoryNames = memoryNameLookups({
 /** Memory on: the setting, read live (off takes effect for the next launch and for every tool call). */
 const memoryEnabled = (): boolean => (settingsStore?.get() ?? DEFAULT_SETTINGS).memoryEnabled
 const memoryStore = (): MemoryStore | null => memory?.store ?? null
+/** The live card's stamp, as the memory tools and the extractor read it. */
+const sessionMeta = liveSessionMeta({
+  boards: () => launchBoardSeams.values(),
+  tasksForSession: (id) => goalsStore?.tasksForSession(id) ?? []
+})
 // The memory server (`/mcp/memory` on the hook listener, memory/memoryLaunch.ts): its tokens are its
 // own, its config files share the goals server's folder (the goals instance's one start sweep
 // clears both), and its tools read the store through the getter on every call.
@@ -581,19 +608,68 @@ const memoryMcp = createMemoryMcp({
   report: storageHealth.reporterFor('memory'),
   enabled: memoryEnabled,
   store: memoryStore,
-  session: liveSessionMeta({
-    boards: () => launchBoardSeams.values(),
-    tasksForSession: (id) => goalsStore?.tasksForSession(id) ?? []
-  }),
+  session: sessionMeta,
   names: memoryNames,
   activity: memoryActivity,
   now: () => Date.now(),
   log: (line) => console.warn(line)
 })
-/** A deleted session's memory items stay, marked `Session deleted` (pastSessions.ts `onRemove`
- *  for a Forget or a card's Delete, `onDropped` for a record a cascade or the cap dropped). */
+// Saving memory from sessions (memory phase 2, memory/extract/): one queue for the app. Every seam
+// is a getter, so it is safe before memory opens and after the quit closes it (and under SMOKE,
+// where memory never opens). The hook, removal and `/clear` save points are the watch feed's
+// (window/memorySavePoints.ts); the start's catch-up and the quit's kill are below.
+const memorySettings = (): typeof DEFAULT_SETTINGS => settingsStore?.get() ?? DEFAULT_SETTINGS
+const extractor = createExtractor({
+  enabled: memoryEnabled,
+  checkpoint: () => memorySettings().memoryCheckpoint,
+  tasksOn: () => memorySettings().memorySaveTasks,
+  model: () => memorySettings().memoryModel,
+  ...extractSources({ memory: () => memory, lookup: () => transcriptLookupDepsFromFs() }),
+  goals: () => goalsStore,
+  sessionMeta,
+  read: (path, fromOffset, maxBytes) =>
+    readTranscriptSlice(transcriptFsOnDisk, path, fromOffset, maxBytes),
+  // R35: an OK answer is kept for the run; only a job asks (never a hook, never window creation).
+  versionOk: createExtractVersionGate(() => readClaudeVersionRaw(SHELL)),
+  call: createExtractCall({
+    shell: SHELL,
+    userData: () => app.getPath('userData'),
+    env: () => buildPtyEnv(),
+    resolveClaude: () => resolveClaudeOnDisk(buildPtyEnv()),
+    spawn,
+    // The pid it gets is already the process group's (negative): passed on unchanged.
+    kill: (pid, signal) => process.kill(pid, signal),
+    mkdir: (dir) => mkdirSync(dir, { recursive: true, mode: 0o700 }),
+    ...createTimerPair()
+  }),
+  pastSessions: () => pastSessionsStore,
+  activity: memoryActivity,
+  // Dropped for now: Task 12 sends the result to the renderer.
+  push: () => undefined,
+  now: () => Date.now(),
+  log: (line) => console.warn(line)
+})
+/** The quit path: a running save call gets its SIGKILL now (R17), before the archive. */
+const quitExtractor = (): void =>
+  memoryStep(
+    (line) => console.warn(line),
+    'memory_extract_quit_failed',
+    () => extractor.quit()
+  )
+/** A deleted session's save is forgotten and its memory items and commands stay, marked `Session
+ *  deleted` (pastSessions.ts `onRemove` for a Forget or a card's Delete, `onDropped` for a record a
+ *  cascade or the cap dropped). */
 const markMemorySessionsDeleted = (sessionIds: readonly string[]): void =>
-  markSessionsDeletedInMemory(memoryStore, sessionIds, (line) => console.warn(line))
+  markSessionsDeletedInMemory(
+    {
+      store: memoryStore,
+      commands: () => memory?.commands ?? null,
+      extractor: () => extractor,
+      now: () => Date.now()
+    },
+    sessionIds,
+    (line) => console.warn(line)
+  )
 const pastSessionsMemory = {
   onRemove: (sessionId: string): void => markMemorySessionsDeleted([sessionId]),
   onDropped: markMemorySessionsDeleted
@@ -702,7 +778,9 @@ const { registerWatchFeed, teardownWatchFeed } = createWatchFeed({
   goalMcp,
   memoryMcp,
   memoryActivity,
-  getMemoryStore: memoryStore
+  getMemoryStore: memoryStore,
+  getMemoryCommands: () => memory?.commands ?? null,
+  extractor
 })
 
 // Story 3.5 (SM-2) — the ONE app-global telemetry store. Append-only JSONL in userData
@@ -808,6 +886,7 @@ const { registerServerHealthIpc, registerLinksIpc, registerClipboardIpc, registe
     externalLinks,
     quitGuardState,
     archiveLiveSessions,
+    quitExtractor,
     getTerminalManager: () => terminalManager,
     terminalOwners,
     reducers,
@@ -1135,6 +1214,12 @@ app
     }
     registerPastSessionsIpc()
 
+    // Memory's catch-up for the saves the last run owed (it also reads the rest of a session whose
+    // save stopped on `more`, R22). Only now: it needs the memory database, the goals store (a
+    // task candidate with no goals store is lost for good) and the past-sessions store. With
+    // Memory off, each owed save is dropped and its record says `off` (D24). Not under SMOKE.
+    if (!SMOKE) extractor.catchUp()
+
     // Story 3.5 (SM-2) — build the ONE app-global telemetry store AFTER app-ready
     // (app.getPath('userData') needs ready) and register the telemetry IPC ONCE.
     // Construction fails closed on a corrupt persisted JSONL (backs up + starts fresh —
@@ -1415,8 +1500,12 @@ app.on('before-quit', (e) => {
     teardownAllSessions,
     teardownDeps: {
       // Past sessions (D-3) — the nothing-live quit archives too (a bound session the guard's
-      // count did not see still gets its record). Runs only when this quit goes ahead.
-      archiveLiveSessions: () => archiveLiveSessions(),
+      // count did not see still gets its record). Runs only when this quit goes ahead. A running
+      // memory save is killed first, so the archive's ends queue nothing new.
+      archiveLiveSessions: () => {
+        quitExtractor()
+        archiveLiveSessions()
+      },
       terminalManager,
       clearTerminalOwners: () => terminalOwners.clear()
     },

@@ -9,9 +9,10 @@ import { join } from 'node:path'
 import { MIN_EXTRACT_CLAUDE_VERSION } from '../../../shared/launch/claudeVersion'
 import { EXTRACT_JSON_SCHEMA, EXTRACT_LIMITS } from '../../../shared/schemas/memoryExtract'
 import type { MemoryModel } from '../../../shared/schemas/settings'
+import { locateTranscript, type TranscriptLookupDeps } from '../../pty/claudeTranscript'
 import { compareVersions, parseClaudeVersion } from '../../pty/claudeVersion'
 import type { OpenedMemory } from '../memoryStartup'
-import type { Extractor } from './extractor'
+import type { Extractor, ExtractorDeps } from './extractor'
 import { EXTRACT_SYSTEM_PROMPT } from './extractPrompt'
 import {
   buildExtractEnv,
@@ -90,6 +91,53 @@ export function createExtractCall(deps: {
       },
       input
     )
+  }
+}
+
+/** The extractor's view of what main holds: the opened memory (null while it is not open: SMOKE,
+ *  an unreadable file, after the quit closed it) as `{ store, commands, state }`, and a
+ *  transcript's path found by its id (D1; null unless claude surely has it). */
+export function extractSources(deps: {
+  memory: () => Pick<OpenedMemory, 'store' | 'commands' | 'extractState'> | null
+  lookup: () => TranscriptLookupDeps
+}): Pick<ExtractorDeps, 'memory' | 'locate'> {
+  return {
+    memory: () => {
+      const opened = deps.memory()
+      if (opened === null) return null
+      return { store: opened.store, commands: opened.commands, state: opened.extractState }
+    },
+    locate: (sessionId) => {
+      const found = locateTranscript(deps.lookup(), sessionId)
+      return found.kind === 'found' ? found.path : null
+    }
+  }
+}
+
+/** The real timer pair `createExtractCall` takes, typed `unknown` at the seam with no cast:
+ *  `clearTimer` clears only a handle its own `setTimer` returned and that has not fired or been
+ *  cleared; any other value is ignored. */
+export function createTimerPair(): {
+  setTimer: (fn: () => void, ms: number) => unknown
+  clearTimer: (handle: unknown) => void
+} {
+  const live = new Set<ReturnType<typeof setTimeout>>()
+  return {
+    setTimer: (fn, ms) => {
+      const handle = setTimeout(() => {
+        live.delete(handle)
+        fn()
+      }, ms)
+      live.add(handle)
+      return handle
+    },
+    clearTimer: (handle) => {
+      for (const own of live) {
+        if (own !== handle) continue
+        clearTimeout(own)
+        live.delete(own)
+      }
+    }
   }
 }
 

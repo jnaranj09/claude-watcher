@@ -41,15 +41,16 @@ export interface PastSessionsStoreOptions {
    *  id; fails open); the default says every transcript exists. */
   hasTranscript?: (sessionId: string, knownPath: string | undefined) => boolean
   /** Memory (spec 2026-11-11): a session the operator deleted (a Forget, or a card's Delete, which
-   *  drops its record) keeps its memory items, marked `Session deleted`. Called after every
+   *  drops its record) has its memory save forgotten and keeps its memory items and commands,
+   *  marked `Session deleted`. Called after every
    *  `remove` the disk kept, known id or not (a card deleted before its first prompt has no
    *  record); never by `removeByWorkspace` or the cap (see `onDropped`). Must not throw:
    *  index.ts wires `markSessionsDeletedInMemory`. */
   onRemove?: (sessionId: string) => void
   /** Memory: the ids of records that left WITHOUT a Forget, once their write is done: a workspace
    *  cascade's (the cascade deleted that workspace's items first, so only global ones are left to
-   *  mark) and the cap's evictions (at load too). Their sessions' items are marked
-   *  `Session deleted`, like a Forget's. Never called with no id. Must not throw: index.ts wires
+   *  mark) and the cap's evictions (at load too). Their sessions' saves are forgotten and their
+   *  items and commands marked `Session deleted`, like a Forget's. Never called with no id. Must not throw: index.ts wires
    *  `markSessionsDeletedInMemory`. */
   onDropped?: (sessionIds: readonly string[]) => void
 }
