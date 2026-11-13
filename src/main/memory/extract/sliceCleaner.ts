@@ -36,7 +36,10 @@ export const NON_EVIDENCE_TOOLS: ReadonlySet<string> = new Set([
   'WebFetch',
   'WebSearch',
   'Agent',
-  'Task'
+  'Task',
+  // claude's own MCP resource tools: their results are MCP results too (R12)
+  'ReadMcpResourceTool',
+  'ListMcpResourcesTool'
 ])
 
 export function isNonEvidenceTool(name: string): boolean {
@@ -227,12 +230,16 @@ export function cleanSlice(
 
 /** `[#12 operator]\n<text>`, `[#14 tool Bash] <args>`, `[#15 result Bash ok]\n<text>`. */
 export function renderEntry(entry: CleanEntry): string {
-  if (entry.kind === 'tool') return `[#${entry.n} tool ${entry.tool ?? ''}] ${entry.text}`
+  // A line of text that starts with `[#` gets one space in front (R13), so transcript text never
+  // reads as an entry header. Only the rendering changes: the quote check reads `entry.text`, and
+  // its whitespace folding makes a quote copied from the rendered line match as well.
+  const text = entry.text.replace(/^\[#/gm, ' [#')
+  if (entry.kind === 'tool') return `[#${entry.n} tool ${entry.tool ?? ''}] ${text}`
   const header =
     entry.kind === 'result'
       ? `[#${entry.n} result ${entry.tool ?? ''} ${entry.status ?? 'ok'}]`
       : `[#${entry.n} ${entry.kind}]`
-  return entry.text === '' ? header : `${header}\n${entry.text}`
+  return text === '' ? header : `${header}\n${text}`
 }
 
 /** The entries joined by one blank line. */

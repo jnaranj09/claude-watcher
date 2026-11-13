@@ -3,9 +3,9 @@
 // (or holds the mark) is dropped. Pure: no I/O, no log (the text is the operator's conversation).
 import { SECRET_MARK } from '../../../shared/schemas/memoryExtract'
 
-/** One RegExp per kind of secret: the addendum's "Secrets" list plus ruling R10's shapes. Every one is
- *  global, so `replace` takes every match; `search` ignores the flag, so `hasSecret` keeps no state
- *  between calls. Exported for its test, which proves every pattern finds a fake secret.
+/** One RegExp per kind of secret: the addendum's "Secrets" list plus rulings R10 and R14. Every
+ *  one is global, so `replace` takes every match; `search` ignores the flag, so `hasSecret` keeps no
+ *  state between calls. Exported for its test, which proves every pattern finds a fake secret.
  *
  *  Each pattern stays linear on a long text (a result can be megabytes): a start that can repeat
  *  inside the run that follows it is either fixed-length, bounded, or allowed only at the start of
@@ -36,17 +36,23 @@ export const SECRET_PATTERNS: readonly RegExp[] = [
   /["']?authorization[A-Za-z0-9_]{0,20}["']?\s{0,5}[:=]\s{0,5}["']?(?:[A-Za-z][A-Za-z0-9-]{0,30}\s{1,5})?[^\s"']{8,}["']?/gi,
   // A URL with `user:password@`, the user possibly empty (`redis://:pass@`, R10)
   /\b[A-Za-z][A-Za-z0-9+.-]{0,30}:\/\/[^\s:/@]*:[^\s/@]+@/g,
-  // `curl -u user:pass` / `--user user:pass` (R10); a password of digits only is a uid:gid
-  // (`docker run -u 1000:1000`), not a secret
-  /(?<![A-Za-z0-9_-])(?:-u|--user)(?:\s{1,5}|=)["']?[^\s:"']{1,100}:\d{0,50}[^\s"'\d][^\s"']{0,200}["']?/g,
+  // `curl -u user:pass`, `-uuser:pass`, `--user user:pass`, `--user=…` (R10, R14): the user may be
+  // empty (`-u :token`), a quoted pair is taken whole (spaces included). Not taken: a pair of digits
+  // only on both sides, a uid:gid (`docker run -u 1000:1000`), and a `+` format (`date -u +%H:%M`)
+  /(?<![A-Za-z0-9_-])(?:-u\s{0,5}|--user(?:\s{1,5}|=))(?:"[^"\n:]{0,100}:[^"\n]{1,200}"|'[^'\n:]{0,100}:[^'\n]{1,200}'|(?!\d{1,50}:\d{1,50}(?![^\s"']))(?:[^\s:"'+][^\s:"']{0,99})?:[^\s"']{1,200})/g,
+  // A secret flag and its value, after a space or `=` (`--password V`, `--api-key=V`, R14); a
+  // quoted value is taken whole. `--password-file`, `--token-count` are other flags.
+  /(?<![A-Za-z0-9_-])--(?:api[_-]?key|password|passwd|token|secret)(?:=|\s{1,5})(?:"[^"\n]{1,200}"|'[^'\n]{1,200}'|[^\s"'-][^\s"']{5,})/gi,
   // An API key name (`apiKey`, `api_key`, `api-key`, `x-api-key`, `APIKEY`, R10), then `:` or `=`,
-  // then a quoted value of 8+ characters, or an unquoted one of 8+ that holds a digit (so code such
-  // as `apiKey: config.apiKey` or `apiKey = getApiKey()` survives)
-  /["']?(?:x-)?api[_-]?key[A-Za-z0-9_]{0,20}["']?\s{0,5}[:=]\s{0,5}(?:"[^"\s]{8,}"|'[^'\s]{8,}'|(?=[^\s"'(),;]{0,100}?\d)[^\s"'(),;]{8,})/gi,
-  // A secret-looking name, then `:` or `=`, then 8+ characters (`password=`, `"secret": "…"`).
-  // No word characters before the name and bounded runs after it: an unbounded run would scan to
-  // the end of the text once per name it holds.
-  /["']?(?:password|passwd|pwd|secret|token|access_key|private_key)[A-Za-z0-9_]{0,20}["']?\s{0,5}[:=]\s{0,5}["']?[^\s"']{8,}["']?/gi
+  // then a quoted value of 8+ characters, an unquoted one of 8+ that holds a digit, or an unquoted
+  // run of 20+ key characters that is not a call or a property path (R14). So code such as
+  // `apiKey: config.apiKey` or `apiKey = getApiKeyFromTheEnvironment()` survives.
+  /["']?(?:x-)?api[_-]?key[A-Za-z0-9_]{0,20}["']?\s{0,5}[:=]\s{0,5}(?:"[^"\s]{8,}"|'[^'\s]{8,}'|(?=[^\s"'(),;]{0,100}?\d)[^\s"'(),;]{8,}|[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_.(-]))/gi,
+  // A secret-looking name, then `:` or `=`, then a quoted value of 4+ characters taken whole (spaces
+  // included, R14) or an unquoted one of 8+ (`password=`, `"secret": "…"`). No word characters
+  // before the name and bounded runs after it: an unbounded run would scan to the end of the text
+  // once per name it holds.
+  /["']?(?:password|passwd|pwd|secret|token|access_key|private_key)[A-Za-z0-9_]{0,20}["']?\s{0,5}[:=]\s{0,5}(?:"[^"\n]{4,200}"|'[^'\n]{4,200}'|["']?[^\s"']{8,}["']?)/gi
 ]
 
 /** The text with every match of every pattern replaced by SECRET_MARK. */

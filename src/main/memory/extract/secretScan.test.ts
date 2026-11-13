@@ -53,7 +53,21 @@ const fakeSecrets: [string, string][] = [
   ['an API_KEY env assignment', 'API' + '_KEY=' + 'k1'.repeat(6)],
   ['an APIKEY env assignment', 'API' + 'KEY=' + 'k1'.repeat(6)],
   ['an api-key setting', 'api' + '-key: ' + 'k1'.repeat(6)],
-  ['an x-api-key header', 'x-api' + '-key: ' + 'k1'.repeat(6)]
+  ['an x-api-key header', 'x-api' + '-key: ' + 'k1'.repeat(6)],
+  // ruling R14
+  ['an --api-key flag with a space', '--api' + '-key ' + 'k'.repeat(12)],
+  ['a --password flag with a space', '--pass' + 'word ' + 'hunter' + 'x'.repeat(4)],
+  ['a --token= flag', '--to' + 'ken=' + 't'.repeat(12)],
+  ['a --secret flag', '--sec' + 'ret ' + 's'.repeat(12)],
+  ['a quoted --password flag with a space', '--pass' + 'word "' + 'two words' + '"'],
+  ['a -u pair with a digits-only password', '-u ' + 'admin:' + '1'.repeat(6)],
+  ['a glued -u pair', '-u' + 'admin:' + 'p'.repeat(10)],
+  ['a -u pair with a digits-only user', '-u ' + '1000:' + 'p'.repeat(10)],
+  ['a -u token with an empty user', '-u ' + ':' + 't'.repeat(10)],
+  ['a quoted -u pair with a space', '-u "' + 'admin:' + 'two words' + '"'],
+  ['a quoted password with spaces', 'pass' + 'word: "' + 'correct horse battery' + '"'],
+  ['an x-api-key of 20+ letters with no digit', 'x-api' + '-key: ' + 'aBcD'.repeat(6)],
+  ['an APIKEY env value of letters only', 'API' + 'KEY=' + 'aBcD'.repeat(6)]
 ]
 
 describe('redactSecrets', () => {
@@ -82,7 +96,16 @@ describe('redactSecrets', () => {
     '-----BEGIN PGP PUBLIC KEY BLOCK-----',
     'Authorization: none',
     'authorization is required',
-    'eyJ is how a JWT starts'
+    'eyJ is how a JWT starts',
+    // near misses of the R14 shapes
+    '--password-file /etc/app/pw',
+    '--token-count 5',
+    '--password $PASS',
+    '--token --verbose',
+    'the api key is required',
+    'date -u +%H:%M',
+    'apiKey = getApiKeyFromTheEnvironment()',
+    'api_key: settings.apiKeyFromTheEnvironment'
   ])('leaves %s alone', (plain) => {
     expect(redactSecrets(plain)).toBe(plain)
     expect(hasSecret(plain)).toBe(false)
@@ -125,30 +148,32 @@ describe('redactSecrets', () => {
 const TWO_MB = 2_000_000
 /** `unit` repeated to 2 MB. */
 const fill = (unit: string): string => unit.repeat(Math.ceil(TWO_MB / unit.length)).slice(0, TWO_MB)
+/** Smaller sizes timed first: a pattern that is quadratic fails there in seconds, instead of
+ *  stalling the whole run on 2 MB (a running regex blocks Vitest's own timeout). */
+const STEPS = [128_000, 512_000] as const
+/** Milliseconds `redactSecrets` takes on the first `size` characters of `text`. */
+function msAt(text: string, size: number): number {
+  const part = text.slice(0, size)
+  const start = performance.now()
+  redactSecrets(part)
+  return performance.now() - start
+}
 
 describe('redactSecrets on a long text', () => {
-  // A pattern that rescans the run from every `eyJ` is quadratic: it would hang on 2 MB, so this
-  // smaller size (seconds for such a pattern) turns the test red instead of stalling the run.
-  it('takes well under two seconds for 160 KB of eyJ- repeated', () => {
-    const run = 'eyJ-'.repeat(40_000)
-    const start = performance.now()
-    expect(redactSecrets(run)).toBe(run)
-    expect(performance.now() - start).toBeLessThan(2000)
-  })
-
   it.each([
     ['a name repeated with no value', fill('token')],
     ['a dotted word', fill('a.')],
     ['spaces', fill(' ')],
     ['eyJ- repeated (JWT starts with no dots)', fill('eyJ-')]
   ])('takes well under two seconds for 2 MB of %s and changes nothing', (_name, text) => {
-    const start = performance.now()
+    expect(msAt(text, STEPS[0])).toBeLessThan(2000)
+    expect(msAt(text, STEPS[1])).toBeLessThan(2000)
+    expect(msAt(text, TWO_MB)).toBeLessThan(2000)
     expect(redactSecrets(text)).toBe(text)
-    expect(performance.now() - start).toBeLessThan(2000)
   })
 
   // Hostile input for every pattern: long runs of one character, and long runs of almost-matches
-  // of that pattern. Measured at under 100 ms each; the bound is generous for slow machines.
+  // of that pattern. Measured at under 200 ms each; the bound is generous for slow machines.
   it.each([
     ['one letter', fill('a')],
     ['dashes', fill('-')],
@@ -193,11 +218,27 @@ describe('redactSecrets on a long text', () => {
     ['x-api-key values one short', fill('x-api' + '-key: abcdefg ')],
     ['apiKey quotes that never close', fill('api' + 'Key: "aaaaaaa')],
     ['password values one short', fill('pass' + 'word=' + 'a'.repeat(7) + ' ')],
-    ['token names with spaces', fill('token ')]
+    ['token names with spaces', fill('token ')],
+    // R14 shapes
+    ['--password flags with no value', fill('--pass' + 'word ')],
+    ['--token quotes that never close', fill('--to' + 'ken "aaaa')],
+    ['--api-key values one short', fill('--api' + '-key ' + 'a'.repeat(4) + ' ')],
+    ['glued -u with no colon', fill(' -u' + 'aaaa')],
+    ['-u repeated', fill('-u')],
+    ['--user= repeated', fill('--user=')],
+    ['-u with an empty user and no password', fill(' -u :')],
+    ['-u quotes that never close', fill(' -u "a:b')],
+    [
+      'one -u pair of long digit runs',
+      ' -u ' + '1'.repeat(TWO_MB / 2) + ':' + '1'.repeat(TWO_MB / 2)
+    ],
+    ['password quotes that never close', fill('pass' + 'word="a b')],
+    ['apiKey letter runs one short', fill('api' + 'key=' + 'a'.repeat(19) + ' ')],
+    ['one apiKey letter run that is a call', 'api' + 'Key=' + 'a'.repeat(TWO_MB) + '(']
   ])('takes well under two seconds for 2 MB of %s', (_name, text) => {
-    const start = performance.now()
-    expect(typeof redactSecrets(text)).toBe('string')
-    expect(performance.now() - start).toBeLessThan(2000)
+    expect(msAt(text, STEPS[0])).toBeLessThan(2000)
+    expect(msAt(text, STEPS[1])).toBeLessThan(2000)
+    expect(msAt(text, TWO_MB)).toBeLessThan(2000)
   })
 })
 
