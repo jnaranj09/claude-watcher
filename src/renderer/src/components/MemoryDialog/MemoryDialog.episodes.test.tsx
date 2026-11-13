@@ -213,4 +213,20 @@ describe('MemoryDialog — Episodes', () => {
     })
     expect(within(pane).queryByRole('img')).not.toBeInTheDocument()
   })
+
+  it('a javascript: URL, a right-to-left override and 200 lines render as text, never a link', async () => {
+    const title = 'javascript:alert(1) \u202Etxt.exe'
+    const body = Array.from({ length: 200 }, (_, i) => `javascript:void(${i}) \u202Eline`).join(
+      '\n'
+    )
+    bridge = installMemoryBridge([episodeItem({ title, body })])
+    await openEpisodes()
+    await userEvent.click(screen.getByRole('button', { name: /^javascript:alert\(1\)/ }))
+    const pane = await screen.findByTestId('memory-episode')
+    expect(within(pane).getByTestId('memory-episode-title')).toHaveTextContent(title)
+    expect(within(pane).getByTestId('memory-episode-body')).toHaveTextContent(body, {
+      normalizeWhitespace: false
+    })
+    expect(screen.queryAllByRole('link')).toHaveLength(0)
+  })
 })

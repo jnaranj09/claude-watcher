@@ -229,4 +229,35 @@ describe('MemoryDialog — Commands', () => {
       normalizeWhitespace: false
     })
   })
+
+  it('a deleted command closes its pane even before the list answers again', async () => {
+    bridge = installMemoryBridge([], TWO)
+    // Main answers the delete; the list it sends next is still on its way.
+    bridge.removeCommand.mockResolvedValue(undefined)
+    await openCommands()
+    await userEvent.click(row('npm run build'))
+    const pane = await screen.findByTestId('memory-command')
+    await userEvent.click(within(pane).getByRole('button', { name: 'Delete' }))
+    await userEvent.click(within(pane).getByRole('button', { name: 'Confirm delete' }))
+    await flush(4)
+    expect(screen.queryByTestId('memory-command')).not.toBeInTheDocument()
+    expect(screen.getByTestId('memory-command-placeholder')).toHaveTextContent(
+      'Select a command on the left.'
+    )
+  })
+
+  it('a javascript: URL, a right-to-left override and 200 lines render as text, never a link', async () => {
+    const text = `javascript:alert(1) \u202Eexe.txt ${Array.from({ length: 200 }, (_, i) => `line ${i}`).join('\n')}`
+    const folder = 'javascript:alert(2)'
+    bridge = installMemoryBridge([], [commandRow({ text, folder })])
+    await openCommands()
+    expect(screen.queryAllByRole('link')).toHaveLength(0)
+    await userEvent.click(screen.getByTestId('memory-command-select-c1'))
+    const pane = await screen.findByTestId('memory-command')
+    expect(within(pane).getByTestId('memory-command-text')).toHaveTextContent(text, {
+      normalizeWhitespace: false
+    })
+    expect(within(pane).getByText(folder)).toBeVisible()
+    expect(screen.queryAllByRole('link')).toHaveLength(0)
+  })
 })

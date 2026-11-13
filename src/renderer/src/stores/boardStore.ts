@@ -349,8 +349,9 @@ export interface BoardState {
   sessionsDialog: SessionsPage | null
   /**
    * Memory (phase 2) — the Past sessions record the open Sessions dialog starts on (an episode's
-   * `Past sessions` button), else null (RENDERER VIEW-STATE). Set only by `openSessionsDialog`,
-   * cleared by `closeSessionsDialog`.
+   * `Past sessions` button), else null (RENDERER VIEW-STATE). Set only by `openSessionsDialog`;
+   * cleared by `clearPastSessionTarget` once the Past page has applied it (so a page switch that
+   * remounts the page keeps the operator's scope) and by `closeSessionsDialog`.
    */
   pastSessionTarget: string | null
   /**
@@ -559,6 +560,8 @@ export interface BoardState {
   openSessionsDialog: (page: SessionsPage, target?: { pastSessionId: string }) => void
   /** Sessions — close the dialog and drop its target. No-op if already closed. */
   closeSessionsDialog: () => void
+  /** Sessions — the Past page applied the target: drop it, so it is applied once. */
+  clearPastSessionTarget: () => void
   /**
    * Phrase shortcuts — open the Manage-shortcuts dialog. No-op if already open.
    */
@@ -1051,6 +1054,9 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     },
     closeSessionsDialog: () => {
       if (get().sessionsDialog !== null) set({ sessionsDialog: null, pastSessionTarget: null })
+    },
+    clearPastSessionTarget: () => {
+      if (get().pastSessionTarget !== null) set({ pastSessionTarget: null })
     },
 
     openShortcutsDialog: () => {

@@ -341,4 +341,18 @@ describe('MemoryDialog — Open source', () => {
     await userEvent.click(toggle)
     expect(screen.queryByTestId('memory-source')).not.toBeInTheDocument()
   })
+
+  it('a quote with a javascript: URL, a right-to-left override and 200 lines is text, never a link', async () => {
+    const quote = Array.from({ length: 200 }, (_, i) => `javascript:go(${i}) \u202Eq`)
+      .join('\n')
+      .slice(0, 500)
+    bridge = installMemoryBridge([specificItem({ source: { entryId: 'u-8', quote } })])
+    await open()
+    await userEvent.click(row('API port'))
+    await userEvent.click(await screen.findByRole('button', { name: 'Open source' }))
+    expect(screen.getByTestId('memory-source')).toHaveTextContent(quote, {
+      normalizeWhitespace: false
+    })
+    expect(screen.queryAllByRole('link')).toHaveLength(0)
+  })
 })

@@ -5,8 +5,9 @@
 // a FLAT list newest first, a READ-ONLY form, and a [Forget] [Open] footer. Importing a session
 // the app did not launch is the dialog's Import page. No `+ New` (there is nothing to create) and
 // no RowActions. Opened on a record (an episode's `Past sessions`, memory phase 2: the store's
-// `pastSessionTarget`), the page selects it once it is listed, on its own workspace. UX-DR14: App.tsx guards it against the other modals and closes it on the quit
-// guard. Never logs a record value.
+// `pastSessionTarget`), the page selects it once it is listed, on its own workspace, and consumes
+// the target. UX-DR14: App.tsx guards it against the other modals and closes it on the quit guard.
+// Never logs a record value.
 import { useEffect, useRef, useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { PastSession, Workspace } from '../../../../shared/ipc/contract'
@@ -24,7 +25,7 @@ import { folderName } from '../../lib/filterCopy'
 import { effectiveFilters, type FilterType, type SessionFilters } from '../../lib/sessionFilters'
 import { RailFilter } from '../SessionsDialog/RailFilter'
 import { railTags, type ScopedFilters } from '../SessionsDialog/railFilters'
-import { selectPastSessionTarget, useBoard } from '../../stores/boardStore'
+import { boardStore, selectPastSessionTarget, useBoard } from '../../stores/boardStore'
 import { selectTags, tagsForIds, useTags } from '../../stores/tagsStore'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
 import {
@@ -118,15 +119,16 @@ export function PastSessionsPage({
   const folders = [...new Set(scoped.map((s) => s.cwd))]
   const selected = sessions.find((s) => s.id === dialog.state.selectedId) ?? null
 
-  // The record this open started on: selected once, when the history lists it, with the scope on
-  // its workspace so the rail shows the row. `select` is the shell's stable action.
+  // The record this open started on: selected when the history lists it, with the scope on its
+  // workspace so the rail shows the row (the dialog's scope, never the board's workspace). The
+  // target is consumed here, so a page switch that remounts this page keeps what the operator
+  // chose since. `select` is the shell's stable action.
   const target = useBoard(selectPastSessionTarget)
-  const targetDone = useRef(false)
   const targetRecord = sessions.find((s) => s.id === target) ?? null
   const { select } = dialog.actions
   useEffect(() => {
-    if (targetDone.current || targetRecord === null) return
-    targetDone.current = true
+    if (targetRecord === null) return
+    boardStore.getState().clearPastSessionTarget()
     setScope(workspaceScope(targetRecord.workspaceId))
     select(targetRecord.id)
   }, [targetRecord, setScope, select])

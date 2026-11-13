@@ -1,14 +1,14 @@
 // Past sessions — the history dialog (D-6), on the ManageDialog shell. jsdom `unit`; the
 // `renderComponent` harness and `selectHarness` for the scope dropdown, like TagsDialog.test.tsx.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { act } from 'react'
+import { act, type JSX } from 'react'
 import { flush, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, optionValues } from '../../test/selectHarness'
 import { SessionsDialog } from '../SessionsDialog/SessionsDialog'
 import { pastSessionsStore } from '../../stores/pastSessionsStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { tagsStore } from '../../stores/tagsStore'
-import { boardStore } from '../../stores/boardStore'
+import { boardStore, selectSessionsDialog, useBoard } from '../../stores/boardStore'
 import type { PastSession, Tag, Workspace } from '../../../../shared/ipc/contract'
 import { dialogToast } from '../../test/toasts'
 
@@ -569,5 +569,59 @@ describe('PastSessionsDialog — opened on a record', () => {
     await flush()
     expect(boardStore.getState().pastSessionTarget).toBeNull()
     expect(q(r, '[data-testid="past-session-placeholder"]')).not.toBeNull()
+  })
+
+  /** The dialog as App mounts it: its page comes from the store, and a page row goes back to it. */
+  function StoreDriven(): JSX.Element | null {
+    const page = useBoard(selectSessionsDialog)
+    return page === null ? null : (
+      <SessionsDialog
+        page={page}
+        onPageChange={(next) => boardStore.getState().openSessionsDialog(next)}
+        onClose={() => boardStore.getState().closeSessionsDialog()}
+      />
+    )
+  }
+
+  function clickPage(r: RenderResult, page: string): void {
+    act(() => q(r, `[data-testid="sessions-page-${page}"]`)?.click())
+  }
+
+  it('a page switch keeps the scope and selection the operator chose: the target is applied once', async () => {
+    act(() => boardStore.getState().openSessionsDialog('past', { pastSessionId: 'sb' }))
+    const r = renderComponent(<StoreDriven />)
+    cleanup = r.unmount
+    await flush()
+    expect(rows(r)).toEqual(['deploy'])
+    chooseOption(r.container, 'past-session-scope-filter', 'ws:w1')
+    await flush()
+    expect(rows(r)).toEqual(['billing api'])
+    clickPage(r, 'import')
+    await flush()
+    clickPage(r, 'past')
+    await flush()
+    expect(rows(r)).toEqual(['billing api'])
+    expect(q(r, '[data-testid="past-session-placeholder"]')).not.toBeNull()
+    // The dialog's scope moved, never the board's workspace.
+    expect(workspacesStore.getState().activeId).toBe('w1')
+    expect(
+      (window as unknown as { workspaces: { setActive: ReturnType<typeof vi.fn> } }).workspaces
+        .setActive
+    ).not.toHaveBeenCalled()
+  })
+
+  it('a new Past sessions press after a close applies its own target again', async () => {
+    act(() => boardStore.getState().openSessionsDialog('past', { pastSessionId: 'sa' }))
+    const first = renderComponent(<StoreDriven />)
+    await flush()
+    expect(q(first, '[data-testid="past-session-form-name"]')?.textContent).toBe('billing api')
+    act(() => boardStore.getState().closeSessionsDialog())
+    first.unmount()
+    act(() => boardStore.getState().openSessionsDialog('past', { pastSessionId: 'sb' }))
+    const second = renderComponent(<StoreDriven />)
+    cleanup = second.unmount
+    await flush()
+    expect(q(second, '[data-testid="past-session-form-name"]')?.textContent).toBe('deploy')
+    expect(workspacesStore.getState().activeId).toBe('w1')
   })
 })
