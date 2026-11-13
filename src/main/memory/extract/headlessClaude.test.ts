@@ -154,8 +154,7 @@ describe('parseClaudeResult', () => {
 // listener throws, so a missing listener is a red test, not a silent drop.
 interface FakeChild extends ChildSeam {
   written: string[]
-  /** What the call asked of the child's own `kill` (the fallback when it has no pid). */
-  ownKills: string[]
+  stdinDestroyed(): boolean
   stdoutDestroyed(): boolean
   data(chunk: Buffer | string): void
   close(code: number | null): void
@@ -170,12 +169,11 @@ function fakeChild(pid: number | undefined, streams = true): FakeChild {
   const stdin = new EventEmitter()
   const stdout = new EventEmitter()
   let destroyed = false
+  let stdinDestroyed = false
   const written: string[] = []
-  const ownKills: string[] = []
   return {
     pid,
     written,
-    ownKills,
     stdin: streams
       ? {
           end: (text) => {
@@ -183,6 +181,9 @@ function fakeChild(pid: number | undefined, streams = true): FakeChild {
           },
           on: (event, cb) => {
             stdin.on(event, cb)
+          },
+          destroy: () => {
+            stdinDestroyed = true
           }
         }
       : undefined,
@@ -196,13 +197,11 @@ function fakeChild(pid: number | undefined, streams = true): FakeChild {
           }
         }
       : undefined,
-    kill: (signal) => {
-      ownKills.push(signal)
-    },
     on: (event: 'close' | 'error', cb: (code: number | null) => void) => {
       events.on(event, cb)
     },
     stdoutDestroyed: () => destroyed,
+    stdinDestroyed: () => stdinDestroyed,
     // A destroyed Readable emits no more data (pinned on a real stream below).
     data: (chunk) => {
       if (!destroyed) stdout.emit('data', typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
@@ -475,7 +474,7 @@ describe('runExtractCall', () => {
     expect(timers.pending()).toBe(0)
   })
 
-  it('a spawn that gives no pid and no stdio (EMFILE) is a failed call, never a throw, its later error is taken, and only the child itself is killed', async () => {
+  it('a spawn that gives no pid and no stdio (EMFILE) is a failed call, never a throw, and nothing is signalled on any path', async () => {
     child = fakeChild(undefined, false)
     const call = run()
     expect(child.written).toEqual([])
@@ -483,9 +482,46 @@ describe('runExtractCall', () => {
     await expect(call.result).resolves.toEqual({ ok: false, reason: 'spawn', issue: null })
     call.cancel()
     call.killNow()
+    timers.advance(300_000)
+    child.close(null)
     expect(kills).toEqual([])
-    expect(child.ownKills).toEqual(['SIGKILL'])
     expect(timers.pending()).toBe(0)
+  })
+
+  it.each([
+    ['no pid (ENOENT)', undefined],
+    ['pid 0', 0],
+    ['a negative pid', -1],
+    ['a pid that is not an integer', 1.5]
+  ])(
+    'a child with %s is a spawn failure: its streams are closed and it is never signalled, by any path',
+    async (_n, pid) => {
+      child = fakeChild(pid)
+      const call = run()
+      expect(child.written).toEqual([])
+      expect(child.stdinDestroyed()).toBe(true)
+      expect(child.stdoutDestroyed()).toBe(true)
+      await expect(call.result).resolves.toEqual({ ok: false, reason: 'spawn', issue: null })
+      call.cancel()
+      call.killNow()
+      child.fail()
+      child.stdoutFail()
+      timers.advance(300_000)
+      child.close(null)
+      expect(kills).toEqual([])
+      expect(timers.pending()).toBe(0)
+    }
+  )
+
+  it('deps.kill never gets a pid that is not a positive integer, even when the pid reads 0 after the spawn', async () => {
+    const call = run()
+    child.pid = 0
+    call.cancel()
+    timers.advance(5_000)
+    call.killNow()
+    child.close(null)
+    await expect(call.result).resolves.toEqual({ ok: false, reason: 'cancelled', issue: null })
+    expect(kills).toEqual([])
   })
 
   it('a child error after the spawn kills the group and is a spawn failure', async () => {
@@ -613,25 +649,19 @@ describe('runExtractCall', () => {
     expect(kills).toEqual([])
     expect(timers.pending()).toBe(0)
   })
-  it('a spawn that gives no pid but has its streams (ENOENT) is a failed call and writes nothing', async () => {
-    child = fakeChild(undefined)
-    const call = run()
-    expect(child.written).toEqual([])
-    child.fail()
-    await expect(call.result).resolves.toEqual({ ok: false, reason: 'spawn', issue: null })
-    expect(kills).toEqual([])
-  })
 
   it.each([
     ['no stdin', { stdin: null }],
     ['no stdout', { stdout: null }]
   ])(
-    'a child with a pid but %s is a spawn failure, never a throw, and its group is killed',
+    'a child with a pid but %s is a spawn failure, never a throw, and is not signalled',
     async (_n, over) => {
       child = { ...fakeChild(4242), ...over }
       const call = run()
       await expect(call.result).resolves.toEqual({ ok: false, reason: 'spawn', issue: null })
-      expect(kills).toEqual([[-4242, 'SIGKILL']])
+      call.cancel()
+      timers.advance(300_000)
+      expect(kills).toEqual([])
       expect(timers.pending()).toBe(0)
     }
   )
@@ -644,7 +674,8 @@ describe('runExtractCall', () => {
         end: () => {
           throw new Error('write after end')
         },
-        on: () => undefined
+        on: () => undefined,
+        destroy: () => undefined
       }
     }
     const call = run()

@@ -5,7 +5,8 @@
 // auto-memory folder. `command` holds main's fixed strings only; nothing from a session (name,
 // folder, prompt, slice) is ever on argv, which other processes can read.
 //
-// Every path ends exactly once, with no child signalled after it exited and no timer left:
+// Every path ends exactly once, with no child signalled after it exited, a child with no pid never
+// signalled at all, and no timer left:
 // exit 0 → the parsed result; another exit → `exit`; no exit in `timeoutMs` → `timeout`; stdout
 // past `stdoutBytes` or a stdout read error → `exit`; a spawn error, no pid or no stdio streams →
 // `spawn`; `cancel()` → `cancelled`. Nothing throws out of `runExtractCall`. A kill sends SIGTERM to the group, SIGKILL `killGraceMs` later, and the call ends at the child's
@@ -154,15 +155,25 @@ export function boundedCollector(cap: number): {
   }
 }
 
+/** A pid the call may signal: a positive integer. `0`, a negative or no pid would reach the OS as
+ *  "my own group" or worse, so such a child is never signalled. */
+const signallable = (pid: number | undefined): pid is number =>
+  pid !== undefined && Number.isInteger(pid) && pid > 0
+
 /** What the call needs of a spawned child; Node's `ChildProcess` from `spawn` with
- *  `stdio: ['pipe', 'pipe', 'ignore']` fits it as is (a type test pins that). `pid` is optional
+ *  `stdio: ['pipe', 'pipe', 'ignore']` fits it as is (a type test pins that). It has no `kill`:
+ *  Node's `child.kill()` on a child with no pid was seen to SIGKILL the caller's own process group,
+ *  so every signal goes through `deps.kill` with a checked pid. `pid` is optional
  *  there: Node leaves it unset when the spawn failed. `close` (not `exit`): it fires after stdout is
  *  drained, so the parse sees every byte. */
 export interface ChildSeam {
   pid?: number | undefined
   /** Missing when Node ran out of file descriptors at the spawn (EMFILE, ENFILE), whatever its
    *  types say. */
-  stdin?: { end(text: string): void; on(event: 'error', cb: () => void): void } | null | undefined
+  stdin?:
+    | { end(text: string): void; on(event: 'error', cb: () => void): void; destroy(): void }
+    | null
+    | undefined
   stdout?:
     | {
         on(event: 'data', cb: (chunk: Buffer) => void): void
@@ -171,7 +182,6 @@ export interface ChildSeam {
       }
     | null
     | undefined
-  kill(signal: 'SIGTERM' | 'SIGKILL'): void
   on(event: 'close', cb: (code: number | null) => void): void
   on(event: 'error', cb: () => void): void
 }
@@ -232,15 +242,15 @@ export function runExtractCall(
     clear()
     settle(r)
   }
-  /** The group when the child has a pid; the child itself when it has none. Its callers (`stop`,
-   *  `killNow`, the SIGKILL timer) never run after the call ended, so a pid the system gave to
-   *  another process since is never signalled. */
+  /** The child's process group, only when its pid is signallable; a child with no pid (or a bad
+   *  one) is never signalled, by any path. Its callers (`stop`, `killNow`, the SIGKILL timer) never
+   *  run after the call ended, so a pid the system gave to another process since is never
+   *  signalled. */
   const signal = (s: 'SIGTERM' | 'SIGKILL'): void => {
-    // Narrows the type only: a call whose spawn threw is already done.
-    if (child === null) return
+    const pid = child?.pid
+    if (!signallable(pid)) return
     try {
-      if (child.pid === undefined) child.kill(s)
-      else deps.kill(-child.pid, s)
+      deps.kill(-pid, s)
     } catch {
       // ESRCH: the group is already gone; its close (or the last timer) still ends the call.
       console.warn(`[claude-watcher][memory] code=memory_extract_kill_failed signal=${s}`)
@@ -296,21 +306,25 @@ export function runExtractCall(
   try {
     // Listened to before anything else: an 'error' with no listener would throw in main.
     spawned.on('error', () => {
-      if (spawned.pid === undefined) finish(failed('spawn'))
-      else stop('spawn')
+      if (signallable(spawned.pid)) stop('spawn')
+      else finish(failed('spawn'))
     })
     const { stdin, stdout } = spawned
-    // Node leaves no pid when the spawn failed, and no stdio streams at all when it ran out of file
-    // descriptors (EMFILE, ENFILE). The child's own kill is the fallback, in case one runs anyway.
-    if (spawned.pid === undefined || !stdin || !stdout) {
-      signal('SIGKILL')
+    // Taken on every path, a failed spawn's streams included: an unheard stream 'error' would
+    // throw in main.
+    stdin?.on('error', () => {
+      // EPIPE: the child closed stdin early. Its close decides the result; nothing to do here.
+    })
+    stdout?.on('error', () => stop('exit'))
+    // Node leaves no pid when the spawn failed (ENOENT), and no stdio streams at all when it ran
+    // out of file descriptors (EMFILE, ENFILE). Either is a spawn failure (R25): close what streams
+    // there are and signal nothing.
+    if (!signallable(spawned.pid) || !stdin || !stdout) {
+      stdin?.destroy()
+      stdout?.destroy()
       finish(failed('spawn'))
       return call
     }
-    stdin.on('error', () => {
-      // EPIPE: the child closed stdin early. Its close decides the result; nothing to do here.
-    })
-    stdout.on('error', () => stop('exit'))
     stdout.on('data', (chunk) => {
       if (!out.push(chunk)) stop('exit')
     })
@@ -327,8 +341,8 @@ export function runExtractCall(
   } catch {
     // A child that breaks its own contract: the caller gets `spawn`, a failure it tells from every
     // real result. With a pid the group is killed and the call ends at its close (or the timers).
-    if (spawned.pid === undefined) finish(failed('spawn'))
-    else stop('spawn')
+    if (signallable(spawned.pid)) stop('spawn')
+    else finish(failed('spawn'))
   }
   return call
 }
