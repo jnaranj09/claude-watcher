@@ -28,9 +28,7 @@ import { createSessionTokens, type SessionTokens } from '../mcp/sessionTokens'
 import type { Extractor } from './extract/extractor'
 import type { MemoryActivityLog } from './memoryActivity'
 import type { MemoryCommands } from './memoryCommands'
-import { buildMemoryIndex } from './memoryIndex'
 import type { MemoryStore } from './memoryStore'
-import { openTasksForFolder } from './memoryTasks'
 import {
   MEMORY_MCP_SERVER_NAME,
   MEMORY_TOOLS,
@@ -38,6 +36,7 @@ import {
   type MemoryGrant,
   type MemorySessionMeta
 } from './memoryTools'
+import { buildSessionIndex } from './sessionIndex'
 
 const AREA = 'memory'
 const LOG_PREFIX = `[claude-watcher][${AREA}]`
@@ -114,20 +113,7 @@ export function memorySpawnExtras(
     const store = deps.store()
     // The hook port down is already on screen (`ServerHealthBanner`): no log per launch.
     if (!deps.enabled() || !deps.hookListening() || store === null) return noMemory()
-    const view = deps.tasks()
-    const index = buildMemoryIndex({
-      ...store.indexRows(launch.workspaceId, launch.cwd),
-      tasksHere:
-        view === null
-          ? []
-          : openTasksForFolder(
-              view,
-              launch.workspaceId,
-              launch.cwd,
-              new Set(launch.excludeTaskIds)
-            ),
-      now: deps.now()
-    })
+    const index = buildSessionIndex(deps, store, launch)
     const path = grantMcpConfig(deps, AREA, { sessionId })
     if (path === null) return noMemory()
     deps.activity.injected(sessionId, { chars: index.text.length, itemIds: index.itemIds })

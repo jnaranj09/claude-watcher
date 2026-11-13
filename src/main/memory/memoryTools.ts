@@ -43,7 +43,8 @@ import { formatDay } from './formatDay'
 import type { MemoryActivityLog } from './memoryActivity'
 import type { MemoryCommands } from './memoryCommands'
 import type { MemoryNames } from './memoryNames'
-import type { FilterContext, MemoryScope, MemoryStore } from './memoryStore'
+import { createMemoryGate, sessionItemMeta, type MemoryCall } from './memoryGate'
+import type { FilterContext, MemoryStore } from './memoryStore'
 import { indentedBlock, oneLine } from './promptText'
 
 export type MemoryGrant = { sessionId: string }
@@ -281,12 +282,8 @@ const notAvailable = (): McpToolOutcome => ({
   code: 'memory_not_available'
 })
 
-/** What one call works with once the gates passed. */
-interface Call {
-  store: MemoryStore
-  sessionId: string
-  session: MemorySessionMeta
-  scope: MemoryScope
+/** What one call works with once the gate passed (`memoryGate.ts`). */
+interface Call extends MemoryCall {
   filterContext: FilterContext
   record(
     action: 'pulled' | 'saved' | 'updated' | 'marked_stale',
@@ -495,14 +492,7 @@ export function createMemoryTools(deps: {
       check: check ?? null,
       basis: 'inferred',
       origin: { by: 'agent', sessionId: c.sessionId },
-      meta: {
-        folder: c.session.folder === '' ? null : c.session.folder,
-        sessionName: c.session.sessionName === '' ? null : c.session.sessionName,
-        tagIds: [...c.session.tagIds],
-        templateId: c.session.templateId,
-        goalId: c.session.goalId,
-        taskIds: [...c.session.taskIds]
-      },
+      meta: sessionItemMeta(c.session),
       source: null
     })
     c.record('saved', 'memory_save', item.id)
@@ -544,17 +534,15 @@ export function createMemoryTools(deps: {
     task_report: taskReport
   }
 
+  const gate = createMemoryGate(deps)
+
   function open(grant: MemoryGrant): Call | null {
-    if (!deps.enabled()) return null
-    const store = deps.store()
-    const session = deps.session(grant.sessionId)
-    if (store === null || session === null) return null
+    const gated = gate(grant)
+    if (gated === null) return null
+    const { store, session } = gated
     const { workspaceId } = session
     return {
-      store,
-      sessionId: grant.sessionId,
-      session,
-      scope: { workspaceId, includeGlobal: true },
+      ...gated,
       filterContext: {
         sessionFolder: session.folder,
         tagIdsByName: (n) => names.tagIdsByName(workspaceId, n),
