@@ -190,8 +190,11 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   card; an end or a catch-up with Memory off writes `off` on the record and closes the row (R2).
   The transcript is found by its id (`locateTranscript`, D1), never by a hook's `transcript_path`,
   read once per job from the row's byte offset (`transcriptReader.ts`, at most
-  `EXTRACT_LIMITS.readBytesPerJob`), cleaned (`sliceCleaner.ts`: no thinking, web, MCP and
-  subagent results without their text, secrets replaced, `secretScan.ts`) and cut into chunks; a job of fewer than
+  `EXTRACT_LIMITS.readBytesPerJob`), cleaned (`sliceCleaner.ts`: no thinking, web, MCP,
+  subagent and other agents' results without their text (P3-R3), secrets replaced,
+  `secretScan.ts`); what memory itself told the session (a block that starts
+  `Memory (Claude Watcher):`, a system-reminder) is never operator text or a kept result
+  (P3-R2); the slice is then cut into chunks; a job of fewer than
   `EXTRACT_LIMITS.minPrompts` typed prompts makes no call (`reason=guard`). No transcript: a
   checkpoint waits; an end or a catch-up whose row never read anything (a session that never got
   a prompt) ends like the guard, record `nothing`, no push (R49); one whose file went missing after

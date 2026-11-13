@@ -9,6 +9,8 @@ import {
   SECRET_MARK
 } from '../../../shared/schemas/memoryExtract'
 import { TranscriptEntrySchema } from '../../../shared/schemas/transcriptEntry'
+import { MEMORY_MCP_SERVER_NAME } from '../memoryTools'
+import { MEMORY_BLOCK_MARKER } from '../promptText'
 import { findEvidence } from './checkCandidates'
 import type { ReadLine } from './transcriptReader'
 import {
@@ -338,15 +340,326 @@ describe('cleanSlice', () => {
   })
 })
 
+// P3-R2: the line shapes are the ones the transcript probe of 2026-11-13 saw on claude 2.1.323,
+// with synthetic text. The shared schema passes an `attachment` line through, so the reader hands
+// it to the cleaner as built here.
+const BLOCK = `${MEMORY_BLOCK_MARKER} items that may match this prompt\n- staging port: 9281 (seen 2026-11-01, stated) id=m1`
+const attachment = (attachment: Record<string, unknown>): ReadLine =>
+  rl({ type: 'attachment', uuid: 'at-1', attachment })
+const parts = (...texts: string[]): ReadLine =>
+  rl({
+    type: 'user',
+    uuid: 'p-parts',
+    promptSource: 'typed',
+    message: { content: texts.map((text) => ({ type: 'text', text })) }
+  })
+
+describe('what memory told the session is never evidence (P3-R2)', () => {
+  it('a recall block and an at-use block, recorded as attachment lines, are not in the slice', () => {
+    const { entries, prompts } = cleanSlice(
+      [
+        prompt('which staging port?'),
+        attachment({
+          type: 'hook_additional_context',
+          content: [BLOCK],
+          hookName: 'prompt.submit',
+          hookEvent: 'UserPromptSubmit'
+        }),
+        attachment({ type: 'prompt_snapshot' }),
+        call('t1', 'Read', { file_path: '/work/app/a.txt' }),
+        result('t1', 'alpha'),
+        attachment({
+          type: 'hook_additional_context',
+          content: [BLOCK],
+          hookName: 'tool.call',
+          hookEvent: 'PostToolUse'
+        }),
+        said('It is 9281 (seen 2026-11-01).')
+      ],
+      0
+    )
+    expect(kinds(entries)).toEqual([
+      'operator:which staging port?',
+      'tool:{"file_path":"/work/app/a.txt"}',
+      'result:alpha',
+      'claude:It is 9281 (seen 2026-11-01).'
+    ])
+    expect(prompts).toBe(1)
+  })
+
+  it("a value only memory and claude named is found as claude's own text, never as seen", () => {
+    const { entries } = cleanSlice(
+      [
+        prompt('which staging port?'),
+        attachment({
+          type: 'hook_additional_context',
+          content: [BLOCK],
+          hookName: 'prompt.submit',
+          hookEvent: 'UserPromptSubmit'
+        }),
+        said('It is 9281 (seen 2026-11-01).')
+      ],
+      0
+    )
+    expect(findEvidence('It is 9281', entries)).toMatchObject({ basis: 'inferred' })
+    expect(findEvidence('staging port: 9281', entries)).toBeNull()
+  })
+
+  it('a prompt typed while a turn runs (a queued_command attachment), its block and the request blob are not in the slice', () => {
+    const out = cleanSlice(
+      [
+        // the probe recorded that this line holds the text, not the key it sits under
+        attachment({ type: 'queued_command', prompt: 'and the api port?' }),
+        rl({
+          type: 'api-request-blob',
+          uuid: 'b-1',
+          message: {
+            content: [
+              { type: 'text', text: 'and the api port?' },
+              {
+                type: 'text',
+                text: `<system-reminder>\nprompt.submit hook additional context: ${BLOCK}\n</system-reminder>`
+              }
+            ]
+          }
+        }),
+        attachment({
+          type: 'hook_additional_context',
+          content: [BLOCK],
+          hookName: 'prompt.submit',
+          hookEvent: 'UserPromptSubmit'
+        })
+      ],
+      0
+    )
+    expect(out).toEqual({ entries: [], prompts: 0 })
+  })
+
+  it('a system-reminder inside a typed prompt is cut out, wherever it stands', () => {
+    const text = `deploy it\n<system-reminder>\nprompt.submit hook additional context: ${BLOCK}\n</system-reminder>\nthen tell me`
+    expect(kinds(cleanSlice([prompt(text)], 0).entries)).toEqual([
+      'operator:deploy it\n\nthen tell me'
+    ])
+  })
+
+  it('a system-reminder that never closes cuts the rest of the prompt', () => {
+    expect(
+      kinds(cleanSlice([prompt('deploy it <system-reminder>the port is 9281')], 0).entries)
+    ).toEqual(['operator:deploy it '])
+  })
+
+  it('nested and repeated system-reminder spans are cut whole', () => {
+    const text =
+      'a<system-reminder>b<system-reminder>c</system-reminder>d</system-reminder>e<system-reminder>f</system-reminder>g'
+    expect(kinds(cleanSlice([prompt(text)], 0).entries)).toEqual(['operator:aeg'])
+  })
+
+  it('a system-reminder tag in another case or with spaces is cut', () => {
+    const text =
+      'a< SYSTEM-Reminder >b</ System-reminder>c<system-reminder\n>d< / system-reminder >e'
+    expect(kinds(cleanSlice([prompt(text)], 0).entries)).toEqual(['operator:ace'])
+  })
+
+  it('a closing system-reminder tag with no opening one is cut and the text around it kept', () => {
+    expect(kinds(cleanSlice([prompt('a</system-reminder>b')], 0).entries)).toEqual(['operator:ab'])
+  })
+
+  it('each text part is judged alone: a tagged part never joins a typed one (M7)', () => {
+    const line = rl({
+      type: 'user',
+      uuid: 'p-m7',
+      promptSource: 'typed',
+      message: {
+        content: [
+          { type: 'text', text: 'deploy it' },
+          { type: 'text', text: '<task-notification>the port is 9281</task-notification>' }
+        ]
+      }
+    })
+    expect(kinds(cleanSlice([line], 0).entries)).toEqual(['operator:deploy it'])
+  })
+
+  it('a text that starts with a lowercase tag once a reminder tag is cut is not the operator', () => {
+    expect(
+      cleanSlice([prompt('</system-reminder><command-name>/compact</command-name>')], 0)
+    ).toEqual({
+      entries: [],
+      prompts: 0
+    })
+  })
+
+  it('a lowercase tag split over two text parts is judged on the joined text', () => {
+    expect(cleanSlice([parts('<task-', 'notification>the port is 9281')], 0)).toEqual({
+      entries: [],
+      prompts: 0
+    })
+  })
+
+  it('a system-reminder split over two text parts is cut across them', () => {
+    expect(
+      kinds(
+        cleanSlice(
+          [parts('deploy it <system-reminder>the port ', 'is 9281</system-reminder> now')],
+          0
+        ).entries
+      )
+    ).toEqual(['operator:deploy it  now'])
+  })
+
+  it('a typed prompt that still holds the memory marker is no operator entry and no prompt', () => {
+    expect(cleanSlice([prompt(`ok\n${BLOCK}`)], 0)).toEqual({ entries: [], prompts: 0 })
+  })
+
+  it('the memory marker in another case or spacing still drops the prompt', () => {
+    expect(cleanSlice([prompt('ok MEMORY ( claude\n watcher ) : port 9281')], 0)).toEqual({
+      entries: [],
+      prompts: 0
+    })
+  })
+
+  it('the memory marker split over two text parts still drops the prompt', () => {
+    expect(cleanSlice([parts('ok Memory (Claude', ' Watcher): port 9281')], 0)).toEqual({
+      entries: [],
+      prompts: 0
+    })
+  })
+
+  it('a tool result with a line that starts with the memory marker is not kept', () => {
+    expect(resultOf('Bash', `done\n${BLOCK}`)).toMatchObject({
+      text: RESULT_NOT_KEPT,
+      evidence: false
+    })
+  })
+
+  it('a tool result whose marker line is indented, in another case or broken over two lines is not kept', () => {
+    expect(resultOf('Bash', 'done\n   memory (claude\nwatcher): port 9281')).toMatchObject({
+      text: RESULT_NOT_KEPT,
+      evidence: false
+    })
+  })
+
+  it('a tool result whose memory block follows a system-reminder tag inside a line is not kept', () => {
+    expect(resultOf('Bash', `done <system-reminder>${BLOCK}</system-reminder>`)).toMatchObject({
+      text: RESULT_NOT_KEPT,
+      evidence: false
+    })
+  })
+
+  it('a system-reminder tag with no > never takes the block line after it into the tag', () => {
+    expect(resultOf('Bash', `done <system-reminder\n${BLOCK}`)).toMatchObject({
+      text: RESULT_NOT_KEPT,
+      evidence: false
+    })
+  })
+
+  it('a tool result that only names the marker inside a line is kept', () => {
+    expect(resultOf('Read', `export const M = '${MEMORY_BLOCK_MARKER}'`)).toMatchObject({
+      text: `export const M = '${MEMORY_BLOCK_MARKER}'`,
+      evidence: true
+    })
+  })
+
+  it("the memory server's own tool results are never evidence", () => {
+    expect(resultOf(`mcp__${MEMORY_MCP_SERVER_NAME}__memory_get`, 'value: 9281')).toMatchObject({
+      text: RESULT_NOT_KEPT,
+      evidence: false
+    })
+  })
+
+  it('the record of /remember is not an operator entry, in either recorded form', () => {
+    const record = rl({
+      type: 'user',
+      uuid: 'p-cmd',
+      message: {
+        content:
+          '<command-name>/remember</command-name>\n<command-message>remember</command-message>\n<command-args>staging port = 9281</command-args>'
+      }
+    })
+    const out = rl({
+      type: 'system',
+      uuid: 's-1',
+      subtype: 'local_command',
+      content:
+        '<local-command-stdout>watcher-memory: Saved as a specific. id=m1</local-command-stdout>'
+    })
+    expect(cleanSlice([record, out], 0)).toEqual({ entries: [], prompts: 0 })
+  })
+
+  it("results that carry another agent's or an MCP server's text are not evidence (M8)", () => {
+    expect(
+      [
+        'SendMessage',
+        'GetTask',
+        'FetchInboxMessage',
+        'ReadNotifications',
+        'Workflow',
+        'ReadMcpResourceDirTool',
+        'Bash'
+      ].map(isNonEvidenceTool)
+    ).toEqual([true, true, true, true, true, true, false])
+  })
+})
+
+const TWO_MB = 2_000_000
+/** `unit` repeated to 2 MB, then `end`. */
+const hostile = (unit: string, end: string): string =>
+  unit.repeat(Math.ceil(TWO_MB / unit.length)).slice(0, TWO_MB) + end
+/** Milliseconds `run` takes. */
+function msOf(run: () => unknown): number {
+  const start = performance.now()
+  run()
+  return performance.now() - start
+}
+
+describe('the P3-R2 cuts on a 2 MB text', () => {
+  it.each([
+    ['a < and spaces', '<' + ' '.repeat(TWO_MB)],
+    ['an opening tag with no >', hostile('<system-reminder', '')],
+    ['< / repeated', hostile('</', '')],
+    ['the first word of the marker repeated', hostile('Memory (Claude ', '')],
+    ['line breaks', hostile('\n', '')],
+    ['spaces', hostile(' ', '')],
+    ['a < and slashes', '<' + '/'.repeat(TWO_MB)],
+    ['closed spans repeated', hostile('x<system-reminder>y</system-reminder>', '')],
+    ['zero-width spaces', hostile('\u200b', '')]
+  ])('a prompt of %s that ends in a block takes well under a second', (_name, text) => {
+    let out: unknown
+    expect(msOf(() => (out = cleanSlice([prompt(`${text}\n${BLOCK}`)], 0)))).toBeLessThan(1000)
+    expect(out).toEqual({ entries: [], prompts: 0 })
+  })
+
+  it.each([
+    ['a < and spaces', '<' + ' '.repeat(TWO_MB)],
+    ['an opening tag with no >', hostile('<system-reminder', '')],
+    ['the first word of the marker repeated', hostile('Memory (Claude ', '')],
+    ['line breaks', hostile('\n', '')],
+    ['spaces', hostile(' ', '')],
+    ['a < and slashes', '<' + '/'.repeat(TWO_MB)],
+    ['closed spans repeated', hostile('<system-reminder>x</system-reminder>', '')],
+    ['a letter on each line', hostile('M\n', '')],
+    ['zero-width spaces', hostile('\u200b', '')]
+  ])('a tool result of %s that ends in a block line takes well under a second', (_name, text) => {
+    let out: CleanEntry | undefined
+    expect(msOf(() => (out = resultOf('Bash', `${text}\n${BLOCK}`)))).toBeLessThan(1000)
+    expect(out).toMatchObject({ text: RESULT_NOT_KEPT, evidence: false })
+  })
+})
+
 describe('isNonEvidenceTool', () => {
-  it('holds exactly the web, subagent and MCP resource tools', () => {
+  it("holds exactly the web, subagent, MCP resource and other agents' tools", () => {
     expect([...NON_EVIDENCE_TOOLS].sort()).toEqual([
       'Agent',
+      'FetchInboxMessage',
+      'GetTask',
       'ListMcpResourcesTool',
+      'ReadMcpResourceDirTool',
       'ReadMcpResourceTool',
+      'ReadNotifications',
+      'SendMessage',
       'Task',
       'WebFetch',
-      'WebSearch'
+      'WebSearch',
+      'Workflow'
     ])
   })
 

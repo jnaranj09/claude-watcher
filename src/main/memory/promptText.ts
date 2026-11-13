@@ -4,6 +4,10 @@
 // U+2028, U+2029) ends a line here, and every other control character becomes a space.
 // Pure; logs nothing (memory text is sensitive).
 
+/** The first words of every block memory adds beside a prompt or after a tool result (phase 3).
+ *  Read by a model, and by the slice cleaner, which never lets such a block be evidence. */
+export const MEMORY_BLOCK_MARKER = 'Memory (Claude Watcher):'
+
 /** A line break as Unicode counts it: LF, VT, FF, CR, NEL, LINE and PARAGRAPH SEPARATOR. */
 function isLineBreak(cp: number): boolean {
   return (cp >= 0x0a && cp <= 0x0d) || cp === 0x85 || cp === 0x2028 || cp === 0x2029

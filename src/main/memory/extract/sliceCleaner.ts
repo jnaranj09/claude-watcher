@@ -1,8 +1,13 @@
 // Cleans a transcript slice for the extraction call, with no model (addendum "Cleaning a slice",
 // D2–D5): only `user` and `assistant` lines that are not a sidechain, meta or compact summary; an
-// operator prompt only when claude did not write it (D3); no thinking; results of web, MCP and
-// subagent tools kept without their text (D4); every text with its secrets taken out, then capped
-// (D5); entries numbered on from the session's count.
+// operator prompt only when claude did not write it (D3); no thinking; results of web, MCP,
+// subagent and other agents' tools kept without their text (D4, P3-R3); every text with its
+// secrets taken out, then capped (D5); entries numbered on from the session's count.
+//
+// What memory itself told the session is never evidence (P3-R2): its blocks are their own
+// `attachment` lines (left out above); in a typed prompt each text part is judged alone, every
+// system-reminder span is cut and a text still holding `MEMORY_BLOCK_MARKER` is dropped whole;
+// a result with a line that starts with the marker is not kept.
 //
 // The shared line schema leaves the keys read here `unknown` (D40, so the interrupt watcher never
 // loses a line to them); this file narrows each where it reads it and skips a part or a line whose
@@ -15,6 +20,7 @@ import {
 } from '../../../shared/schemas/memoryExtract'
 import type { TranscriptEntry } from '../../../shared/schemas/transcriptEntry'
 import { INTERRUPT_MARKERS } from '../../hooks/transcriptSignal'
+import { MEMORY_BLOCK_MARKER } from '../promptText'
 import { redactSecrets } from './secretScan'
 import type { ReadLine } from './transcriptReader'
 
@@ -40,7 +46,15 @@ export const NON_EVIDENCE_TOOLS: ReadonlySet<string> = new Set([
   'Task',
   // claude's own MCP resource tools: their results are MCP results too (R12)
   'ReadMcpResourceTool',
-  'ListMcpResourcesTool'
+  'ListMcpResourcesTool',
+  'ReadMcpResourceDirTool',
+  // they carry another agent's or a task's text (P3-R3, M8; names from claude 2.1.323's tool
+  // table, their result shapes not probed, so they fail closed)
+  'SendMessage',
+  'GetTask',
+  'FetchInboxMessage',
+  'ReadNotifications',
+  'Workflow'
 ])
 
 /** A test keeps this export on purpose. */
@@ -50,6 +64,50 @@ export function isNonEvidenceTool(name: string): boolean {
 
 /** A line claude wrote itself starts with a lowercase tag (`<command-name>`, `<task-notification>`). */
 const LEADING_TAG = /^<[a-z][a-z-]*>/
+
+/** A `system-reminder` tag, opening or closing (a `/` among the spaces after `<`), in any case,
+ *  with or without its `>`. Only spaces and `/` may stand around the name, so the tag never takes
+ *  the text after it. Linear on any input: every try starts at a `<` and scans one run of spaces
+ *  and `/` on each side of the name. */
+const REMINDER_TAG = /<([\s/]*)system-reminder[\s/]*>?/gi
+
+/** P3-R2: every `system-reminder` span cut out, nested ones whole; an opening tag that never
+ *  closes cuts to the end, and a closing tag with no opening one is cut alone. */
+function cutReminders(text: string): string {
+  let kept = ''
+  let depth = 0
+  let from = 0
+  for (const tag of text.matchAll(REMINDER_TAG)) {
+    if (depth === 0) kept += text.slice(from, tag.index)
+    depth = (tag[1] ?? '').includes('/') ? Math.max(0, depth - 1) : depth + 1
+    from = tag.index + tag[0].length
+  }
+  return depth === 0 ? kept + text.slice(from) : kept
+}
+
+/** Text as the marker test reads it: no white space or format character, lower case, so a
+ *  marker in another case or spacing is still the marker. */
+const fold = (text: string): string => text.replace(/[\s\p{Cf}]+/gu, '').toLowerCase()
+const FOLDED_MARKER = fold(MEMORY_BLOCK_MARKER)
+
+/** P3-R2 rule 3: a text that holds memory's block marker anywhere. */
+const holdsMarker = (text: string): boolean => fold(text).includes(FOLDED_MARKER)
+
+/** Every line break claude may read as one (the set `promptText.ts` ends a line on). */
+const LINE_BREAK = /\r\n|[\n\v\f\r\u0085\u2028\u2029]/
+
+/** P3-R2 rule 4: a result with a line that starts with memory's block marker (after its leading
+ *  space; a `system-reminder` tag starts a line too). A marker inside a line is not one. The
+ *  folded lines are read as one text, so a marker broken over two lines still counts. */
+function holdsMemoryBlock(text: string): boolean {
+  let folded = ''
+  const starts: number[] = []
+  for (const line of text.replace(REMINDER_TAG, '\n').split(LINE_BREAK)) {
+    starts.push(folded.length)
+    folded += fold(line)
+  }
+  return starts.some((at) => folded.startsWith(FOLDED_MARKER, at))
+}
 
 type Part = Exclude<NonNullable<TranscriptEntry['message']>['content'], string | undefined>[number]
 
@@ -131,7 +189,7 @@ function resultDraft(
   const text = resultText(part.content)
   if (text === null) return null
   const status = part.is_error === true ? 'error' : 'ok'
-  return isNonEvidenceTool(tool)
+  return isNonEvidenceTool(tool) || holdsMemoryBlock(text)
     ? { ...base, kind: 'result', tool, status, text: RESULT_NOT_KEPT, evidence: false }
     : { ...base, kind: 'result', tool, status, text: cleanResult(text), evidence: true }
 }
@@ -144,15 +202,15 @@ function userDrafts(
   const content = entry.message?.content
   if (content === undefined) return []
   const parts = typeof content === 'string' ? [] : content
-  const text =
+  const texts =
     typeof content === 'string'
-      ? content
-      : parts
-          .filter((p) => p.type === 'text')
-          .map((p) => p.text ?? '')
-          .join('')
+      ? [content]
+      : parts.filter((p) => p.type === 'text').map((p) => p.text ?? '')
+  // P3-R2: each text part is judged alone (M7: a part claude tagged never joins a typed one), then
+  // every system-reminder span is cut, and a text still holding memory's marker is not the operator's.
+  const text = cutReminders(texts.filter((t) => !LEADING_TAG.test(t.trim())).join(''))
   const drafts: Draft[] = []
-  if (isOperatorText(entry, text)) {
+  if (isOperatorText(entry, text) && !holdsMarker(text)) {
     drafts.push({
       ...base,
       kind: 'operator',
