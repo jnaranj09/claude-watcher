@@ -146,7 +146,8 @@ Sessions the app starts can keep things across sessions, in the app's own memory
 - **Specifics** — an exact value under a key: a port, a flag, an id, a command.
 - **Facts** — a title and a short text about how something works.
 - **Episodes** — what one session did, written when it ends.
-- **Commands** — the shell commands that worked in a session (one line, no secret).
+- **Commands** — the shell commands that worked in a session (one line, after the same
+  best-effort secret removal as everything saved; see Known limits).
 
 Claude saves and finds items with its own memory tools (search, read, browse, save, update, mark
 stale). It can never delete or pin an item; only you can. Every item keeps its date, where it
@@ -160,9 +161,12 @@ it.
 a quit or crash left owed. A session with fewer than two prompts is not saved. A model reads
 what is new in the session's transcript and proposes what to keep; the app keeps a value only
 when the quote it gives is found in the transcript, and drops the rest (Context → **Memory**
-lists what was dropped and why, while the session is on the board). Each end leaves a toast:
-**Memory saved from "…"** with what went to memory and how many tasks (**Show** opens Memory on
-that session), **Nothing new to remember**, or **Could not save memory**.
+lists what was dropped and why, while the session is on the board). When a session ends, a
+toast says how its save went: **Memory saved from "…"** with what went to memory and how many
+tasks (**Show**, offered only when something went to memory, opens Memory on that session),
+**Nothing new to remember**, or **Could not save memory**. A save at a checkpoint or at the next
+start shows a toast only when it fails. A session with no name gets no toast, and one that never
+got a prompt ends quietly.
 
 **Open work becomes tasks.** Work a session leaves open becomes a task in **Goals**, with how to
 check it (`Check:`). A later session sees the folder's open tasks and can report what it found;
@@ -180,8 +184,12 @@ read, what it saved and what was dropped.
 
 What it costs: each save is a headless `claude -p` call (a long session can take a few) on your
 own Claude account and login, with the model you choose (**Sonnet** by default), each call capped
-at 1 USD by claude's `--max-budget-usd`. It sends parts of the
-session's transcript to Claude, as the session itself did; nothing else leaves the machine.
+at 1 USD by claude's `--max-budget-usd`. It sends parts of the session's transcript to Claude,
+as the session itself did, with the session's name and folder, its earlier save notes, and the
+keys and titles (never the values) of up to 150 saved items and 50 open tasks of its workspace,
+so the model does not save them twice. Nothing else leaves the machine. The next start saves
+every session a quit or crash left owed, one after another, with no cap on how many (each up to
+12 calls).
 Memory lives in `claude-watcher-memory.db` in the app's data folder. Memory text, transcript text
 and the model's answers are never written to a log, a notification or the local API.
 
@@ -196,6 +204,9 @@ and the model's answers are never written to a log, a notification or the local 
     Goals.
   - **Memory model** — **Haiku** or **Sonnet** (the default): the model that reads a session to
     save from it, on your own Claude account. Haiku uses less.
+
+  Switching **Memory** off cancels a save that is running; nothing of it is kept.
+
 - **Claude's auto memory** — Claude Code's own memory, in the sessions this app starts: **Off**,
   **On**, or **Claude decides** (the default: the app changes nothing, so your Claude settings
   apply). The two memories work side by side. A change applies to sessions started after it.
@@ -224,8 +235,11 @@ Known limits:
   resume.
 - A conversation switched with `/resume` inside claude is saved at the next start.
 - A session larger than one read (32 MiB) is finished at the next start.
-- Switching Memory off while a session's save runs leaves `saving…` on its Past sessions record
-  until the next start.
+- A session started before this version and resumed later is read from the start of its
+  transcript, so its old text is saved with today's date.
+- Going back to an older version keeps Past sessions, Goals and Settings readable: it drops the
+  memory settings and task fields it does not know. It will not open the newer memory database:
+  it refuses it without changing it.
 
 ## Session templates
 

@@ -192,7 +192,10 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   read once per job from the row's byte offset (`transcriptReader.ts`, at most
   `EXTRACT_LIMITS.readBytesPerJob`), cleaned (`sliceCleaner.ts`: no thinking, web, MCP and
   subagent results without their text, secrets replaced, `secretScan.ts`) and cut into chunks; a job of fewer than
-  `EXTRACT_LIMITS.minPrompts` typed prompts makes no call (`reason=guard`). One call at a time for
+  `EXTRACT_LIMITS.minPrompts` typed prompts makes no call (`reason=guard`). No transcript: a
+  checkpoint waits; an end or a catch-up whose row never read anything (a session that never got
+  a prompt) ends like the guard, record `nothing`, no push (R49); one whose file went missing after
+  a read ends `failed`. One call at a time for
   the whole app, one job per session in a queue of `EXTRACT_LIMITS.queue` (a full queue refuses a
   checkpoint, never an end: `memory_extract_queue_full`), at most `chunksPerJob` calls per job
   (the rest waits for a later save point or the next start). The call (`headlessClaude.ts`,
@@ -207,7 +210,9 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   result passes `ClaudeResultSchema` then `ExtractOutputSchema`, else the call failed. A candidate
   is kept only when its quote stands as whole words in the cleaned slice (a value next to a dotted
   or hyphenated continuation is not whole, R15), holds no secret and is not an item the operator
-  wrote (D16); its basis is where the quote was found. A save never closes, pins or deletes: open
+  wrote (D16); its basis is where the quote was found. Only a quote found in a tool result or in
+  the operator's text moves an item's (a `none`) or a task's (an update) last-seen date; claude
+  repeating what memory told it moves nothing (R48). A save never closes, pins or deletes: open
   work becomes a task (`settings.memorySaveTasks`) and a session only flags one (`task_report`).
   Three failed calls in a row give a chunk up (`memory_extract_gave_up`; the job ends `failed`).
   Version: `MIN_EXTRACT_CLAUDE_VERSION` (2.1.323; an unreadable version runs). The gate reuses the
@@ -221,6 +226,11 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   first, before the archive: the call in flight gets `killNow()` (SIGKILL to its group at once,
   R17, never the 5 s grace) and nothing more starts; the next start catches up. Delete,
   `Forget` and a dropped record cancel that session's job (`cancel()`) and delete its save row.
+  Memory switched off (`settings:set`, `memoryOff`) cancels the call in flight; the job checks
+  Memory again after the call and writes nothing of it; an end or a catch-up stopped so is closed
+  `off` (R51, R2). A child pid is signalled only when it is an integer over 1 (`-1` would reach
+  every process of the user, R51). Each record's memory state lives in
+  `claude-watcher-past-sessions-memory.json`, never in the Past sessions record (R50).
   Logs (`[claude-watcher][memory]`, codes only): `memory_extract_started trigger=`,
   `memory_extract_done trigger= saved= dropped=`, `memory_extract_failed reason=` (the call's
   `spawn`/`timeout`/`exit`/`envelope`/`output`/`cancelled`, `claude_version`, `write` R21,
@@ -228,11 +238,16 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `memory_extract_no_transcript`, `memory_extract_skipped reason=off|guard|not_launched|nothing_new`,
   `memory_extract_queue_full`, `memory_extract_end_missing`, `memory_extract_state_invalid count=`
   (a bad save row is skipped, R33), `memory_candidates_dropped reason= count=`,
-  `memory_extract_cancelled`, `memory_extract_result_invalid` (the push), `memory_task_write_failed`,
-  `memory_extract_kill_failed signal=` (`headlessClaude.ts`). Known limits: a resumed turn
-  interrupted with Esc sends no `Stop`, so its text waits for a later resume's save; a `/resume`
-  inside claude is saved at the next start; when Memory is switched off during an end, the record
-  shows `saving…` until the next start; there is no job watchdog beyond the call's own time limit. A
+  `memory_extract_cancelled`, `memory_extract_result_invalid` (the push),
+  `memory_extract_result_held_dropped` (a full hold in main or the preload buffer drops its oldest),
+  `memory_task_write_failed`, `memory_cascade_failed step=forget|rows` (a workspace delete's memory
+  step; `memoryStartup.ts` logs it with no step), `memory_extract_kill_failed signal=`
+  (`headlessClaude.ts`); the Past sessions store adds `past_sessions_memory_<problem>`. Known
+  limits: a resumed turn interrupted with Esc sends no `Stop`, so its text waits for a later
+  resume's save; a `/resume` inside claude is saved at the next start; the start's catch-up has no
+  cap on how many owed sessions it saves; a session from before phase 2 that is resumed is read
+  from the start of its transcript, so old text gets today's date; there is no job watchdog beyond
+  the call's own time limit. A
   deleted session (Past sessions `Forget`, or a card's `Delete`) has its save forgotten and keeps
   its items and commands, marked
   `Session deleted` (`pastSessions.ts` `onRemove` → `markSessionsDeletedInMemory`), and so does a
