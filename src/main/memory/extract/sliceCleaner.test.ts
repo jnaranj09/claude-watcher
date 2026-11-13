@@ -506,6 +506,47 @@ describe('what memory told the session is never evidence (P3-R2)', () => {
     ).toEqual(['operator:deploy it  now'])
   })
 
+  it('a tagged part that starts with white space never joins a typed one', () => {
+    expect(
+      kinds(
+        cleanSlice(
+          [parts('deploy it', '\n<task-notification>the port is 9281</task-notification>')],
+          0
+        ).entries
+      )
+    ).toEqual(['operator:deploy it'])
+  })
+
+  it('a longer tag name that starts with system-reminder is not a reminder tag (P3-C7)', () => {
+    expect(
+      kinds(cleanSlice([prompt("grep '<system-reminders' in src, port 9281 is ours")], 0).entries)
+    ).toEqual(["operator:grep '<system-reminders' in src, port 9281 is ours"])
+  })
+
+  it('a system-reminder tag cut off at the end of the text is cut', () => {
+    expect(kinds(cleanSlice([prompt('deploy it <system-reminder')], 0).entries)).toEqual([
+      'operator:deploy it '
+    ])
+  })
+
+  it('a system-reminder tag with attributes opens a span', () => {
+    expect(
+      kinds(
+        cleanSlice(
+          [prompt('deploy it <system-reminder foo>the port is 9281</system-reminder> now')],
+          0
+        ).entries
+      )
+    ).toEqual(['operator:deploy it  now'])
+  })
+
+  it('the memory marker with a zero-width character inside still drops the prompt', () => {
+    expect(cleanSlice([prompt('ok Mem\u200bory (Claude Watcher): port 9281')], 0)).toEqual({
+      entries: [],
+      prompts: 0
+    })
+  })
+
   it('a typed prompt that still holds the memory marker is no operator entry and no prompt', () => {
     expect(cleanSlice([prompt(`ok\n${BLOCK}`)], 0)).toEqual({ entries: [], prompts: 0 })
   })
@@ -538,24 +579,40 @@ describe('what memory told the session is never evidence (P3-R2)', () => {
     })
   })
 
-  it('a tool result whose memory block follows a system-reminder tag inside a line is not kept', () => {
-    expect(resultOf('Bash', `done <system-reminder>${BLOCK}</system-reminder>`)).toMatchObject({
+  it('a tool result whose marker holds a zero-width character is not kept', () => {
+    expect(resultOf('Bash', 'done\nMem\u200bory (Claude Watcher): port 9281')).toMatchObject({
       text: RESULT_NOT_KEPT,
       evidence: false
     })
   })
 
-  it('a system-reminder tag with no > never takes the block line after it into the tag', () => {
-    expect(resultOf('Bash', `done <system-reminder\n${BLOCK}`)).toMatchObject({
-      text: RESULT_NOT_KEPT,
-      evidence: false
-    })
-  })
-
-  it('a tool result that only names the marker inside a line is kept', () => {
+  it('a tool result that holds the marker inside a line is not kept (P3-C8)', () => {
     expect(resultOf('Read', `export const M = '${MEMORY_BLOCK_MARKER}'`)).toMatchObject({
-      text: `export const M = '${MEMORY_BLOCK_MARKER}'`,
-      evidence: true
+      text: RESULT_NOT_KEPT,
+      evidence: false
+    })
+  })
+
+  it('a Read result with a tab line-number prefix before a block is not kept', () => {
+    expect(
+      resultOf('Read', `     1\t${MEMORY_BLOCK_MARKER} items\n     2\t- staging port: 9281`)
+    ).toMatchObject({ text: RESULT_NOT_KEPT, evidence: false })
+  })
+
+  it('a Read result with an arrow line-number prefix before a block is not kept', () => {
+    expect(
+      resultOf('Read', `1\u2192${MEMORY_BLOCK_MARKER} items\n2\u2192- staging port: 9281`)
+    ).toMatchObject({ text: RESULT_NOT_KEPT, evidence: false })
+  })
+
+  it('a result that holds a transcript line with a block inline is not kept', () => {
+    const line = JSON.stringify({
+      type: 'attachment',
+      attachment: { type: 'hook_additional_context', content: [BLOCK] }
+    })
+    expect(resultOf('Bash', `{"type":"user"}\n${line}`)).toMatchObject({
+      text: RESULT_NOT_KEPT,
+      evidence: false
     })
   })
 
@@ -621,6 +678,8 @@ describe('the P3-R2 cuts on a 2 MB text', () => {
     ['spaces', hostile(' ', '')],
     ['a < and slashes', '<' + '/'.repeat(TWO_MB)],
     ['closed spans repeated', hostile('x<system-reminder>y</system-reminder>', '')],
+    ['a longer tag name repeated', hostile('x<system-reminders', '')],
+    ['an opening tag with attributes repeated', hostile('<system-reminder  / foo', '')],
     ['zero-width spaces', hostile('\u200b', '')]
   ])('a prompt of %s that ends in a block takes well under a second', (_name, text) => {
     let out: unknown

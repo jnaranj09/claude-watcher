@@ -193,8 +193,9 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `EXTRACT_LIMITS.readBytesPerJob`), cleaned (`sliceCleaner.ts`: no thinking, web, MCP,
   subagent and other agents' results without their text (P3-R3), secrets replaced,
   `secretScan.ts`); what memory itself told the session (a block that starts
-  `Memory (Claude Watcher):`, a system-reminder) is never operator text or a kept result
-  (P3-R2); the slice is then cut into chunks; a job of fewer than
+  `Memory (Claude Watcher):`, a system-reminder) is never operator text, and a result that
+  holds a memory block is not kept (P3-R2, P3-C8); the slice is then cut into chunks; a job of
+  fewer than
   `EXTRACT_LIMITS.minPrompts` typed prompts makes no call (`reason=guard`). No transcript: a
   checkpoint waits; an end or a catch-up whose row never read anything (a session that never got
   a prompt) ends like the guard, record `nothing`, no push (R49); one whose file went missing after

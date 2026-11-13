@@ -7,7 +7,7 @@
 // What memory itself told the session is never evidence (P3-R2): its blocks are their own
 // `attachment` lines (left out above); in a typed prompt each text part is judged alone, every
 // system-reminder span is cut and a text still holding `MEMORY_BLOCK_MARKER` is dropped whole;
-// a result with a line that starts with the marker is not kept.
+// a result that holds the marker anywhere is not kept (P3-C8).
 //
 // The shared line schema leaves the keys read here `unknown` (D40, so the interrupt watcher never
 // loses a line to them); this file narrows each where it reads it and skips a part or a line whose
@@ -66,10 +66,12 @@ export function isNonEvidenceTool(name: string): boolean {
 const LEADING_TAG = /^<[a-z][a-z-]*>/
 
 /** A `system-reminder` tag, opening or closing (a `/` among the spaces after `<`), in any case,
- *  with or without its `>`. Only spaces and `/` may stand around the name, so the tag never takes
- *  the text after it. Linear on any input: every try starts at a `<` and scans one run of spaces
- *  and `/` on each side of the name. */
-const REMINDER_TAG = /<([\s/]*)system-reminder[\s/]*>?/gi
+ *  with or without its `>` (P3-C7): the name is not followed by a name character, so
+ *  `<system-reminders` is no tag, while a cut-off `<system-reminder` or one with attributes is.
+ *  Only spaces and `/` are taken after the name, so the tag never takes the text after it. Linear
+ *  on any input: every try starts at a `<` and scans one run of spaces and `/` on each side of
+ *  the name. */
+const REMINDER_TAG = /<([\s/]*)system-reminder(?![\p{L}\p{N}_-])[\s/]*>?/giu
 
 /** P3-R2: every `system-reminder` span cut out, nested ones whole; an opening tag that never
  *  closes cuts to the end, and a closing tag with no opening one is cut alone. */
@@ -90,24 +92,9 @@ function cutReminders(text: string): string {
 const fold = (text: string): string => text.replace(/[\s\p{Cf}]+/gu, '').toLowerCase()
 const FOLDED_MARKER = fold(MEMORY_BLOCK_MARKER)
 
-/** P3-R2 rule 3: a text that holds memory's block marker anywhere. */
+/** P3-R2 rule 3 for a typed prompt, P3-C8 for a tool result: a text that holds memory's block
+ *  marker anywhere. */
 const holdsMarker = (text: string): boolean => fold(text).includes(FOLDED_MARKER)
-
-/** Every line break claude may read as one (the set `promptText.ts` ends a line on). */
-const LINE_BREAK = /\r\n|[\n\v\f\r\u0085\u2028\u2029]/
-
-/** P3-R2 rule 4: a result with a line that starts with memory's block marker (after its leading
- *  space; a `system-reminder` tag starts a line too). A marker inside a line is not one. The
- *  folded lines are read as one text, so a marker broken over two lines still counts. */
-function holdsMemoryBlock(text: string): boolean {
-  let folded = ''
-  const starts: number[] = []
-  for (const line of text.replace(REMINDER_TAG, '\n').split(LINE_BREAK)) {
-    starts.push(folded.length)
-    folded += fold(line)
-  }
-  return starts.some((at) => folded.startsWith(FOLDED_MARKER, at))
-}
 
 type Part = Exclude<NonNullable<TranscriptEntry['message']>['content'], string | undefined>[number]
 
@@ -189,7 +176,7 @@ function resultDraft(
   const text = resultText(part.content)
   if (text === null) return null
   const status = part.is_error === true ? 'error' : 'ok'
-  return isNonEvidenceTool(tool) || holdsMemoryBlock(text)
+  return isNonEvidenceTool(tool) || holdsMarker(text)
     ? { ...base, kind: 'result', tool, status, text: RESULT_NOT_KEPT, evidence: false }
     : { ...base, kind: 'result', tool, status, text: cleanResult(text), evidence: true }
 }
