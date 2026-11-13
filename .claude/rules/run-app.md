@@ -55,5 +55,6 @@ Helpers (`page` first, except hooks): `launchSession`, `needsYou(pickDir, id)`,
 - Never `app.close()` (hangs ~120 s). `run` kills claudes + the Electron group (SIGKILL), even on
   throw and even after the scenario quit the app itself. A SIGKILL runs none of the app's quit
   code (no archive, no memory quit), so a scenario that tests the quit calls
-  `app.evaluate(({ app }) => app.quit())` first.
+  `app.evaluate(({ app }) => app.quit())` first. With a live session on the board that quit
+  opens the Quit guard (`quit-guard-panel`) and the app keeps running until it is answered.
 - CDP `deviceScaleFactor` doesn't reach screenshots — crop and upscale.
