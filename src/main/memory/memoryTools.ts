@@ -20,7 +20,8 @@
 // Results carry memory text (that is their purpose); logs, errors and activity entries never do.
 // Saved text cannot pass for a field of the result (`promptText.ts`): every one-line field (a
 // key, a title, a source quote, a command, a session or tag name) is printed on one line, and a
-// fact's or an episode's body comes last, after `body:`, each of its lines indented.
+// fact's or an episode's body comes last, after `body:`, each of its lines indented. Neither can
+// pose as a system-reminder tag or the memory block marker (P3-C1).
 import { z } from 'zod'
 import { MemoryFiltersSchema, memoryFilterJsonSchema } from '../../shared/memory/filterFields'
 import { TASK_REPORT_EVIDENCE_MAX, TaskReportSchema } from '../../shared/schemas/goal'

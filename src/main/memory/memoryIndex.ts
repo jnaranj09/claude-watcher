@@ -2,8 +2,9 @@
 // items (up to `MEMORY_LIMITS.indexCeilingChars`), then, capped at `MEMORY_LIMITS.indexChars`, the
 // open tasks of the session's folder, the specifics saved for it and its recent sessions
 // (episodes). It states dates, not facts: memory is a record of what was seen. Every saved text
-// is put on one line (`oneLine`), so none can start a line of its own (a heading, a rule). Memory
-// text is sensitive: this module logs nothing.
+// is put on one line (`oneLine`), so none can start a line of its own (a heading, a rule), pose as
+// a system-reminder tag or forge the memory block marker (P3-C1). Memory text is sensitive: this
+// module logs nothing.
 import { MEMORY_LIMITS, type MemoryItem, type MemoryRow } from '../../shared/schemas/memory'
 import { formatDay, localDaysBetween } from './formatDay'
 import type { EpisodeRow } from './memoryRows'

@@ -3,6 +3,7 @@
 // the session's name, folder, progress notes and cleaned slice: SENSITIVE like memory text, never
 // logged. An item's body never goes in (the scope list names items by id, kind and head only).
 import type { MemoryItemKind } from '../../../shared/schemas/memory'
+import { wrapperSafe } from '../promptText'
 import { normalise } from './checkCandidates'
 import { renderEntries, type CleanEntry } from './sliceCleaner'
 
@@ -45,8 +46,9 @@ const listOr = (lines: readonly string[]): string[] => (lines.length === 0 ? ['n
 /** Line breaks JS `\s` misses (U+0085) or `JSON.stringify` keeps raw (U+0085, U+2028, U+2029). */
 const OTHER_BREAKS = /[\u0085\u2028\u2029]/g
 
-/** One line: every whitespace run and every other line break → one space, trimmed. */
-const oneLine = (text: string): string => normalise(text.replace(OTHER_BREAKS, ' '))
+/** One line: every whitespace run and every other line break → one space, trimmed, then
+ *  `wrapperSafe` (P3-C1: the model reads saved heads, titles and notes). */
+const oneLine = (text: string): string => wrapperSafe(normalise(text.replace(OTHER_BREAKS, ' ')))
 
 /** A JSON string with the other line breaks escaped too. */
 const quoted = (text: string): string =>

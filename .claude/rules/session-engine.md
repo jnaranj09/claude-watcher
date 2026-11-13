@@ -144,7 +144,7 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   the goal block lists, `GoalSpawnExtras.taskIds`), its specifics and its recent sessions (by
   the day the session ended), the tasks left out counted in `<n> more open tasks …; see Goals`
   and the rest in `<n> more; use memory_search`; every saved text on one line,
-  `memory/promptText.ts`; a tool result prints a fact or episode body last, each line indented) and
+  `memory/promptText.ts`, with a system-reminder tag and the memory block marker neutralised (P3-C1); a tool result prints a fact or episode body last, each line indented) and
   the env `CLAUDE_WATCHER_MEMORY=1` (for the operator's own hooks). `pty/spawnExtras.ts`
   joins it with goals: one `--append-system-prompt` (`QUESTION_FORMAT_PROMPT`, the task block,
   then the index), one `--mcp-config` flag (goals file first), one comma-joined `--allowedTools`;
