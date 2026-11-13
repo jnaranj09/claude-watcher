@@ -9,10 +9,15 @@ import { boardStore } from '../stores/boardStore'
 import { toast } from '../stores/toastStore'
 import { isModalOpen } from './modals'
 
+/** The writes that went to memory (specifics, facts, episodes); tasks go to Goals. */
+function savedToMemory(counts: MemoryCounts): number {
+  return counts.specifics + counts.facts + counts.episodes
+}
+
 /** `12 saved to memory, 3 tasks` (ruling R44): the specifics, facts and episodes written, then the
  *  tasks; a part that is 0 is left out, `1 task` in the singular. '' when nothing was written. */
 export function countsCopy(counts: MemoryCounts): string {
-  const saved = counts.specifics + counts.facts + counts.episodes
+  const saved = savedToMemory(counts)
   const parts = [
     ...(saved > 0 ? [`${saved} saved to memory`] : []),
     ...(counts.tasks > 0 ? [`${counts.tasks} ${counts.tasks === 1 ? 'task' : 'tasks'}`] : [])
@@ -51,9 +56,13 @@ export function showExtractResult(raw: unknown, show: (sessionName: string) => v
         toast.info(`Nothing new to remember from "${name}".`)
         return
       }
+      // `Show` opens Memory on this session, so it is offered only when something went to memory
+      // (ruling R45): a save that wrote only tasks would open an empty list.
       toast.success(`Memory saved from "${name}".`, {
         detail: counts,
-        action: { label: 'Show', icon: 'open', run: () => show(name) }
+        ...(savedToMemory(result.counts) > 0
+          ? { action: { label: 'Show', icon: 'open', run: () => show(name) } }
+          : {})
       })
       return
     case 'nothing':

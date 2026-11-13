@@ -80,6 +80,28 @@ describe('showExtractResult', () => {
     expect(boardStore.getState().memoryDialogTarget).toEqual({ sessionName: 'fix api port' })
   })
 
+  it('a save that wrote only tasks is a success toast with no Show (ruling R45)', () => {
+    showExtractResult(
+      result({ counts: { specifics: 0, facts: 0, tasks: 2, episodes: 0 } }),
+      openMemoryForSession
+    )
+    const t = onlyToast()
+    expect(t.kind).toBe('success')
+    expect(t.title).toBe('Memory saved from "fix api port".')
+    expect(t.detail).toBe('2 tasks')
+    expect(t.action).toBeUndefined()
+  })
+
+  it('a save that wrote one item to memory offers Show (ruling R45)', () => {
+    showExtractResult(
+      result({ counts: { specifics: 0, facts: 0, tasks: 0, episodes: 1 } }),
+      openMemoryForSession
+    )
+    const t = onlyToast()
+    expect(t.detail).toBe('1 saved to memory')
+    expect(t.action?.label).toBe('Show')
+  })
+
   it('a nothing result is an info toast with no action', () => {
     showExtractResult(result({ outcome: 'nothing', counts: NO_COUNTS }), openMemoryForSession)
     const t = onlyToast()
