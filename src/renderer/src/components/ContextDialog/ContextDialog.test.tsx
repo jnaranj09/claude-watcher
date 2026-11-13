@@ -1,15 +1,13 @@
 // Context (spec 2026-10-18 §5): what a session's claude loaded, per its bridge mod report, with the
 // file history of its instruction files. jsdom `unit` project; `window.context` is stubbed.
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { act } from 'react'
-import { render, screen, waitFor, within, type RenderResult } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { ContextDialog } from './ContextDialog'
 import { boardStore } from '../../stores/boardStore'
 import { modReportFixture, MOD_REPORT_SESSION_ID as SID } from '../../../../__fixtures__/modReport'
 import type {
   FileHistoryDiffResult,
-  FileHistoryListResult,
   FileVersion,
   SessionSetupState
 } from '../../../../shared/ipc/contract'
@@ -17,116 +15,27 @@ import { cssRule } from '../../test/cssRule'
 import { dialogToast } from '../../test/toasts'
 import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 import type { MemoryActivity } from '../../../../shared/schemas/memory'
-
-const TERMINAL = 'term-1'
-const NOW = 1_000_000_000
-const V2: FileVersion = {
-  id: 'v2',
-  path: '/work/app/CLAUDE.md',
-  hash: 'b'.repeat(64),
-  size: 2048,
-  seenAt: NOW - 60_000
-}
-const V1: FileVersion = {
-  id: 'v1',
-  path: '/work/app/CLAUDE.md',
-  hash: 'a'.repeat(64),
-  size: 1024,
-  seenAt: NOW - 3_600_000
-}
-
-type Bridge = {
-  getSetup: ReturnType<typeof vi.fn<(id: string) => Promise<SessionSetupState>>>
-  onSetupChanged: ReturnType<typeof vi.fn<(cb: (id: string) => void) => () => void>>
-  listHistory: ReturnType<typeof vi.fn<(id: string, i: number) => Promise<FileHistoryListResult>>>
-  diff: ReturnType<typeof vi.fn<(v: string) => Promise<FileHistoryDiffResult>>>
-  open: ReturnType<typeof vi.fn<(id: string, i: number) => Promise<void>>>
-  restore: ReturnType<typeof vi.fn<(v: string) => Promise<{ fileName: string }>>>
-  fire: (id: string) => void
-}
-
-function stubContext(state: SessionSetupState): Bridge {
-  let listener: ((id: string) => void) | null = null
-  const bridge: Bridge = {
-    getSetup: vi.fn(() => Promise.resolve(state)),
-    onSetupChanged: vi.fn((cb) => {
-      listener = cb
-      return () => {
-        listener = null
-      }
-    }),
-    listHistory: vi.fn(() => Promise.resolve({ versions: [V2, V1], tooLarge: false })),
-    diff: vi.fn(() =>
-      Promise.resolve({
-        lines: [
-          { op: 'same', text: '# app' },
-          { op: 'del', text: 'old rule' },
-          { op: 'add', text: 'new rule' }
-        ]
-      })
-    ),
-    open: vi.fn(() => Promise.resolve()),
-    restore: vi.fn(() => Promise.resolve({ fileName: 'CLAUDE.md' })),
-    fire: (id) => listener?.(id)
-  }
-  ;(window as unknown as { context: unknown }).context = bridge
-  return bridge
-}
-
-const NO_ACTIVITY: MemoryActivity = { injected: null, entries: [] }
-
-type MemoryStub = {
-  activity: ReturnType<typeof vi.fn<(id: string) => Promise<MemoryActivity>>>
-  onChanged: ReturnType<typeof vi.fn<(cb: () => void) => () => void>>
-  off: ReturnType<typeof vi.fn<() => void>>
-  fire: () => void
-}
-
-function stubMemory(answer: MemoryActivity = NO_ACTIVITY): MemoryStub {
-  let listener: (() => void) | null = null
-  const off = vi.fn<() => void>(() => {
-    listener = null
-  })
-  const stub: MemoryStub = {
-    activity: vi.fn(() => Promise.resolve(answer)),
-    onChanged: vi.fn((cb) => {
-      listener = cb
-      return off
-    }),
-    off,
-    fire: () => listener?.()
-  }
-  ;(window as unknown as { memory: unknown }).memory = stub
-  return stub
-}
+import {
+  NO_ACTIVITY,
+  NOW,
+  TERMINAL,
+  V1,
+  V2,
+  onClose,
+  openContext as open,
+  registerContextDialogHooks,
+  renderContext,
+  stubContext,
+  stubMemory,
+  unmountContext,
+  type Bridge,
+  type MemoryStub
+} from '../../test/contextDialogHarness'
 
 const wrapped = (code: string): Error =>
   new Error(`Error invoking remote method 'file-history:restore': Error: ${code}`)
 
-let rendered: RenderResult | undefined
-const onClose = vi.fn()
-beforeEach(() => {
-  vi.spyOn(Date, 'now').mockReturnValue(NOW)
-  boardStore.setState({ terminalIdBySessionId: { [SID]: TERMINAL } })
-  stubMemory()
-})
-afterEach(() => {
-  rendered?.unmount()
-  rendered = undefined
-  delete (window as unknown as { context?: unknown }).context
-  delete (window as unknown as { memory?: unknown }).memory
-})
-
-async function open(
-  state: SessionSetupState = { state: 'ready', report: modReportFixture() }
-): Promise<Bridge> {
-  const bridge = stubContext(state)
-  rendered = render(<ContextDialog terminalId={TERMINAL} onClose={onClose} />)
-  await act(async () => {
-    await Promise.resolve()
-  })
-  return bridge
-}
+registerContextDialogHooks()
 
 const rail = (): HTMLElement[] =>
   within(screen.getByTestId('context-panel'))
@@ -642,8 +551,7 @@ describe('ContextDialog — the Memory page', () => {
       await Promise.resolve()
     })
     expect(screen.getByTestId('context-memory-injected')).toHaveTextContent('10 tokens · 1 item')
-    rendered?.unmount()
-    rendered = undefined
+    unmountContext()
     expect(memory.off).toHaveBeenCalled()
   })
 
@@ -798,7 +706,7 @@ describe('ContextDialog — a load that fails', () => {
   it('a failed setup read says so in the right column, not in a toast', async () => {
     const bridge = stubContext({ state: 'waiting' })
     bridge.getSetup.mockRejectedValue(new Error('no handler'))
-    rendered = render(<ContextDialog terminalId={TERMINAL} onClose={onClose} />)
+    renderContext()
     await act(async () => {
       await Promise.resolve()
     })
@@ -815,7 +723,7 @@ describe('ContextDialog — a load that fails', () => {
   it('a setup push that loads clears the notice', async () => {
     const bridge = stubContext({ state: 'waiting' })
     bridge.getSetup.mockRejectedValueOnce(new Error('x'))
-    rendered = render(<ContextDialog terminalId={TERMINAL} onClose={onClose} />)
+    renderContext()
     await act(async () => {
       await Promise.resolve()
     })
