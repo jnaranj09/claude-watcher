@@ -219,7 +219,10 @@ export const SettingsSchema = z.object({
   // as Goals tasks, and the model. Additive on v1, same `.default()` reasoning as above.
   memoryCheckpoint: MemoryCheckpointSchema.default(DEFAULT_MEMORY_CHECKPOINT),
   memorySaveTasks: z.boolean().default(true),
-  memoryModel: MemoryModelSchema.default(DEFAULT_MEMORY_MODEL)
+  memoryModel: MemoryModelSchema.default(DEFAULT_MEMORY_MODEL),
+  // Recall while a session runs (memory phase 3): the `watcher-memory` mod. Additive on v1 with a
+  // default, so a file written before it loads with recall on.
+  memoryRecallEnabled: z.boolean().default(true)
 })
 
 /** The settings type — INFERRED from the schema (one source of truth). */
@@ -259,7 +262,8 @@ export const SettingsPatchSchema = z
     claudeAutoMemory: ClaudeAutoMemorySchema,
     memoryCheckpoint: MemoryCheckpointSchema,
     memorySaveTasks: z.boolean(),
-    memoryModel: MemoryModelSchema
+    memoryModel: MemoryModelSchema,
+    memoryRecallEnabled: z.boolean()
   })
   .partial()
 
@@ -292,7 +296,8 @@ export const DEFAULT_SETTINGS: Settings = {
   claudeAutoMemory: DEFAULT_CLAUDE_AUTO_MEMORY,
   memoryCheckpoint: DEFAULT_MEMORY_CHECKPOINT,
   memorySaveTasks: true,
-  memoryModel: DEFAULT_MEMORY_MODEL
+  memoryModel: DEFAULT_MEMORY_MODEL,
+  memoryRecallEnabled: true
 }
 
 /**

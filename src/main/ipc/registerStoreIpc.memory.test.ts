@@ -101,7 +101,11 @@ describe('registerMemoryIpc binds each handler to its own channel', () => {
   })
 
   it("a session's items: activity, session-count, delete-session", () => {
-    expect(call(CH.memoryActivity, { sessionId: 's1' })).toEqual({ injected: null, entries: [] })
+    expect(call(CH.memoryActivity, { sessionId: 's1' })).toEqual({
+      injected: null,
+      entries: [],
+      recall: null
+    })
     store.add({
       text: PORT,
       workspaceId: 'w1',

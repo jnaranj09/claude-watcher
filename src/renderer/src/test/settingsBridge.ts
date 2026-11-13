@@ -38,7 +38,8 @@ export function mergedSettings(patch: SettingsPatch): Settings {
     claudeAutoMemory: patch.claudeAutoMemory ?? DEFAULT_SETTINGS.claudeAutoMemory,
     memoryCheckpoint: patch.memoryCheckpoint ?? DEFAULT_SETTINGS.memoryCheckpoint,
     memorySaveTasks: patch.memorySaveTasks ?? DEFAULT_SETTINGS.memorySaveTasks,
-    memoryModel: patch.memoryModel ?? DEFAULT_SETTINGS.memoryModel
+    memoryModel: patch.memoryModel ?? DEFAULT_SETTINGS.memoryModel,
+    memoryRecallEnabled: patch.memoryRecallEnabled ?? DEFAULT_SETTINGS.memoryRecallEnabled
   }
 }
 

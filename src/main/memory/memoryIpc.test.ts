@@ -241,12 +241,13 @@ describe('activity', () => {
     activity.injected('s1', { chars: 40, itemIds: ['m1'] })
     expect(h.activity({ sessionId: 's1' })).toEqual({
       injected: { tokens: 10, itemIds: ['m1'] },
-      entries: []
+      entries: [],
+      recall: null
     })
   })
 
   it('answers an empty record for a session with nothing recorded', () => {
-    expect(h.activity({ sessionId: 's9' })).toEqual({ injected: null, entries: [] })
+    expect(h.activity({ sessionId: 's9' })).toEqual({ injected: null, entries: [], recall: null })
   })
 
   it('refuses an extra key', () => {
@@ -411,9 +412,10 @@ describe('while memory is off (no store)', () => {
     activity.injected('s1', { chars: 8, itemIds: ['m1'] })
     expect(off.activity({ sessionId: 's1' })).toEqual({
       injected: { tokens: 2, itemIds: ['m1'] },
-      entries: []
+      entries: [],
+      recall: null
     })
-    expect(off.activity({ sessionId: 's9' })).toEqual({ injected: null, entries: [] })
+    expect(off.activity({ sessionId: 's9' })).toEqual({ injected: null, entries: [], recall: null })
     expect(() => off.activity({ sessionId: 's1', extra: 1 })).toThrow()
   })
 })

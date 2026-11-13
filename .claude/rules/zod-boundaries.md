@@ -63,10 +63,10 @@ Every EXTERNAL input is validated at exactly ONE boundary that fails closed:
 
 Other external input: the transcript, read by two readers through `transcriptEntry.ts`: the tail
 (`hooks/transcriptSignal.ts`) and memory's reader (`memory/extract/transcriptReader.ts`, row above).
-The memory settings (`memoryCheckpoint`, `memorySaveTasks`, `memoryModel`) are additive with
-defaults on v1 and parse with their file (the persisted file read row); `settings:set` patches go
-through `SettingsPatchSchema`. A Past sessions record's `memory` is never written into the record
-(R50): its own file (row above), merged by main on read; a record an earlier phase-2 build wrote
+The memory settings (`memoryCheckpoint`, `memorySaveTasks`, `memoryModel`,
+`memoryRecallEnabled`) are additive with defaults on v1 and parse with their file (the persisted
+file read row); `settings:set` patches go through `SettingsPatchSchema`. A Past sessions record's
+`memory` is never written into the record (R50): its own file (row above), merged by main on read; a record an earlier phase-2 build wrote
 with the field still parses, and the load moves the field out (the record is stripped only once
 the state file holds it).
 

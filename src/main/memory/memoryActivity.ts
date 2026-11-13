@@ -1,9 +1,9 @@
-// What memory did for each session, kept in memory only: the index claude got at launch, and
-// every item it pulled or saved since. The Context dialog reads it, and lists again on the
-// `memory:changed` push its `onChange` drives (a pull changes no stored item, so the store's own
+// What memory did for each session, kept in memory only: the index claude got at launch, how it
+// gets memory (the recall mode), and every item it pulled, saved or had injected since. The
+// Context dialog reads it, and lists again on the `memory:changed` push its `onChange` drives (a pull changes no stored item, so the store's own
 // push would miss it). Holds ids and counts, never memory text (memory text is sensitive); logs
 // only a `code=` when a listener throws.
-import type { MemoryActivity } from '../../shared/schemas/memory'
+import type { MemoryActivity, MemoryRecallMode } from '../../shared/schemas/memory'
 
 type ActivityEntry = MemoryActivity['entries'][number]
 
@@ -14,11 +14,13 @@ const CHARS_PER_TOKEN = 4
 export interface MemoryActivityLog {
   injected(sessionId: string, value: { chars: number; itemIds: readonly string[] }): void
   record(sessionId: string, entry: ActivityEntry): void
+  /** How the session gets memory: the mod, or the launch index with the reason. */
+  recallMode(sessionId: string, mode: MemoryRecallMode): void
   get(sessionId: string): MemoryActivity
   rebind(oldSessionId: string, newSessionId: string): void
   forget(sessionId: string): void
-  /** Fires after an index sent, an entry, a rebind that moved a record and a forget that dropped
-   *  one. Returns the unsubscribe. */
+  /** Fires after an index sent, an entry, a recall mode, a rebind that moved a record and a
+   *  forget that dropped one. Returns the unsubscribe. */
   onChange(listener: () => void): () => void
 }
 
@@ -43,7 +45,7 @@ export function createMemoryActivity(
   function recordOf(sessionId: string): MemoryActivity {
     const found = records.get(sessionId)
     if (found) return found
-    const fresh: MemoryActivity = { injected: null, entries: [] }
+    const fresh: MemoryActivity = { injected: null, entries: [], recall: null }
     records.set(sessionId, fresh)
     return fresh
   }
@@ -62,12 +64,17 @@ export function createMemoryActivity(
       if (entries.length > MAX_ENTRIES) entries.splice(0, entries.length - MAX_ENTRIES)
       emit()
     },
+    recallMode(sessionId, mode) {
+      recordOf(sessionId).recall = { ...mode }
+      emit()
+    },
     get(sessionId) {
       const found = records.get(sessionId)
-      if (!found) return { injected: null, entries: [] }
+      if (!found) return { injected: null, entries: [], recall: null }
       return {
         injected: found.injected && { ...found.injected, itemIds: [...found.injected.itemIds] },
-        entries: found.entries.map((e) => ({ ...e }))
+        entries: found.entries.map((e) => ({ ...e })),
+        recall: found.recall && { ...found.recall }
       }
     },
     rebind(oldSessionId, newSessionId) {

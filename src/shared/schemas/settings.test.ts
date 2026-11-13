@@ -64,7 +64,8 @@ describe('SettingsSchema — versioned, our-shape, fail-closed (AC-4/5/6)', () =
       claudeAutoMemory: 'claude',
       memoryCheckpoint: 15,
       memorySaveTasks: true,
-      memoryModel: 'sonnet'
+      memoryModel: 'sonnet',
+      memoryRecallEnabled: true
     }
     const parsed = parseSettings(valid)
     expect(parsed).toEqual(valid)
@@ -603,5 +604,22 @@ describe('saving memory from sessions — additive on v1', () => {
 
   it('a patch of one key does not reset the other two', () => {
     expect(SettingsPatchSchema.parse({ memoryModel: 'haiku' })).toEqual({ memoryModel: 'haiku' })
+  })
+})
+
+describe('memoryRecallEnabled — additive on v1 (memory phase 3)', () => {
+  it('memory recall is on by default, and a file written before it existed still parses with it on', () => {
+    expect(DEFAULT_SETTINGS.memoryRecallEnabled).toBe(true)
+    const { memoryRecallEnabled: _r, ...without } = DEFAULT_SETTINGS
+    void _r
+    expect(SettingsSchema.parse(without).memoryRecallEnabled).toBe(true)
+  })
+
+  it('a patch carries it with NO default', () => {
+    expect(SettingsPatchSchema.parse({ memoryRecallEnabled: false })).toEqual({
+      memoryRecallEnabled: false
+    })
+    expect(SettingsPatchSchema.parse({ memoryEnabled: false })).toEqual({ memoryEnabled: false })
+    expect(SettingsPatchSchema.safeParse({ memoryRecallEnabled: 'yes' }).success).toBe(false)
   })
 })

@@ -63,7 +63,8 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
       claudeAutoMemory: 'claude',
       memoryCheckpoint: 15,
       memorySaveTasks: true,
-      memoryModel: 'sonnet'
+      memoryModel: 'sonnet',
+      memoryRecallEnabled: true
     })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)

@@ -422,7 +422,11 @@ describe('ContextDialog — the Memory page', () => {
   }
 
   it('shows the injected token count and the number of items', async () => {
-    const memory = await openMemory({ injected: { tokens: 1250, itemIds: IDS }, entries: [] })
+    const memory = await openMemory({
+      injected: { tokens: 1250, itemIds: IDS },
+      entries: [],
+      recall: null
+    })
     expect(memory.activity).toHaveBeenCalledWith(SID)
     expect(screen.getByTestId('context-memory-injected')).toHaveTextContent(
       '1,250 tokens · 12 items'
@@ -430,7 +434,7 @@ describe('ContextDialog — the Memory page', () => {
   })
 
   it('totals the injected tokens on the rail row', async () => {
-    stubMemory({ injected: { tokens: 1250, itemIds: IDS }, entries: [] })
+    stubMemory({ injected: { tokens: 1250, itemIds: IDS }, entries: [], recall: null })
     await open()
     expect(
       within(screen.getByTestId('context-category-memory')).getByTestId('context-category-tokens')
@@ -445,6 +449,7 @@ describe('ContextDialog — the Memory page', () => {
   it('lists a pulled and a saved entry under their headings, with time and tool', async () => {
     await openMemory({
       injected: null,
+      recall: null,
       entries: [
         {
           at: NOW - 5 * 60_000,
@@ -484,6 +489,7 @@ describe('ContextDialog — the Memory page', () => {
   it('Context lists a dropped candidate under Dropped with its reason in plain words', async () => {
     await openMemory({
       injected: null,
+      recall: null,
       entries: [
         {
           at: NOW - 3 * 60_000,
@@ -513,6 +519,7 @@ describe('ContextDialog — the Memory page', () => {
   it('a dropped entry is not listed under Saved', async () => {
     await openMemory({
       injected: null,
+      recall: null,
       entries: [
         { at: NOW - 60_000, action: 'saved', tool: 'extract', itemId: 'm2', reason: null },
         { at: NOW - 60_000, action: 'pulled', tool: 'memory_get', itemId: 'm1', reason: null },
@@ -533,6 +540,7 @@ describe('ContextDialog — the Memory page', () => {
   it('a task report (an update with no item) lists under Saved by its tool, and nothing breaks', async () => {
     await openMemory({
       injected: null,
+      recall: null,
       entries: [
         { at: NOW - 60_000, action: 'updated', tool: 'task_report', itemId: null, reason: null }
       ]
@@ -545,7 +553,11 @@ describe('ContextDialog — the Memory page', () => {
   it('reloads when memory changes, and stops listening when the dialog closes', async () => {
     const memory = await openMemory(NO_ACTIVITY)
     expect(memory.activity).toHaveBeenCalledTimes(1)
-    memory.activity.mockResolvedValue({ injected: { tokens: 10, itemIds: ['m1'] }, entries: [] })
+    memory.activity.mockResolvedValue({
+      injected: { tokens: 10, itemIds: ['m1'] },
+      entries: [],
+      recall: null
+    })
     await act(async () => {
       memory.fire()
       await Promise.resolve()
@@ -569,6 +581,7 @@ describe('ContextDialog — the Memory page', () => {
 describe('ContextDialog — memory without a setup report', () => {
   const GIVEN: MemoryActivity = {
     injected: { tokens: 1250, itemIds: IDS },
+    recall: null,
     entries: [
       { at: NOW - 60_000, action: 'pulled', tool: 'memory_search', itemId: 'm1', reason: null }
     ]

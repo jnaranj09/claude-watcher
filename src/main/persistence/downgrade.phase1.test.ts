@@ -36,11 +36,13 @@ function blob<T>(): {
 
 // The phase-1 settings schema (`src/shared/schemas/settings.ts` at 120e59d, the commit before
 // memory phase 2): `git diff 120e59d -- src/shared/schemas/settings.ts` only ADDS these three keys
-// to `SettingsSchema`, so the current schema without them is that schema, field for field.
+// to `SettingsSchema`, and memory phase 3 adds `memoryRecallEnabled`, so the current schema
+// without the four is that schema, field for field.
 const Phase1SettingsSchema = SettingsSchema.omit({
   memoryCheckpoint: true,
   memorySaveTasks: true,
-  memoryModel: true
+  memoryModel: true,
+  memoryRecallEnabled: true
 })
 
 // A FROZEN copy of the phase-1 task schema (`src/shared/schemas/goal.ts` at 120e59d). `GoalSchema`,

@@ -8,6 +8,8 @@ import {
   MemoryExtractResultSchema,
   MemoryItemSchema,
   MemoryListSchema,
+  MemoryRecallModeSchema,
+  MEMORY_RECALL_SKIPS,
   MemoryRestoreSchema,
   MemoryRowSchema,
   MemorySetStateSchema,
@@ -42,7 +44,19 @@ describe('memory text limits', () => {
       searchLimit: 20,
       listLimit: 100,
       indexChars: 6000,
-      indexCeilingChars: 24_000
+      indexCeilingChars: 24_000,
+      recallPromptChars: 2000,
+      recallTerms: 12,
+      recallRows: 3,
+      recallLineChars: 600,
+      recallChars: 2000,
+      recallWindowChars: 20_000,
+      atUseFolders: 5,
+      atUseRows: 10,
+      atUseChars: 1500,
+      indexFolders: 200,
+      windowItems: 500,
+      rememberChars: 8000
     })
   })
 
@@ -249,10 +263,33 @@ describe('memory records', () => {
     expect(
       MemoryActivitySchema.safeParse({
         injected: { tokens: 3, itemIds: ['m1'] },
-        entries: [{ at: 1, action: 'pulled', tool: 'memory_get', itemId: null, reason: null }]
+        entries: [{ at: 1, action: 'pulled', tool: 'memory_get', itemId: null, reason: null }],
+        recall: null
       }).success
     ).toBe(true)
-    expect(MemoryActivitySchema.safeParse({ injected: null, entries: [] }).success).toBe(true)
+    expect(
+      MemoryActivitySchema.safeParse({ injected: null, entries: [], recall: null }).success
+    ).toBe(true)
+  })
+
+  it('an activity carries its recall mode and an injected entry', () => {
+    const base = {
+      injected: null,
+      entries: [{ at: 1, action: 'injected', tool: 'prompt', itemId: 'm1', reason: null }]
+    }
+    expect(
+      [{ mode: 'mod' }, { mode: 'launch', reason: 'claude_too_old' }, null, { mode: 'launch' }].map(
+        (recall) => MemoryActivitySchema.safeParse({ ...base, recall }).success
+      )
+    ).toEqual([true, true, true, false])
+    expect(MemoryActivitySchema.safeParse(base).success).toBe(false) // recall is required (nullable)
+  })
+
+  it('the recall skips are the three reasons recall can fall back to launch', () => {
+    expect(MEMORY_RECALL_SKIPS).toEqual(['setting_off', 'claude_too_old', 'mod_not_installed'])
+    expect(MemoryRecallModeSchema.safeParse({ mode: 'mod', reason: 'setting_off' }).success).toBe(
+      false
+    )
   })
 
   it('an activity entry may be a drop with a known reason, and only a known one', () => {
@@ -263,16 +300,23 @@ describe('memory records', () => {
       itemId: null,
       reason: 'evidence_not_found'
     }
-    expect(MemoryActivitySchema.safeParse({ injected: null, entries: [drop] }).success).toBe(true)
     expect(
-      MemoryActivitySchema.safeParse({ injected: null, entries: [{ ...drop, reason: 'other' }] })
-        .success
+      MemoryActivitySchema.safeParse({ injected: null, entries: [drop], recall: null }).success
+    ).toBe(true)
+    expect(
+      MemoryActivitySchema.safeParse({
+        injected: null,
+        entries: [{ ...drop, reason: 'other' }],
+        recall: null
+      }).success
     ).toBe(false)
   })
 
   it('P3-R1: an activity entry may be a drop of an update only claude supported', () => {
     const drop = { at: 1, action: 'dropped', tool: 'extract', itemId: null, reason: 'claude_only' }
-    expect(MemoryActivitySchema.parse({ injected: null, entries: [drop] }).entries).toEqual([drop])
+    expect(
+      MemoryActivitySchema.parse({ injected: null, entries: [drop], recall: null }).entries
+    ).toEqual([drop])
   })
 
   const episodeItem = {

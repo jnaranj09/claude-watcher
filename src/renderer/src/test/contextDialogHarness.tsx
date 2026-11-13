@@ -74,7 +74,7 @@ export function stubContext(state: SessionSetupState): Bridge {
   return bridge
 }
 
-export const NO_ACTIVITY: MemoryActivity = { injected: null, entries: [] }
+export const NO_ACTIVITY: MemoryActivity = { injected: null, entries: [], recall: null }
 
 export type MemoryStub = {
   activity: ReturnType<typeof vi.fn<(id: string) => Promise<MemoryActivity>>>

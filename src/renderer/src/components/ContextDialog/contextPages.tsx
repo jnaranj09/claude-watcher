@@ -140,17 +140,22 @@ export type MemoryLoad = { activity: MemoryActivity; at: number }
 type ActivityEntry = MemoryActivity['entries'][number]
 
 /** Which list an entry is under: what the session pulled; what it saved (an update, a task report
- *  and a stale mark are writes too, so they list with the saves); what extraction dropped. */
-const LIST_OF: Readonly<Record<ActivityEntry['action'], 'pulled' | 'saved' | 'dropped'>> = {
+ *  and a stale mark are writes too, so they list with the saves); what extraction dropped; what
+ *  recall injected (memory phase 3; the page does not list it yet). */
+const LIST_OF: Readonly<
+  Record<ActivityEntry['action'], 'pulled' | 'saved' | 'dropped' | 'injected'>
+> = {
   pulled: 'pulled',
   saved: 'saved',
   updated: 'saved',
   marked_stale: 'saved',
-  dropped: 'dropped'
+  dropped: 'dropped',
+  injected: 'injected'
 }
 
 /** What this session was given at launch, then what it pulled, what it saved and what extraction
- *  dropped (memory phase 2), each entry under exactly one of them. `at` is when the answer came,
+ *  dropped (memory phase 2), each entry under exactly one of them (an injected entry, under none
+ *  yet). `at` is when the answer came,
  *  the "now" its times are measured from. A row names the tool, or for a drop the reason in plain
  *  words; it never needs an item id (a task report has none). */
 export function MemoryPage({

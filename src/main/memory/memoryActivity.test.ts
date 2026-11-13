@@ -12,8 +12,26 @@ const entry = (n: number): MemoryActivity['entries'][number] => ({
 })
 
 describe('memory activity', () => {
-  it('an unknown session has nothing injected and no entries', () => {
-    expect(createMemoryActivity().get('nope')).toEqual({ injected: null, entries: [] })
+  it('an unknown session has nothing injected, no entries and no recall mode', () => {
+    expect(createMemoryActivity().get('nope')).toEqual({
+      injected: null,
+      entries: [],
+      recall: null
+    })
+  })
+
+  it('keeps the recall mode, moves it on a rebind and emits each time', () => {
+    const log = createMemoryActivity()
+    let fired = 0
+    log.onChange(() => fired++)
+    log.recallMode('s1', { mode: 'launch', reason: 'setting_off' })
+    log.rebind('s1', 's2')
+    expect([log.get('s1').recall, log.get('s2').recall, log.get('nobody').recall, fired]).toEqual([
+      null,
+      { mode: 'launch', reason: 'setting_off' },
+      null,
+      2
+    ])
   })
 
   it('6,000 injected characters read back as 1,500 tokens', () => {
@@ -55,8 +73,8 @@ describe('memory activity', () => {
     log.record('old', entry(1))
     log.rebind('old', 'new')
     expect([log.get('old'), log.get('new')]).toEqual([
-      { injected: null, entries: [] },
-      { injected: { tokens: 2, itemIds: ['a'] }, entries: [entry(1)] }
+      { injected: null, entries: [], recall: null },
+      { injected: { tokens: 2, itemIds: ['a'] }, entries: [entry(1)], recall: null }
     ])
   })
 
@@ -72,7 +90,7 @@ describe('memory activity', () => {
     log.injected('s1', { chars: 8, itemIds: ['a'] })
     log.record('s1', entry(1))
     log.forget('s1')
-    expect(log.get('s1')).toEqual({ injected: null, entries: [] })
+    expect(log.get('s1')).toEqual({ injected: null, entries: [], recall: null })
   })
 
   it('tells its listeners of an index sent, an entry, a rebind and a forget', () => {

@@ -33,7 +33,33 @@ export const MEMORY_LIMITS = {
   indexChars: 6000,
   /** The index's hard ceiling: pinned lines may pass `indexChars`, never this (the index rides
    *  one argv string, and Linux caps one at 128 KiB). */
-  indexCeilingChars: 24_000
+  indexCeilingChars: 24_000,
+  // Recall while a session runs (memory phase 3): the `watcher-memory` mod asks main per window,
+  // per prompt and per folder a tool touches.
+  /** A prompt's text the mod sends for recall. */
+  recallPromptChars: 2000,
+  /** Terms cut from that text. */
+  recallTerms: 12,
+  /** Items one recall block lists. */
+  recallRows: 3,
+  /** One recall line. */
+  recallLineChars: 600,
+  /** One recall block. */
+  recallChars: 2000,
+  /** Recall and at-use blocks together, per conversation window. */
+  recallWindowChars: 20_000,
+  /** Folders one at-use call asks about. */
+  atUseFolders: 5,
+  /** Keys one at-use block lists. */
+  atUseRows: 10,
+  /** One at-use block. */
+  atUseChars: 1500,
+  /** Folders the section's answer names that hold a specific the index did not list. */
+  indexFolders: 200,
+  /** Item ids remembered per window (what this window was already told). */
+  windowItems: 500,
+  /** A `/remember` text on the wire. */
+  rememberChars: 8000
 } as const
 
 /** Codes the memory store throws (the renderer maps them to copy, never the message).
@@ -196,6 +222,18 @@ export const DROP_REASONS = [
 ] as const
 export type DropReason = (typeof DROP_REASONS)[number]
 
+/** Why a session gets memory the launch way (the index at launch only) instead of the mod. */
+export const MEMORY_RECALL_SKIPS = ['setting_off', 'claude_too_old', 'mod_not_installed'] as const
+export type MemoryRecallSkip = (typeof MEMORY_RECALL_SKIPS)[number]
+
+/** How a session gets memory: the `watcher-memory` mod (recall while it runs), or the launch index
+ *  only, with the reason. */
+export const MemoryRecallModeSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('mod') }).strict(),
+  z.object({ mode: z.literal('launch'), reason: z.enum(MEMORY_RECALL_SKIPS) }).strict()
+])
+export type MemoryRecallMode = z.infer<typeof MemoryRecallModeSchema>
+
 export const MemoryActivitySchema = z
   .object({
     injected: z
@@ -206,14 +244,17 @@ export const MemoryActivitySchema = z
       z
         .object({
           at: z.number(),
-          action: z.enum(['pulled', 'saved', 'updated', 'marked_stale', 'dropped']),
+          // `injected`: recall put an item in a prompt or a tool result (tool `prompt` or `file`).
+          action: z.enum(['pulled', 'saved', 'updated', 'marked_stale', 'dropped', 'injected']),
           tool: z.string(),
           itemId: z.string().nullable(),
           // Why extraction dropped a candidate; null on every other action.
           reason: z.enum(DROP_REASONS).nullable()
         })
         .strict()
-    )
+    ),
+    // null = not decided (memory off).
+    recall: MemoryRecallModeSchema.nullable()
   })
   .strict()
 export type MemoryActivity = z.infer<typeof MemoryActivitySchema>
