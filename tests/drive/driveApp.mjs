@@ -196,7 +196,10 @@ export async function launchApp({ args = [] } = {}) {
     args: [path.join(ROOT, 'out/main/index.js'), ...args],
     env: display.env({ ...process.env, C9_TEST_PICK_DIR: pickDir, CLAUDE_WATCHER_PROFILE: 'drive' })
   })
-  const pid = app.process().pid
+  // Kept from launch: once the app has exited (a scenario's own `app.quit()`), Playwright's
+  // `app.process()` throws, so teardown reads this handle instead.
+  const child = app.process()
+  const pid = child.pid
   const page = await app.firstWindow()
   await page
     .locator('[data-testid="header-new-session"]')
@@ -213,13 +216,17 @@ export async function launchApp({ args = [] } = {}) {
         /* already gone */
       }
     }
-    const closed = new Promise((resolve) => app.process().once('close', resolve))
-    try {
-      process.kill(-pid, 'SIGKILL')
-    } catch {
-      /* group already gone */
+    // Already exited (the scenario quit the app): nothing to kill or wait for.
+    const exited = child.exitCode !== null || child.signalCode !== null
+    if (!exited) {
+      const closed = new Promise((resolve) => child.once('close', resolve))
+      try {
+        process.kill(-pid, 'SIGKILL')
+      } catch {
+        /* group already gone */
+      }
+      await Promise.race([closed, new Promise((resolve) => setTimeout(resolve, 5000))])
     }
-    await Promise.race([closed, new Promise((resolve) => setTimeout(resolve, 5000))])
     display.stop()
   }
 
