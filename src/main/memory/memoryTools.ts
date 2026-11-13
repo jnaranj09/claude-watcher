@@ -364,7 +364,8 @@ export function createMemoryTools(deps: {
         templateId: c.session.templateId,
         goalId: c.session.goalId,
         taskIds: [...c.session.taskIds]
-      }
+      },
+      source: null
     })
     c.record('saved', 'memory_save', item.id)
     return ok(`Saved. id=${item.id}`)

@@ -109,7 +109,8 @@ export function createMemoryIpcHandlers(deps: {
         check: req.check,
         basis: 'stated',
         origin: { by: 'operator', sessionId: null },
-        meta: NO_META
+        meta: NO_META,
+        source: null
       })
     },
     edit(raw) {

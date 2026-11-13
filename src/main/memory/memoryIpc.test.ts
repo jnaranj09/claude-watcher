@@ -78,7 +78,8 @@ describe('create', () => {
         templateId: null,
         goalId: null,
         taskIds: []
-      }
+      },
+      source: null
     })
   })
 
@@ -257,7 +258,8 @@ describe("a session's items (the Delete confirm)", () => {
         templateId: null,
         goalId: null,
         taskIds: []
-      }
+      },
+      source: null
     }).id
   }
 

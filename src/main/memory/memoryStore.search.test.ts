@@ -53,7 +53,8 @@ function add(text: MemoryText, extra: Extra = {}): MemoryItem {
       goalId: null,
       taskIds: [],
       ...meta
-    }
+    },
+    source: null
   })
 }
 

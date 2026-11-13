@@ -154,9 +154,10 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   clears both. A tool sees the calling LIVE session's workspace plus global items (no tool takes
   a workspace id; an item outside answers `memory_not_found`); a save is `inferred`, origin
   `agent` + that session; an update appends a version, never overwrites. An item's basis is its
-  current text's: an edit takes it from the writer (agent or extract → `inferred`, operator →
-  `stated`), each version keeps its own (`version.basis`), so a restore brings it back, and a
-  state or pin change keeps it. Memory off, no store or
+  current text's: an edit takes it from the evidence extraction gives with it (and keeps where
+  that text came from, `source_*`), else from the writer (agent or extract → `inferred`, operator
+  → `stated`, the source cleared); each version keeps its own (`version.basis`), so a restore
+  brings it back, and a state or pin change keeps it. An episode is never pinned. Memory off, no store or
   session not live → `Memory is not available.` (logged as `code=memory_not_available`: an error
   outcome may carry a log `code`, which the endpoint logs instead of its text). `/clear` moves
   the token, the file, the activity record (kept in RAM; Context's `Memory` page reads it through

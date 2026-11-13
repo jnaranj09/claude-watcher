@@ -1,11 +1,21 @@
 // The read side of the memory store (spec 2026-11-11 memory §2, §3): search, browse and the rows
 // of a session's memory index. Every read narrows by scope in SQL. A search narrows by scope and
 // app metadata first (`filterSql.ts`), then ranks by the word index, then adds what only the
-// trigram index finds. These functions throw on any SQLite or row failure; `memoryStore.ts` wraps
-// them so a failure is never mistaken for a result.
+// trigram index finds. The reads extraction needs (memory phase 2: the scope shown to the model,
+// the specifics a session saved without a source, who wrote an item's current text) live here
+// too. These functions throw on any SQLite or row failure; `memoryStore.ts` wraps them so a
+// failure is never mistaken for a result.
 import { z } from 'zod'
 import { MEMORY_FILTER_FIELDS, type MemoryFilters } from '../../shared/memory/filterFields'
-import type { MemoryItem, MemoryRow } from '../../shared/schemas/memory'
+import {
+  MEMORY_ITEM_KINDS,
+  MEMORY_WRITERS,
+  type MemoryItem,
+  type MemoryItemKind,
+  type MemoryRow,
+  type MemoryWriter
+} from '../../shared/schemas/memory'
+import { EXTRACT_LIMITS } from '../../shared/schemas/memoryExtract'
 import {
   FILTER_SQL,
   folderAbove,
@@ -14,11 +24,11 @@ import {
   type SqlClause
 } from './filterSql'
 import type { MemoryDb } from './memoryDb'
-import { CountRow, ItemRow, ListRow, NEWEST_FIRST, selectItems } from './memoryRows'
+import { CountRow, CURRENT_JOIN, ItemRow, ListRow, NEWEST_FIRST, selectItems } from './memoryRows'
 
 export type MemoryScope = { workspaceId: string; includeGlobal: boolean }
 export type MemorySearchInput = {
-  kind: MemoryItem['kind'] | null
+  kind: MemoryItemKind | null
   query: string | null
   filters: MemoryFilters
   offset: number
@@ -155,36 +165,118 @@ export function browseItems(
   )
 }
 
-/** A pinned specific is listed once, under `pinned`; `more` counts every other active item. */
+/** `item.folder` is `folder`, above it or below it on a path boundary. */
+function relatedFolder(folder: string): SqlClause {
+  const near = folderAtOrUnder('item.folder', folder)
+  const above = folderAbove('item.folder', folder)
+  return { sql: `(${near.sql} OR ${above.sql})`, params: [...near.params, ...above.params] }
+}
+
+/** Active, unpinned items of one kind whose folder is related to `folder`, newest first. */
+function hereOfKind(
+  db: MemoryDb,
+  inScope: SqlClause,
+  kind: MemoryItemKind,
+  folder: string,
+  limit: number
+): MemoryRow[] {
+  const here = and([
+    inScope,
+    { sql: 'item.pinned = 0 AND item.kind = ? AND item.folder IS NOT NULL', params: [kind] },
+    relatedFolder(folder)
+  ])
+  return db.all(`${selectItems()} WHERE ${here.sql} ORDER BY ${NEWEST_FIRST} LIMIT ?`, ListRow, [
+    ...here.params,
+    limit
+  ])
+}
+
+/** A pinned specific is listed once, under `pinned`; `more` counts every other active item (an
+ *  episode is never pinned, so it is never listed twice). */
 export function indexItems(
   db: MemoryDb,
   workspaceId: string,
   folder: string
-): { pinned: MemoryItem[]; specificsHere: MemoryRow[]; more: number } {
+): {
+  pinned: MemoryItem[]
+  specificsHere: MemoryRow[]
+  episodesHere: MemoryRow[]
+  more: number
+} {
   const inScope = and([scopeClause({ workspaceId, includeGlobal: true }), ACTIVE])
   const pinned = db.all(
     `${selectItems()} WHERE ${inScope.sql} AND item.pinned = 1 ORDER BY ${NEWEST_FIRST}`,
     ItemRow,
     inScope.params
   )
-  const near = folderAtOrUnder('item.folder', folder)
-  const above = folderAbove('item.folder', folder)
-  const here = and([
-    inScope,
-    {
-      sql: "item.pinned = 0 AND item.kind = 'specific' AND item.folder IS NOT NULL",
-      params: []
-    },
-    { sql: `(${near.sql} OR ${above.sql})`, params: [...near.params, ...above.params] }
-  ])
-  const specificsHere = db.all(
-    `${selectItems()} WHERE ${here.sql} ORDER BY ${NEWEST_FIRST} LIMIT ?`,
-    ListRow,
-    [...here.params, SPECIFICS_HERE_MAX]
-  )
+  const specificsHere = hereOfKind(db, inScope, 'specific', folder, SPECIFICS_HERE_MAX)
+  const episodesHere = hereOfKind(db, inScope, 'episode', folder, EXTRACT_LIMITS.episodesInIndex)
   return {
     pinned,
     specificsHere,
-    more: count(db, inScope) - pinned.length - specificsHere.length
+    episodesHere,
+    more: count(db, inScope) - pinned.length - specificsHere.length - episodesHere.length
   }
+}
+
+const ScopeRow = z.object({
+  id: z.string(),
+  kind: z.enum(MEMORY_ITEM_KINDS),
+  head: z.string(),
+  body: z.string()
+})
+
+/** At most `limit` active items of the workspace and global, in this order: saved by
+ *  `originSessionId`, pinned, of `folder` (at, above or below it), newest (D19). */
+export function extractScope(
+  db: MemoryDb,
+  workspaceId: string,
+  folder: string | null,
+  originSessionId: string,
+  limit: number
+): { id: string; kind: MemoryItemKind; head: string; body: string }[] {
+  const inScope = and([scopeClause({ workspaceId, includeGlobal: true }), ACTIVE])
+  // No folder: no item is "of this folder", so that rank is left out (SQLite refuses a constant
+  // ORDER BY term).
+  const here = folder === null ? null : relatedFolder(folder)
+  const hereRank = here === null ? '' : `(item.folder IS NOT NULL AND ${here.sql}) DESC,`
+  return db.all(
+    `SELECT item.id, item.kind, cur.head, cur.body FROM item ${CURRENT_JOIN}
+     WHERE ${inScope.sql}
+     ORDER BY item.origin_session_id IS ? DESC, item.pinned DESC, ${hereRank} ${NEWEST_FIRST}
+     LIMIT ?`,
+    ScopeRow,
+    [...inScope.params, originSessionId, ...(here?.params ?? []), limit]
+  )
+}
+
+const SpecificValueRow = z.object({ id: z.string(), value: z.string() })
+
+/** Active specifics `originSessionId` saved with the tool (origin `agent`) that have no source
+ *  yet, oldest first. */
+export function agentSpecificsNoSource(
+  db: MemoryDb,
+  originSessionId: string
+): { id: string; value: string }[] {
+  return db.all(
+    `SELECT item.id, cur.body AS value FROM item ${CURRENT_JOIN}
+     WHERE item.kind = 'specific' AND item.state = 'active' AND item.origin_by = 'agent'
+       AND item.origin_session_id = ? AND item.source_quote IS NULL
+     ORDER BY item.created_at, item.rid`,
+    SpecificValueRow,
+    [originSessionId]
+  )
+}
+
+const WriterRow = z.object({ by: z.enum(MEMORY_WRITERS) })
+
+/** Who wrote the newest version; null for an unknown id. */
+export function writerOfCurrent(db: MemoryDb, id: string): MemoryWriter | null {
+  return (
+    db.get(
+      'SELECT by FROM version WHERE item_id = ? ORDER BY at DESC, seq DESC LIMIT 1',
+      WriterRow,
+      [id]
+    )?.by ?? null
+  )
 }

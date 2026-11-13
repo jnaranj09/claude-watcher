@@ -59,6 +59,7 @@ function input(text: MemoryText, over: Partial<MemoryAdd> = {}): MemoryAdd {
       goalId: null,
       taskIds: []
     },
+    source: null,
     ...over
   }
 }

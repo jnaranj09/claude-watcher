@@ -57,7 +57,15 @@ const PORT_ITEM: MemoryAdd = {
   check: null,
   basis: 'stated',
   origin: { by: 'operator', sessionId: null },
-  meta: { folder: null, sessionName: null, tagIds: [], templateId: null, goalId: null, taskIds: [] }
+  meta: {
+    folder: null,
+    sessionName: null,
+    tagIds: [],
+    templateId: null,
+    goalId: null,
+    taskIds: []
+  },
+  source: null
 }
 
 describe('openMemory', () => {
@@ -144,7 +152,8 @@ describe('the opened memory', () => {
         templateId: null,
         goalId: null,
         taskIds: []
-      }
+      },
+      source: null
     })
     expect(store?.get('m1')).not.toBeNull()
     memory?.removeByWorkspace('w1')

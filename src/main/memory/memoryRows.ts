@@ -19,7 +19,7 @@ const ITEM_COLUMNS = `item.id, item.kind, item.workspace_id, item.state, item.pi
   item.check_text, item.folder, item.origin_by, item.origin_session_id, item.origin_deleted_at,
   item.last_seen_at, item.created_at, item.updated_at, item.meta, item.source_path,
   item.source_entry, item.source_quote, item.ended_at, cur.head, cur.body`
-const CURRENT_JOIN = `JOIN version AS cur ON cur.seq = (SELECT v.seq FROM version AS v
+export const CURRENT_JOIN = `JOIN version AS cur ON cur.seq = (SELECT v.seq FROM version AS v
   WHERE v.item_id = item.id ORDER BY v.at DESC, v.seq DESC LIMIT 1)`
 
 /** `SELECT <item columns> FROM <from> JOIN <current version>`; `from` names `item`. */
@@ -29,20 +29,27 @@ export function selectItems(from = 'item'): string {
 
 export const NEWEST_FIRST = 'item.updated_at DESC, item.rid DESC'
 
-/** `meta` holds everything of `MemoryItem['meta']` but the folder, which is a column. */
-const MetaJsonSchema = MemoryItemSchema.options[0].shape.meta.omit({ folder: true })
-const MetaColumn = z
-  .string()
-  .transform((text, ctx): unknown => {
-    try {
-      return JSON.parse(text)
-    } catch {
-      // Becomes a row issue (path `meta`), which the store handles as a failed read by code.
-      ctx.addIssue({ code: 'custom', message: 'meta_not_json' })
-      return z.NEVER
-    }
-  })
-  .pipe(MetaJsonSchema)
+/** An item's whole `meta` (the folder included), as `extract_state.meta` holds it. */
+export const ItemMetaSchema = MemoryItemSchema.options[0].shape.meta
+
+/** A TEXT column holding JSON, parsed and then checked by `schema`. Text that is not JSON becomes
+ *  a row issue (`json_invalid` at the column's path), which the caller handles as a failed read. */
+export function jsonColumn<T>(schema: z.ZodType<T>): z.ZodType<T, string> {
+  return z
+    .string()
+    .transform((text, ctx): unknown => {
+      try {
+        return JSON.parse(text)
+      } catch {
+        ctx.addIssue({ code: 'custom', message: 'json_invalid' })
+        return z.NEVER
+      }
+    })
+    .pipe(schema)
+}
+
+/** `item.meta` holds everything of `MemoryItem['meta']` but the folder, which is a column. */
+const MetaColumn = jsonColumn(ItemMetaSchema.omit({ folder: true }))
 
 const StoredRow = z.object({
   id: z.string(),

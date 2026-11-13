@@ -221,7 +221,8 @@ describe('card state', () => {
         templateId: null,
         goalId: null,
         taskIds: []
-      }
+      },
+      source: null
     })
     dropCardState(d, 'gone')
     expect(d.memoryTokens.resolve(token)).toBeNull()

@@ -38,7 +38,8 @@ function addAt(iso: string): void {
       templateId: null,
       goalId: null,
       taskIds: []
-    }
+    },
+    source: null
   })
 }
 

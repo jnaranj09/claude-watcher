@@ -1,12 +1,16 @@
 // The memory store (spec 2026-11-11 memory §2, §3): the one object the rest of main uses to write
 // memory items and find them. Every text change appends a version (newest = current) and never
-// overwrites one. The item's basis is its current text's: an edit takes it from the writer
-// (`WRITER_BASIS`), a restore brings back the restored version's, and a state or pin change keeps
-// it. The read side lives in `memorySearch.ts`, the row schemas in `memoryRows.ts`.
+// overwrites one. The item's basis is its current text's: an edit takes it from its evidence when
+// extraction gives one, else from the writer (`WRITER_BASIS`); a restore brings back the restored
+// version's, and a state or pin change keeps it. An extracted item keeps where its current text
+// came from (`source_*`); an edit without evidence clears it. `batch` runs a whole save from a
+// session in one transaction. The read side lives in `memorySearch.ts`, the row schemas in
+// `memoryRows.ts`.
 //
-// Failures: a missing id or version is a refusal code (`MEMORY_ERROR.notFound`,
-// `versionNotFound`). Any other throw is SQLite or a row that failed its schema: a write rolls
-// back, reports `write_failed` and throws `STORE_WRITE_FAILED`; a read logs and throws
+// Failures: a missing id, version or command is a refusal code (`MEMORY_ERROR.notFound`,
+// `versionNotFound`, `commandNotFound`). Any other throw is SQLite or a row that failed its
+// schema: a write rolls back, reports `write_failed` and throws `STORE_WRITE_FAILED`; a read logs
+// and throws
 // `MEMORY_ERROR.readFailed` with no storage report (the file opened; the caller shows the
 // failure), never a result that looks real. Memory text is sensitive: logs carry `code=` only.
 import { z } from 'zod'
@@ -15,6 +19,7 @@ import {
   MEMORY_ERROR,
   MemoryVersionSchema,
   type MemoryItem,
+  type MemoryItemKind,
   type MemoryRow,
   type EpisodeText,
   type MemoryText,
@@ -27,9 +32,12 @@ import type { FilterContext } from './filterSql'
 import type { MemoryDb, SqlValue } from './memoryDb'
 import { CountRow, ItemRow, selectItems } from './memoryRows'
 import {
+  agentSpecificsNoSource,
   browseItems,
+  extractScope,
   indexItems,
   searchItems,
+  writerOfCurrent,
   type BrowseBy,
   type MemoryScope,
   type MemorySearchInput
@@ -38,23 +46,36 @@ import {
 export type { FilterContext } from './filterSql'
 export type { MemoryScope } from './memorySearch'
 
+/** Where an extracted text came from: the transcript (null when not known), the entry, the
+ *  quote. The path stays in main (D34): `MemoryItem.source` carries the other two. */
+export type StoredSource = { path: string | null; entryId: string; quote: string }
+export type MemoryEvidence = { basis: MemoryItem['basis']; source: StoredSource | null }
+
 export type MemoryAdd = {
-  text: MemoryText
+  text: MemoryText | EpisodeText
   workspaceId: string | null
   check: string | null
   basis: Basis
   origin: MemoryItem['origin']
   meta: MemoryItem['meta']
+  source: StoredSource | null
 }
 
 export interface MemoryStore {
   add(input: MemoryAdd): MemoryItem
+  /** `evidence` given: the item's basis and source come from it. Not given: basis from the
+   *  writer (agent or extract → inferred, operator → stated) and the source is cleared. */
   edit(
     id: string,
-    change: { text: MemoryText; check: string | null },
+    change: { text: MemoryText | EpisodeText; check: string | null; evidence?: MemoryEvidence },
     by: MemoryWriter,
     reason: string | null
   ): MemoryItem
+  /** `last_seen_at = at` only: no version, `updated_at` unchanged. Unknown id: nothing. */
+  touchSeen(id: string, at: number): void
+  /** The basis and source of the CURRENT text: the item's and its newest version's basis, the
+   *  three source columns. No new version, `updated_at` unchanged. */
+  setEvidence(id: string, evidence: { basis: MemoryItem['basis']; source: StoredSource }): void
   /** To the state the item already has: no version, no date change, no `onChange`. */
   setState(
     id: string,
@@ -62,6 +83,7 @@ export interface MemoryStore {
     by: MemoryWriter,
     reason: string | null
   ): MemoryItem
+  /** An episode is never pinned: `MEMORY_ERROR.notFound`, as for an unknown id. */
   setPinned(id: string, pinned: boolean): MemoryItem
   /** Appends the text of the version at `versionAt`; when two versions share that `at`, the
    *  newest of them. */
@@ -81,7 +103,31 @@ export interface MemoryStore {
   indexRows(
     workspaceId: string,
     folder: string
-  ): { pinned: MemoryItem[]; specificsHere: MemoryRow[]; more: number }
+  ): {
+    pinned: MemoryItem[]
+    specificsHere: MemoryRow[]
+    /** Active episodes of the folder (at, above or below it), newest
+     *  `EXTRACT_LIMITS.episodesInIndex`; `more` does not count them. */
+    episodesHere: MemoryRow[]
+    more: number
+  }
+  /** Active specifics `originSessionId` saved with the tool that have no source yet. */
+  agentSpecificsWithoutSource(originSessionId: string): { id: string; value: string }[]
+  /** Who wrote the newest version; null for an unknown id. */
+  currentWriter(id: string): MemoryWriter | null
+  /** At most `limit` active items of the workspace and global, in this order: saved by
+   *  `originSessionId`, pinned, of `folder` (at, above or below it), newest. */
+  scopeForExtract(
+    workspaceId: string,
+    folder: string | null,
+    originSessionId: string,
+    limit: number
+  ): { id: string; kind: MemoryItemKind; head: string; body: string }[]
+  /** One transaction around `work`: the store's own methods called inside write into it.
+   *  Listeners hear once, after the commit (always: `work` may write rows the store does not see,
+   *  such as commands); a throw rolls everything back, reports `write_failed` and throws
+   *  `STORE_WRITE_FAILED` (a refusal code passes through). */
+  batch<T>(work: () => T): T
   removeByWorkspace(workspaceId: string): number
   /** How many items `sessionId` saved (its origin), global ones included. */
   countBySession(sessionId: string): number
@@ -94,13 +140,19 @@ export interface MemoryStore {
 }
 
 const LOG_PREFIX = '[claude-watcher][memory]'
-/** Thrown untouched by `write`; `readFailed` is not one (inside a write it is a failed write). */
-const REFUSALS: ReadonlySet<string> = new Set([MEMORY_ERROR.notFound, MEMORY_ERROR.versionNotFound])
+/** Thrown untouched by `write` and `batch`; `readFailed` is not one (inside a write it is a failed
+ *  write). `commandNotFound` comes from `memoryCommands.ts` run inside a `batch`. */
+const REFUSALS: ReadonlySet<string> = new Set([
+  MEMORY_ERROR.notFound,
+  MEMORY_ERROR.versionNotFound,
+  MEMORY_ERROR.commandNotFound
+])
 const FTS_TABLES = ['item_words', 'item_trigram'] as const
 const TextRow = z.object({ basis: z.enum(MEMORY_BASES), head: z.string(), body: z.string() })
 type Basis = MemoryItem['basis']
 
-/** The basis of a text by who wrote it. `extract` is inferred until phase 2 refines it. */
+/** The basis of a text by who wrote it, for an edit with no evidence. An extraction edit that
+ *  gives evidence takes its basis from it instead. */
 const WRITER_BASIS: Readonly<Record<MemoryWriter, Basis>> = {
   agent: 'inferred',
   operator: 'stated',
@@ -112,7 +164,17 @@ function textParts(text: MemoryText | EpisodeText): [head: string, body: string]
   return text.kind === 'specific' ? [text.key, text.value] : [text.title, text.body]
 }
 
+/** An episode's end; null for every other kind. */
+function endedAt(text: MemoryText | EpisodeText): number | null {
+  return text.kind === 'episode' ? text.endedAt : null
+}
+
 const changedRows = (n: number): boolean => n > 0
+
+/** The three source columns, in `source_path, source_entry, source_quote` order. */
+function sourceParams(source: StoredSource | null): [SqlValue, SqlValue, SqlValue] {
+  return source === null ? [null, null, null] : [source.path, source.entryId, source.quote]
+}
 
 export function createMemoryStore(deps: {
   db: MemoryDb
@@ -123,6 +185,8 @@ export function createMemoryStore(deps: {
 }): MemoryStore {
   const { db, now, newId, report, log } = deps
   const listeners = new Set<() => void>()
+  /** Set while `batch` runs: a write inside it joins the batch's transaction and tells no one. */
+  let inBatch = false
 
   function isRefusal(e: unknown): boolean {
     return e instanceof Error && REFUSALS.has(e.message)
@@ -138,19 +202,35 @@ export function createMemoryStore(deps: {
     }
   }
 
-  /** One transaction; listeners hear of it only once it committed and `changed` says so. */
-  function write<T>(work: () => T, changed: (out: T) => boolean = () => true): T {
-    let out: T
+  /** One transaction: a refusal passes through; any other throw rolls back, reports and throws
+   *  `STORE_WRITE_FAILED`. */
+  function commit<T>(work: () => T): T {
     try {
-      out = db.transaction(work)
+      return db.transaction(work)
     } catch (e) {
       if (isRefusal(e)) throw e
       log(`${LOG_PREFIX} code=memory_write_failed`)
       report('write_failed')
       throw new Error(STORE_WRITE_FAILED)
     }
+  }
+
+  /** One transaction; listeners hear of it only once it committed and `changed` says so. */
+  function write<T>(work: () => T, changed: (out: T) => boolean = () => true): T {
+    // Inside a batch: its transaction, its failure handling and its one `emit`.
+    if (inBatch) return work()
+    const out = commit(work)
     if (changed(out)) emit()
     return out
+  }
+
+  function commitBatch<T>(work: () => T): T {
+    inBatch = true
+    try {
+      return commit(work)
+    } finally {
+      inBatch = false
+    }
   }
 
   /** No `report`: storage health's `read_failed` says the file could not be opened, and this
@@ -240,6 +320,10 @@ export function createMemoryStore(deps: {
             JSON.stringify(meta)
           ]
         )
+        update(id, 'source_path = ?, source_entry = ?, source_quote = ?, ended_at = ?', [
+          ...sourceParams(input.source),
+          endedAt(input.text)
+        ])
         appendVersion(id, at, input.origin.by, input.basis, null, textParts(input.text))
         return mustItem(id)
       }),
@@ -249,13 +333,20 @@ export function createMemoryStore(deps: {
         // A kind never changes: an edit with the other kind finds no such item.
         if (mustItem(id).kind !== change.text.kind) throw new Error(MEMORY_ERROR.notFound)
         const at = now()
-        const basis = WRITER_BASIS[by]
-        update(id, 'basis = ?, check_text = ?, updated_at = ?, last_seen_at = ?', [
-          basis,
-          change.check,
-          at,
-          at
-        ])
+        const basis = change.evidence?.basis ?? WRITER_BASIS[by]
+        update(
+          id,
+          `basis = ?, check_text = ?, updated_at = ?, last_seen_at = ?, source_path = ?,
+           source_entry = ?, source_quote = ?, ended_at = ?`,
+          [
+            basis,
+            change.check,
+            at,
+            at,
+            ...sourceParams(change.evidence?.source ?? null),
+            endedAt(change.text)
+          ]
+        )
         appendVersion(id, at, by, basis, reason, textParts(change.text))
         return mustItem(id)
       }),
@@ -273,9 +364,32 @@ export function createMemoryStore(deps: {
         (out) => out.changed
       ).item,
 
-    setPinned: (id, pinned) =>
+    touchSeen: (id, at) => {
+      write(() => {
+        update(id, 'last_seen_at = ?', [at])
+        return changes()
+      }, changedRows)
+    },
+
+    setEvidence: (id, evidence) => {
       write(() => {
         mustItem(id)
+        update(id, 'basis = ?, source_path = ?, source_entry = ?, source_quote = ?', [
+          evidence.basis,
+          ...sourceParams(evidence.source)
+        ])
+        db.run(
+          `UPDATE version SET basis = ? WHERE seq = (SELECT seq FROM version WHERE item_id = ?
+             ORDER BY at DESC, seq DESC LIMIT 1)`,
+          [evidence.basis, id]
+        )
+      })
+    },
+
+    setPinned: (id, pinned) =>
+      write(() => {
+        // An episode is never pinned (D30): it is never in the index in full.
+        if (mustItem(id).kind === 'episode') throw new Error(MEMORY_ERROR.notFound)
         update(id, 'pinned = ?', [pinned ? 1 : 0])
         return mustItem(id)
       }),
@@ -319,6 +433,22 @@ export function createMemoryStore(deps: {
     browse: (scope, by) => read(() => browseItems(db, scope, by)),
 
     indexRows: (workspaceId, folder) => read(() => indexItems(db, workspaceId, folder)),
+
+    agentSpecificsWithoutSource: (originSessionId) =>
+      read(() => agentSpecificsNoSource(db, originSessionId)),
+
+    currentWriter: (id) => read(() => writerOfCurrent(db, id)),
+
+    scopeForExtract: (workspaceId, folder, originSessionId, limit) =>
+      read(() => extractScope(db, workspaceId, folder, originSessionId, limit)),
+
+    batch: (work) => {
+      // A batch inside a batch is part of it.
+      if (inBatch) return work()
+      const out = commitBatch(work)
+      emit()
+      return out
+    },
 
     removeByWorkspace: (workspaceId) =>
       write(() => deleteItems('workspace_id = ?', [workspaceId]), changedRows),

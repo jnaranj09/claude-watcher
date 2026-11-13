@@ -132,7 +132,8 @@ describe('memorySpawnExtras', () => {
         templateId: null,
         goalId: null,
         taskIds: []
-      }
+      },
+      source: null
     })
     const out = memorySpawnExtras(on, 's1', launch, null)
     expect(out.appendPrompt).toContain('test key')
@@ -404,7 +405,8 @@ describe('markSessionsDeletedInMemory', () => {
         templateId: null,
         goalId: null,
         taskIds: []
-      }
+      },
+      source: null
     })
     markSessionsDeletedInMemory(
       () => store,
