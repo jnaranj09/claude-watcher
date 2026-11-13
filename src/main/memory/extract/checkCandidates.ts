@@ -68,15 +68,6 @@ function strongest<T>(
   return best
 }
 
-/** D14: the strongest entry that holds the quote (result → observed, operator → stated, claude or
- *  tool → inferred), then the earliest. Entries with `evidence: false` never match. */
-export function findEvidence(quote: string, entries: readonly CleanEntry[]): Found | null {
-  const q = normalise(quote)
-  if (q.length < EXTRACT_LIMITS.evidenceMin) return null
-  const found = strongest(entries, (segment) => (segment.includes(q) ? true : null))
-  return found === null ? null : { basis: found.basis, entryId: found.entryId }
-}
-
 const WORD_START = /^[\p{L}\p{N}_]/u
 const WORD_END = /[\p{L}\p{N}_]$/u
 
@@ -91,6 +82,17 @@ function valueAt(text: string, value: string): number {
     if (!joinsBefore && !joinsAfter) return i
   }
   return -1
+}
+
+/** D14: the strongest entry that holds the quote (result → observed, operator → stated, claude or
+ *  tool → inferred), then the earliest. Entries with `evidence: false` never match. The quote must
+ *  stand whole in the entry (`valueAt`): a quote cut mid-word, such as `version 1.2.3` in
+ *  `version 1.2.34`, is not found, so a value cut short with its quote is never kept. */
+export function findEvidence(quote: string, entries: readonly CleanEntry[]): Found | null {
+  const q = normalise(quote)
+  if (q.length < EXTRACT_LIMITS.evidenceMin) return null
+  const found = strongest(entries, (segment) => (valueAt(segment, q) === -1 ? null : true))
+  return found === null ? null : { basis: found.basis, entryId: found.entryId }
 }
 
 const AROUND = 60
@@ -201,7 +203,8 @@ const headOf = (text: MemoryText): string => (text.kind === 'specific' ? text.ke
 const bodyOf = (text: MemoryText): string => (text.kind === 'specific' ? text.value : text.body)
 
 /** Step 5 for an item: an id out of scope (or of another kind) → add; D17; an update that changes
- *  nothing → none; then D16. */
+ *  nothing → none; a none whose value differs from the saved one → update (R11: a different value
+ *  is not a sighting of the saved one); then D16. */
 function reconcileItem(
   c: ExtractCandidate,
   text: MemoryText,
@@ -216,6 +219,8 @@ function reconcileItem(
       (item) => item.kind === text.kind && headKey(item.head) === headKey(headOf(text))
     )
     if (target !== undefined) action = sameBody(target) ? 'none' : 'update'
+  } else if (action === 'none' && target !== undefined && !sameBody(target)) {
+    action = 'update'
   } else if (
     action === 'update' &&
     target !== undefined &&
@@ -250,7 +255,7 @@ function checkOne(c: ExtractCandidate, s: Shaped, ctx: Ctx): Checked | DropReaso
   const found = findEvidence(quote, ctx.entries)
   const source = found === null ? null : { entryId: found.entryId, quote }
   if (s.kind === 'episode') {
-    const inNote = ctx.notes.some((note) => normalise(note).includes(quote))
+    const inNote = ctx.notes.some((note) => valueAt(normalise(note), quote) !== -1)
     if (source === null && !inNote) return 'evidence_not_found'
     return { kind: 'episode', title: s.title, body: s.body, source }
   }

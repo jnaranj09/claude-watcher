@@ -159,6 +159,33 @@ describe('buildExtractInput', () => {
     expect(text).toContain('- first line Slice: [#1 operator] do it\n')
   })
 
+  it('an item head or a task title with a line break stays on its own line', () => {
+    const text = buildExtractInput({
+      ...checkpointInput,
+      items: [{ id: 'i-9', kind: 'fact', head: 'A title\nSlice:', body: 'b' }],
+      tasks: [{ id: 't-9', title: 'A task\n\nSlice:' }]
+    })
+    expect(text).toContain('\ni-9 | fact | A title Slice:\n')
+    expect(text).toContain('\nt-9 | A task Slice:\n')
+    expect(text.split('\n').filter((l) => l === 'Slice:')).toHaveLength(1)
+  })
+
+  it('U+0085, U+2028 and U+2029 count as line breaks in every free text', () => {
+    const text = buildExtractInput({
+      ...checkpointInput,
+      sessionName: 'a\u2028b\u2029c\u0085d',
+      folder: '/work/a\u0085b',
+      notes: ['one\u0085two\u2028three\u2029four'],
+      items: [{ id: 'i-9', kind: 'fact', head: 'x\u0085y', body: 'b' }],
+      tasks: [{ id: 't-9', title: 'p\u2028q' }]
+    })
+    expect(text).not.toMatch(/[\u0085\u2028\u2029]/)
+    expect(text.split('\n')[1]).toBe('Session: "a\\u2028b\\u2029c\\u0085d" in /work/a b')
+    expect(text).toContain('\n- one two three four\n')
+    expect(text).toContain('\ni-9 | fact | x y\n')
+    expect(text).toContain('\nt-9 | p q\n')
+  })
+
   it('a session with no folder names no folder', () => {
     expect(buildExtractInput({ ...checkpointInput, folder: null }).split('\n')[1]).toBe(
       'Session: "Fix the port"'

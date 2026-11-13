@@ -144,6 +144,55 @@ describe('checkCandidates: the quote', () => {
     ).toEqual({ kept: [], dropped: ['evidence_not_found'] })
   })
 
+  it('drops a value cut short together with its quote, at the end of a word', () => {
+    const entries = [
+      entry(4, 'result', 'api listening on http://127.0.0.1:9281\nversion 1.2.34 ready')
+    ]
+    expect(check([specific('Version', '1.2.3', 'version 1.2.3')], { entries })).toEqual({
+      kept: [],
+      dropped: ['evidence_not_found']
+    })
+    expect(
+      check([specific('API address', '127.0.0.1:928', 'listening on http://127.0.0.1:928')], {
+        entries
+      })
+    ).toEqual({ kept: [], dropped: ['evidence_not_found'] })
+  })
+
+  it('drops a quote that begins in the middle of a word', () => {
+    const entries = [entry(4, 'result', 'build 51.2.3 ready, id a19281 set')]
+    expect(check([specific('Version', '1.2.3', '1.2.3 ready')], { entries })).toEqual({
+      kept: [],
+      dropped: ['evidence_not_found']
+    })
+    expect(check([specific('Id', '19281', '19281 set')], { entries })).toEqual({
+      kept: [],
+      dropped: ['evidence_not_found']
+    })
+    expect(check([fact('Listening', 'It listens.', 'istening on http')])).toEqual({
+      kept: [],
+      dropped: ['evidence_not_found']
+    })
+  })
+
+  it('keeps a whole quote that ends at a period, a comma, a closing quote or bracket, or a line end', () => {
+    const entries = [
+      entry(4, 'result', 'Port is 9281. Host is (127.0.0.1), name "api-main"\nversion 1.2.34\nnext')
+    ]
+    const cases: [value: string, evidence: string][] = [
+      ['9281', 'Port is 9281'],
+      ['9281', 'Port is 9281.'],
+      ['127.0.0.1', 'Host is (127.0.0.1'],
+      ['127.0.0.1', '(127.0.0.1),'],
+      ['api-main', 'name "api-main"'],
+      ['1.2.34', 'version 1.2.34'],
+      ['1.2.34', '"api-main" version 1.2.34 next']
+    ]
+    for (const [value, evidence] of cases) {
+      expect(check([specific('Value', value, evidence)], { entries }).dropped).toEqual([])
+    }
+  })
+
   it('drops evidence that joins two entries', () => {
     expect(
       check([
@@ -298,7 +347,7 @@ describe('checkCandidates: the quote', () => {
 
   it('drops evidence over 500 characters', () => {
     const long = 'a'.repeat(501)
-    const entries = [entry(4, 'result', long)]
+    const entries = [entry(4, 'result', long.slice(1))]
     expect(check([fact('Long', 'Body.', long)], { entries }).dropped).toEqual(['invalid'])
     expect(check([fact('Long', 'Body.', long.slice(1))], { entries }).kept).toHaveLength(1)
   })
@@ -469,6 +518,18 @@ describe('checkCandidates: episodes and progress notes', () => {
     ).toEqual({ kept: [], dropped: ['evidence_not_found'] })
   })
 
+  it('an episode quote that begins or ends mid-word in a progress note is dropped', () => {
+    for (const evidence of ['oved the API to port', 'Moved the API to port 928']) {
+      expect(
+        check([episode('Moved the port', 'The port moved.', evidence)], {
+          final: true,
+          notes: [NOTE],
+          entries: []
+        })
+      ).toEqual({ kept: [], dropped: ['evidence_not_found'] })
+    }
+  })
+
   it('a task may not take its evidence from a progress note', () => {
     expect(check([task('Update the docs', NOTE)], { notes: [NOTE] })).toEqual({
       kept: [],
@@ -573,6 +634,35 @@ describe('checkCandidates: reconcile', () => {
         text: { kind: 'specific', key: 'api port', value: '9281' }
       }
     ])
+  })
+
+  it('R11: a none whose value differs from the saved one is an update, with the basis of its quote', () => {
+    expect(check([cand({ action: 'none', id: 'i-1' })], { items: ITEMS }).kept).toEqual([
+      { ...portItem('observed'), action: 'update', id: 'i-1' }
+    ])
+  })
+
+  it('R11: a none whose value differs is dropped when the operator wrote the item', () => {
+    expect(
+      check([cand({ action: 'none', id: 'i-1' })], {
+        items: ITEMS,
+        operatorWrote: (id) => id === 'i-1'
+      })
+    ).toEqual({ kept: [], dropped: ['operator_item'] })
+  })
+
+  it('R11: a none whose value differs and is not in its quote is dropped, never kept as a sighting', () => {
+    expect(check([cand({ action: 'none', id: 'i-1', body: '9282' })], { items: ITEMS })).toEqual({
+      kept: [],
+      dropped: ['evidence_not_found']
+    })
+  })
+
+  it('R11: a none whose value equals the saved one stays a none, even when the operator wrote it', () => {
+    const same = [{ id: 'i-1', kind: 'specific' as const, head: 'API port', body: '9281' }]
+    expect(
+      check([cand({ action: 'none', id: 'i-1' })], { items: same, operatorWrote: () => true }).kept
+    ).toEqual([{ ...portItem('observed'), action: 'none', id: 'i-1' }])
   })
 
   it('never updates an item the operator wrote', () => {

@@ -42,10 +42,24 @@ export type ScopeTask = { id: string; title: string }
 /** `none` for an empty list. */
 const listOr = (lines: readonly string[]): string[] => (lines.length === 0 ? ['none'] : [...lines])
 
+/** Line breaks JS `\s` misses (U+0085) or `JSON.stringify` keeps raw (U+0085, U+2028, U+2029). */
+const OTHER_BREAKS = /[\u0085\u2028\u2029]/g
+
+/** One line: every whitespace run and every other line break → one space, trimmed. */
+const oneLine = (text: string): string => normalise(text.replace(OTHER_BREAKS, ' '))
+
+/** A JSON string with the other line breaks escaped too. */
+const quoted = (text: string): string =>
+  JSON.stringify(text).replace(
+    OTHER_BREAKS,
+    (ch) => `\\u${(ch.codePointAt(0) ?? 0).toString(16).padStart(4, '0')}`
+  )
+
 /** The addendum's "Input text": the lines in that order, `none` for an empty list, `(nothing new)`
  *  for no entries. Item and task lines carry id, kind and head only (never an item's body). Every
- *  free text is one line (a note, a folder and a head through `normalise`, the session name as a
- *  JSON string), so none of it can start a line of its own. */
+ *  free text is one line (a note, a folder, a head and a title through `oneLine`, the session name
+ *  as a JSON string with U+0085, U+2028 and U+2029 escaped), so none of it can start a line of its
+ *  own. */
 export function buildExtractInput(input: {
   final: boolean
   sessionName: string
@@ -56,19 +70,19 @@ export function buildExtractInput(input: {
   tasks: readonly ScopeTask[]
   entries: readonly CleanEntry[]
 }): string {
-  const name = JSON.stringify(input.sessionName)
+  const name = quoted(input.sessionName)
   return [
     input.final
       ? 'This is the end of the session. Return its episode too.'
       : 'This is a checkpoint in a running session. Do not return an episode.',
-    input.folder === null ? `Session: ${name}` : `Session: ${name} in ${normalise(input.folder)}`,
+    input.folder === null ? `Session: ${name}` : `Session: ${name} in ${oneLine(input.folder)}`,
     input.tasksOn ? 'Tasks: Return open work as tasks.' : 'Tasks: Do not return tasks.',
     'Earlier progress notes:',
-    ...listOr(input.notes.map((note) => `- ${normalise(note)}`)),
+    ...listOr(input.notes.map((note) => `- ${oneLine(note)}`)),
     'Saved items in scope (id | kind | key or title):',
-    ...listOr(input.items.map((item) => `${item.id} | ${item.kind} | ${normalise(item.head)}`)),
+    ...listOr(input.items.map((item) => `${item.id} | ${item.kind} | ${oneLine(item.head)}`)),
     'Open tasks in scope (id | title):',
-    ...listOr(input.tasks.map((task) => `${task.id} | ${normalise(task.title)}`)),
+    ...listOr(input.tasks.map((task) => `${task.id} | ${oneLine(task.title)}`)),
     '',
     'Slice:',
     input.entries.length === 0 ? '(nothing new)' : renderEntries(input.entries)
