@@ -14,7 +14,15 @@
 //     await d.shot(page, 'needs-you', { region: 'header' })
 //   })
 import { _electron as electron } from '@playwright/test'
-import { mkdtempSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync
+} from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import http from 'node:http'
@@ -156,6 +164,18 @@ function descendants(rootPid) {
 const isLaunchedClaude = (cmdline) =>
   cmdline !== '' && !cmdline.includes(ROOT) && cmdline.includes('claude')
 
+/** The folder every session of this run launches in. `CW_DRIVE_PICK_DIR` names one fixed folder
+ *  (it must already exist), so claude asks its folder-trust question once there, not in a new
+ *  temp folder per run. Unset: a new temp folder. */
+function drivePickDir() {
+  const fixed = process.env.CW_DRIVE_PICK_DIR
+  if (fixed === undefined || fixed === '') return mkdtempSync(path.join(tmpdir(), 'cw-drive-'))
+  if (!existsSync(fixed) || !statSync(fixed).isDirectory()) {
+    throw new Error(`CW_DRIVE_PICK_DIR is not an existing folder: ${fixed}`)
+  }
+  return fixed
+}
+
 /**
  * Launch the built app. Throws when the hook port is taken: the app tolerates EADDRINUSE
  * silently, so it would bind nothing and every hook POST would land on the OTHER instance.
@@ -169,7 +189,7 @@ export async function launchApp({ args = [] } = {}) {
     )
   }
   muteDriveAlerts()
-  const pickDir = mkdtempSync(path.join(tmpdir(), 'cw-drive-'))
+  const pickDir = drivePickDir()
   // A hidden display: the drive window never takes the operator's focus (CW_HEADED=1 to watch).
   const display = await startHeadlessDisplay()
   const app = await electron.launch({

@@ -46,6 +46,8 @@ Helpers (`page` first, except hooks): `launchSession`, `needsYou(pickDir, id)`,
 - A workspace with running sessions can't be deleted — delete it in a second `run`.
 - Cards exist only for app-launched sessions; move them with hook POSTs, never by poking the store.
 - `launchSession` waits 3 s so claude's startup hooks land first.
+- `CW_DRIVE_PICK_DIR=<folder>` makes every run launch in that one folder (claude asks its trust
+  question once there, not in a new temp folder per run).
 - Kept-alive terminals stay in the DOM hidden — wait for a VISIBLE `embedded-terminal`.
 - Escape doesn't close the workspace menu while focus is on its button — use
   `openSwitcher`/`closeSwitcher`.
