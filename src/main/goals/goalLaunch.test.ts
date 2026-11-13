@@ -17,6 +17,7 @@ import {
 } from './goalLaunch'
 import { createGoalTokens, type GoalTokens } from './mcp/goalTokens'
 import { buildPlannerPrompt } from './goalPrompt'
+import { openTasksForFolder } from '../memory/memoryTasks'
 import { MCP_SERVER_NAME, createMcpConfigs } from './mcp/mcpConfigFile'
 import { createStorageHealth } from '../storageHealth'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -573,6 +574,26 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
     expect(store.tasksForSession('sess-p')).toEqual([])
     // Its block lists every task of the goal, so the memory index repeats none of them.
     expect(extras.taskIds).toEqual([t1, t2, t3])
+  })
+
+  it("a planner's index leaves out exactly its own goal's tasks", () => {
+    const { store, goalId, t1, t2, t3 } = seed()
+    // Another goal's task in the same folder, and a loose task: neither is in the planner's block.
+    const other = store.saveGoal({ workspaceId: 'w1', name: 'Docs' }, '/work').saved.id
+    const otherTask = store.saveTask({ workspaceId: 'w1', goalId: other, title: 'Fix links' }).saved
+      .id
+    store.saveTask({ workspaceId: 'w1', goalId: null, title: 'Loose' })
+    const extras = goalSpawnExtras(
+      { store, mcp: mcp() },
+      'sess-p',
+      { kind: 'planner', goalId },
+      false,
+      null
+    )
+    expect(extras.taskIds).toEqual([t1, t2, t3])
+    const index = openTasksForFolder(store.view(), 'w1', '/work', new Set(extras.taskIds))
+    // The other goal's task is still in the planner's memory index.
+    expect(index.map((t) => t.id)).toEqual([otherTask])
   })
 
   it('a planner gets nothing when the hook port is not ours, the write is refused, or its goal is gone', () => {

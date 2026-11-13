@@ -116,9 +116,8 @@ export const ItemRow = StoredRow.transform((r): z.input<typeof MemoryItemSchema>
   }
 }).pipe(MemoryItemSchema)
 
-/** A `selectItems()` row as one list line. */
-export const ListRow = StoredRow.transform(
-  (r: Stored): MemoryRow => ({
+function listRowOf(r: Stored): MemoryRow {
+  return {
     id: r.id,
     kind: r.kind,
     head: r.head,
@@ -132,7 +131,22 @@ export const ListRow = StoredRow.transform(
     sessionName: r.meta.sessionName,
     tagIds: r.meta.tagIds,
     originDeletedAt: r.origin_deleted_at
-  })
-).pipe(MemoryRowSchema)
+  }
+}
+
+/** A `selectItems()` row as one list line. */
+export const ListRow = StoredRow.transform(listRowOf).pipe(MemoryRowSchema)
+
+/** An episode's list line plus the day its session ended (`ended_at`; `updated_at` for a row
+ *  without one, as `ItemRow` reads it): a catch-up or a state change moves `updatedAt`, never this. */
+export type EpisodeRow = MemoryRow & { endedAt: number }
+
+/** A `selectItems()` episode row as its list line and its end. */
+export const EpisodeListRow = StoredRow.transform(
+  (r: Stored): EpisodeRow => ({ ...listRowOf(r), endedAt: r.ended_at ?? r.updated_at })
+).pipe(MemoryRowSchema.extend({ endedAt: z.number() }))
+
+/** Newest end first, for episodes (`EpisodeRow.endedAt`). */
+export const NEWEST_ENDED_FIRST = 'COALESCE(item.ended_at, item.updated_at) DESC, item.rid DESC'
 
 export const CountRow = z.object({ n: z.number() })

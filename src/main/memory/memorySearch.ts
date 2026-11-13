@@ -24,7 +24,17 @@ import {
   type SqlClause
 } from './filterSql'
 import type { MemoryDb } from './memoryDb'
-import { CountRow, CURRENT_JOIN, ItemRow, ListRow, NEWEST_FIRST, selectItems } from './memoryRows'
+import {
+  CountRow,
+  CURRENT_JOIN,
+  EpisodeListRow,
+  ItemRow,
+  ListRow,
+  NEWEST_ENDED_FIRST,
+  NEWEST_FIRST,
+  selectItems,
+  type EpisodeRow
+} from './memoryRows'
 
 export type MemoryScope = { workspaceId: string; includeGlobal: boolean }
 export type MemorySearchInput = {
@@ -173,19 +183,20 @@ function relatedFolder(folder: string): SqlClause {
 }
 
 /** Active, unpinned items of one kind whose folder is related to `folder`, newest first. */
-function hereOfKind(
+function hereOfKind<T>(
   db: MemoryDb,
   inScope: SqlClause,
   kind: MemoryItemKind,
   folder: string,
-  limit: number
-): MemoryRow[] {
+  limit: number,
+  read: { row: z.ZodType<T>; order: string }
+): T[] {
   const here = and([
     inScope,
     { sql: 'item.pinned = 0 AND item.kind = ? AND item.folder IS NOT NULL', params: [kind] },
     relatedFolder(folder)
   ])
-  return db.all(`${selectItems()} WHERE ${here.sql} ORDER BY ${NEWEST_FIRST} LIMIT ?`, ListRow, [
+  return db.all(`${selectItems()} WHERE ${here.sql} ORDER BY ${read.order} LIMIT ?`, read.row, [
     ...here.params,
     limit
   ])
@@ -200,7 +211,7 @@ export function indexItems(
 ): {
   pinned: MemoryItem[]
   specificsHere: MemoryRow[]
-  episodesHere: MemoryRow[]
+  episodesHere: EpisodeRow[]
   more: number
 } {
   const inScope = and([scopeClause({ workspaceId, includeGlobal: true }), ACTIVE])
@@ -209,8 +220,15 @@ export function indexItems(
     ItemRow,
     inScope.params
   )
-  const specificsHere = hereOfKind(db, inScope, 'specific', folder, SPECIFICS_HERE_MAX)
-  const episodesHere = hereOfKind(db, inScope, 'episode', folder, EXTRACT_LIMITS.episodesInIndex)
+  const specificsHere = hereOfKind(db, inScope, 'specific', folder, SPECIFICS_HERE_MAX, {
+    row: ListRow,
+    order: NEWEST_FIRST
+  })
+  // Episodes by the day their session ended: a catch-up or a state change never reorders them.
+  const episodesHere = hereOfKind(db, inScope, 'episode', folder, EXTRACT_LIMITS.episodesInIndex, {
+    row: EpisodeListRow,
+    order: NEWEST_ENDED_FIRST
+  })
   return {
     pinned,
     specificsHere,

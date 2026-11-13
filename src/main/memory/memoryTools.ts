@@ -18,8 +18,9 @@
 // throw is a bug: it logs `code=memory_tool_failed` (never the error text, which can carry
 // memory text) and answers `MEMORY_NOT_AVAILABLE`; the endpoint does not catch a tool's throw.
 // Results carry memory text (that is their purpose); logs, errors and activity entries never do.
-// A one-line field (a source quote, a command) is printed on one line, so saved text cannot pass
-// for another field of the result.
+// Saved text cannot pass for a field of the result (`promptText.ts`): every one-line field (a
+// key, a title, a source quote, a command, a session or tag name) is printed on one line, and a
+// fact's or an episode's body comes last, after `body:`, each of its lines indented.
 import { z } from 'zod'
 import { MemoryFiltersSchema, memoryFilterJsonSchema } from '../../shared/memory/filterFields'
 import { TASK_REPORT_EVIDENCE_MAX, TaskReportSchema } from '../../shared/schemas/goal'
@@ -41,9 +42,9 @@ import { GOAL_ERROR, type GoalsStore } from '../persistence/goals'
 import { formatDay } from './formatDay'
 import type { MemoryActivityLog } from './memoryActivity'
 import type { MemoryCommands } from './memoryCommands'
-import { oneLine } from './memoryIndex'
 import type { MemoryNames } from './memoryNames'
 import type { FilterContext, MemoryScope, MemoryStore } from './memoryStore'
+import { indentedBlock, oneLine } from './promptText'
 
 export type MemoryGrant = { sessionId: string }
 
@@ -297,15 +298,23 @@ interface Call {
   visible(id: string): MemoryItem
 }
 
-/** The text lines of `memory_get`: an episode adds the day its session ended. */
-function itemText(item: MemoryItem): string[] {
+/** The head lines of `memory_get` (an episode adds the day its session ended), and the body
+ *  block that ends the result: a fact or episode body keeps its lines, each indented, after every
+ *  field, so no line of it can pass for one of the item's fields. */
+function itemText(item: MemoryItem): { head: string[]; body: string[] } {
   switch (item.kind) {
     case 'specific':
-      return [`key: ${item.key}`, `value: ${item.value}`]
+      return { head: [`key: ${oneLine(item.key)}`, `value: ${oneLine(item.value)}`], body: [] }
     case 'fact':
-      return [`title: ${item.title}`, `body: ${item.body}`]
+      return {
+        head: [`title: ${oneLine(item.title)}`],
+        body: ['body:', ...indentedBlock(item.body)]
+      }
     case 'episode':
-      return [`title: ${item.title}`, `body: ${item.body}`, `ended: ${formatDay(item.endedAt)}`]
+      return {
+        head: [`title: ${oneLine(item.title)}`, `ended: ${formatDay(item.endedAt)}`],
+        body: ['body:', ...indentedBlock(item.body)]
+      }
   }
 }
 
@@ -330,7 +339,10 @@ export function createMemoryTools(deps: {
   const { names } = deps
 
   function tagNames(ids: readonly string[]): string {
-    const named = ids.flatMap((id) => names.tagName(id) ?? [])
+    const named = ids.flatMap((id) => {
+      const name = names.tagName(id)
+      return name === null ? [] : [oneLine(name)]
+    })
     return named.length === 0 ? NO_VALUE : named.join(', ')
   }
 
@@ -384,10 +396,10 @@ export function createMemoryTools(deps: {
       [
         r.id,
         r.kind,
-        r.head,
+        oneLine(r.head),
         formatDay(r.updatedAt),
         r.basis,
-        r.sessionName ?? NO_VALUE,
+        r.sessionName === null ? NO_VALUE : oneLine(r.sessionName),
         c.tagNames(r.tagIds)
       ]
         .concat(r.state === 'stale' ? ['stale'] : [])
@@ -414,19 +426,21 @@ export function createMemoryTools(deps: {
       parsed.data.withSource === true && item.source !== null
         ? [`source: ${oneLine(item.source.quote)}`]
         : []
+    const { head, body } = itemText(item)
     return ok(
       [
-        ...itemText(item),
+        ...head,
         `basis: ${item.basis}`,
         ...source,
         `seen: ${formatDay(item.lastSeenAt)}`,
-        ...(item.check === null ? [] : [`check: ${item.check}`]),
-        `session: ${item.meta.sessionName ?? NO_VALUE}`,
+        ...(item.check === null ? [] : [`check: ${oneLine(item.check)}`]),
+        `session: ${item.meta.sessionName === null ? NO_VALUE : oneLine(item.meta.sessionName)}`,
         `tags: ${c.tagNames(item.meta.tagIds)}`,
         `state: ${item.state}`,
         ...(item.originDeletedAt === null
           ? []
-          : [`session deleted: ${formatDay(item.originDeletedAt)}`])
+          : [`session deleted: ${formatDay(item.originDeletedAt)}`]),
+        ...body
       ].join('\n')
     )
   }
@@ -463,7 +477,10 @@ export function createMemoryTools(deps: {
     if (buckets.length === 0) return ok('No items.')
     return ok(
       buckets
-        .map((b) => `${by === 'tag' ? (names.tagName(b.key) ?? UNKNOWN_TAG) : b.key}: ${b.count}`)
+        .map(
+          (b) =>
+            `${oneLine(by === 'tag' ? (names.tagName(b.key) ?? UNKNOWN_TAG) : b.key)}: ${b.count}`
+        )
         .join('\n')
     )
   }

@@ -30,7 +30,7 @@ import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 import type { StorageReporter } from '../persistence/persistedBlob'
 import type { FilterContext } from './filterSql'
 import type { MemoryDb, SqlValue } from './memoryDb'
-import { CountRow, ItemRow, selectItems } from './memoryRows'
+import { CountRow, ItemRow, selectItems, type EpisodeRow } from './memoryRows'
 import {
   agentSpecificsNoSource,
   browseItems,
@@ -106,9 +106,10 @@ export interface MemoryStore {
   ): {
     pinned: MemoryItem[]
     specificsHere: MemoryRow[]
-    /** Active episodes of the folder (at, above or below it), newest
-     *  `EXTRACT_LIMITS.episodesInIndex`; `more` does not count them. */
-    episodesHere: MemoryRow[]
+    /** Active episodes of the folder (at, above or below it), the
+     *  `EXTRACT_LIMITS.episodesInIndex` whose session ended last, each with its `endedAt`; `more`
+     *  does not count them. */
+    episodesHere: EpisodeRow[]
     more: number
   }
   /** Active specifics `originSessionId` saved with the tool that have no source yet. */

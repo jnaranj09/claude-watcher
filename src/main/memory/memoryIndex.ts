@@ -2,11 +2,13 @@
 // items (up to `MEMORY_LIMITS.indexCeilingChars`), then, capped at `MEMORY_LIMITS.indexChars`, the
 // open tasks of the session's folder, the specifics saved for it and its recent sessions
 // (episodes). It states dates, not facts: memory is a record of what was seen. Every saved text
-// is put on one line, so none can start a line of its own (a heading, a rule). Memory text is
-// sensitive: this module logs nothing.
+// is put on one line (`oneLine`), so none can start a line of its own (a heading, a rule). Memory
+// text is sensitive: this module logs nothing.
 import { MEMORY_LIMITS, type MemoryItem, type MemoryRow } from '../../shared/schemas/memory'
 import { formatDay, localDaysBetween } from './formatDay'
+import type { EpisodeRow } from './memoryRows'
 import type { IndexTask } from './memoryTasks'
+import { oneLine } from './promptText'
 
 /** Read by a model: change a word only on purpose. */
 export const MEMORY_RULES_OF_USE = [
@@ -27,12 +29,6 @@ const TASKS_HEADING = '## Open tasks for this folder'
 const FOLDER_HEADING = '## Specifics for this folder'
 const EPISODES_HEADING = '## Recent sessions'
 
-/** One index line is one line: every line break (a fact body's `\n`, and the Unicode line and
- *  paragraph separators) becomes a space. */
-export function oneLine(text: string): string {
-  return text.replace(/\r\n|[\r\n\u2028\u2029]/g, ' ')
-}
-
 function pinnedLine(item: MemoryItem): string {
   const [head, text] = item.kind === 'specific' ? [item.key, item.value] : [item.title, item.body]
   const check = item.check === null ? '' : ` · check: ${oneLine(item.check)}`
@@ -40,14 +36,26 @@ function pinnedLine(item: MemoryItem): string {
   return `- ${oneLine(head)}: ${oneLine(text)} (seen ${formatDay(item.lastSeenAt)}, ${item.basis})${check}${deleted}`
 }
 
-/** A specific of the folder, or a recent session: its head, its day and its id. */
-function rowLine(row: MemoryRow): string {
+/** A specific of the folder: its head, the day it was last written and its id. */
+function specificLine(row: MemoryRow): string {
   return `- ${oneLine(row.head)} (${formatDay(row.updatedAt)}) id=${row.id}`
+}
+
+/** A recent session: its title, the day it ended (never the day its episode was written) and its
+ *  id. */
+function episodeLine(row: EpisodeRow): string {
+  return `- ${oneLine(row.head)} (${formatDay(row.endedAt)}) id=${row.id}`
 }
 
 function daysAgo(days: number): string {
   if (days === 0) return 'today'
   return days === 1 ? '1 day ago' : `${days} days ago`
+}
+
+/** Tasks the cap left out: they live in Goals, which `memory_search` does not search. */
+function tasksLeftLine(n: number): string[] {
+  if (n === 0) return []
+  return [`${n} more open ${n === 1 ? 'task' : 'tasks'} for this folder; see Goals`]
 }
 
 const LEFT_WITH = { operator: 'left with you', session: 'left with the session' } as const
@@ -72,29 +80,29 @@ function taskLine(task: IndexTask, now: number): string {
 interface Section {
   heading: string
   lines: string[]
-  /** The ids `itemIds` lists for each line (none for a task: it is not a memory item). */
+  /** The ids `itemIds` lists for each line, and that `memory_search` finds; null for tasks: not
+   *  memory items, counted in their own line. */
   ids: string[] | null
   shown: number
 }
-
-const newestFirst = (rows: readonly MemoryRow[]): MemoryRow[] =>
-  [...rows].sort((a, b) => b.updatedAt - a.updatedAt)
 
 /**
  * The rules of use are always sent. Pinned lines are added newest first while the whole text
  * stays within `ceilingChars` (they may pass the cap); the ones left out are counted in a last
  * `<n> more pinned` line of their section. Then (ruling R3) task lines (in the order given), then
- * specifics, then episodes (each newest first) are added while the whole text, the last `<n> more`
- * line included, stays within `capChars`, so a pinned section over the cap leaves no room for
- * them. That line counts every task, specific and episode left out, plus `more`. A section with no
- * line is left out. `itemIds` lists exactly the items that got a line (never a task).
+ * specifics (newest first), then episodes (the session that ended last first) are added while the
+ * whole text, its last count lines included, stays within `capChars`, so a pinned section over
+ * the cap leaves no room for them. The count lines end the text: `<n> more open tasks for this
+ * folder; see Goals` (the tasks left out: `memory_search` cannot find a task), then `<n> more; use
+ * memory_search` (the specifics and episodes left out, plus `more`). A section with no line is
+ * left out. `itemIds` lists exactly the items that got a line (never a task).
  */
 export function buildMemoryIndex(
   input: {
     pinned: readonly MemoryItem[]
     tasksHere: readonly IndexTask[]
     specificsHere: readonly MemoryRow[]
-    episodesHere: readonly MemoryRow[]
+    episodesHere: readonly EpisodeRow[]
     more: number
     now: number
   },
@@ -103,8 +111,8 @@ export function buildMemoryIndex(
 ): { text: string; itemIds: string[] } {
   const pinnedNewest = [...input.pinned].sort((a, b) => b.updatedAt - a.updatedAt)
   const pinnedLines = pinnedNewest.map(pinnedLine)
-  const specifics = newestFirst(input.specificsHere)
-  const episodes = newestFirst(input.episodesHere)
+  const specifics = [...input.specificsHere].sort((a, b) => b.updatedAt - a.updatedAt)
+  const episodes = [...input.episodesHere].sort((a, b) => b.endedAt - a.endedAt)
   const sections: Section[] = [
     {
       heading: TASKS_HEADING,
@@ -114,13 +122,13 @@ export function buildMemoryIndex(
     },
     {
       heading: FOLDER_HEADING,
-      lines: specifics.map(rowLine),
+      lines: specifics.map(specificLine),
       ids: specifics.map((r) => r.id),
       shown: 0
     },
     {
       heading: EPISODES_HEADING,
-      lines: episodes.map(rowLine),
+      lines: episodes.map(episodeLine),
       ids: episodes.map((r) => r.id),
       shown: 0
     }
@@ -141,8 +149,16 @@ export function buildMemoryIndex(
     const capped = sections.flatMap((s) =>
       s.shown > 0 ? ['', s.heading, ...s.lines.slice(0, s.shown)] : []
     )
-    const left = sections.reduce((n, s) => n + s.lines.length - s.shown, input.more)
-    return [MEMORY_RULES_OF_USE, ...pinned, ...capped, ...countLine(left, 'more')].join('\n')
+    const leftOf = (s: Section): number => s.lines.length - s.shown
+    const tasksLeft = sections.reduce((n, s) => (s.ids === null ? n + leftOf(s) : n), 0)
+    const left = sections.reduce((n, s) => (s.ids === null ? n : n + leftOf(s)), input.more)
+    return [
+      MEMORY_RULES_OF_USE,
+      ...pinned,
+      ...capped,
+      ...tasksLeftLine(tasksLeft),
+      ...countLine(left, 'more')
+    ].join('\n')
   }
 
   let pinnedCount = 0

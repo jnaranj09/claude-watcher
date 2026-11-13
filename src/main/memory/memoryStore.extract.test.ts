@@ -10,8 +10,10 @@ import {
 } from '../../shared/schemas/memory'
 import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 import type { StorageReporter } from '../persistence/persistedBlob'
+import { formatDay } from './formatDay'
 import { createMemoryCommands } from './memoryCommands'
 import { openMemoryDb, type MemoryDb } from './memoryDb'
+import { buildMemoryIndex } from './memoryIndex'
 import { createMemoryStore, type MemoryAdd, type MemoryStore } from './memoryStore'
 import { z } from 'zod'
 
@@ -311,6 +313,39 @@ describe('reads for extraction', () => {
     expect(out.specificsHere.map((r) => r.head)).toEqual(['API port'])
     // e1..e3 and `away` are the rest.
     expect(out.more).toBe(4)
+  })
+
+  const DAY = 86_400_000
+
+  it('an episode a later catch-up writes keeps the day its session ended, in its row and its index line', () => {
+    const ended = NOW - 3 * DAY
+    store.add({ ...base, text: { ...EPISODE, endedAt: ended } })
+    const rows = store.indexRows('w1', '/work/app')
+    expect(rows.episodesHere.map((r) => [r.endedAt, r.updatedAt])).toEqual([[ended, NOW]])
+    const index = buildMemoryIndex({ ...rows, tasksHere: [], now: NOW })
+    expect(index.text.split('\n').at(-1)).toBe(`- Moved the API port (${formatDay(ended)}) id=m1`)
+  })
+
+  it('marking an episode stale and active again does not move it ahead of a later session', () => {
+    const older = store.add({
+      ...base,
+      text: { ...EPISODE, title: 'older', endedAt: NOW - 2 * DAY }
+    })
+    store.add({ ...base, text: { ...EPISODE, title: 'newer', endedAt: NOW - DAY } })
+    clock += 5 * DAY
+    store.setState(older.id, 'stale', 'operator', null)
+    store.setState(older.id, 'active', 'operator', null)
+    const rows = store.indexRows('w1', '/work/app')
+    expect(rows.episodesHere.map((r) => r.head)).toEqual(['newer', 'older'])
+    expect(rows.episodesHere[1]?.updatedAt).toBe(clock)
+    expect(
+      buildMemoryIndex({ ...rows, tasksHere: [], now: clock })
+        .text.split('\n')
+        .slice(-2)
+    ).toEqual([
+      `- newer (${formatDay(NOW - DAY)}) id=m2`,
+      `- older (${formatDay(NOW - 2 * DAY)}) id=m1`
+    ])
   })
 })
 
