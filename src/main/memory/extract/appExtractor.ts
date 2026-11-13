@@ -30,7 +30,8 @@ export interface AppExtractorIo {
   pastSessions: ExtractorDeps['pastSessions']
   sessionMeta: ExtractorDeps['sessionMeta']
   activity: ExtractorDeps['activity']
-  /** Where a save's result goes: index.ts sends it to every window (ipc/sendMemoryExtractResult.ts). */
+  /** Where a save's result goes: index.ts hands it to the hold (ipc/extractResultPush.ts), which
+   *  sends it to every ready window or keeps it until one is ready. */
   push: ExtractorDeps['push']
   /** claude's projects folder on disk (`transcriptLookupDepsFromFs`). */
   lookup: () => TranscriptLookupDeps

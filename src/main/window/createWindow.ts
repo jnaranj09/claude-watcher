@@ -29,6 +29,8 @@ export interface CreateWindowDeps {
   registerWatchFeed: WatchFeed['registerWatchFeed']
   teardownWatchFeed: WatchFeed['teardownWatchFeed']
   teardownWindowTerminals: (wc: Electron.WebContents) => void
+  /** The window's renderer loaded (`did-finish-load`): memory's held save results go to it. */
+  rendererLoaded: (wc: Electron.WebContents) => void
 }
 
 /** Builds `createWindow`; index.ts calls it at app-ready and from `activate`. */
@@ -46,7 +48,8 @@ export function makeCreateWindow(deps: CreateWindowDeps): () => void {
     getThemeLifecycle,
     registerWatchFeed,
     teardownWatchFeed,
-    teardownWindowTerminals
+    teardownWindowTerminals,
+    rendererLoaded
   } = deps
 
   return function createWindow(): void {
@@ -147,6 +150,12 @@ export function makeCreateWindow(deps: CreateWindowDeps): () => void {
       if (settingsStore === null) return
       const s = settingsStore.get()
       getThemeLifecycle()?.apply(s.themeId, chosenWallpaper(s))
+    })
+
+    // Memory's save results (ruling R38): a result produced before this renderer loaded (the
+    // start's catch-up runs before the window exists) is held in main and delivered here, once.
+    mainWindow.webContents.once('did-finish-load', () => {
+      if (!mainWindow.isDestroyed()) rendererLoaded(mainWindow.webContents)
     })
 
     // Story 4.2 (FR-14 / UX-DR25 / FROZEN #4 / Epic-4 DECISION #2) — minimize-to-taskbar.

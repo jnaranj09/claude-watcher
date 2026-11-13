@@ -363,7 +363,8 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
       store: getMemoryStore,
       commands: getMemoryCommands,
       names: memoryNames,
-      activity: memoryActivity
+      activity: memoryActivity,
+      log: (line) => console.warn(line)
     })
     ipc.handle(CH.memoryList, (_evt, raw: unknown) => handlers.list(raw))
     ipc.handle(CH.memoryGet, (_evt, raw: unknown) => handlers.get(raw))

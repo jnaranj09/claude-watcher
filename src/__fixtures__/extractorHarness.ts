@@ -74,6 +74,8 @@ export interface Harness {
     linesPerRead: number | null
     memoryOpen: boolean
     goalsOpen: boolean
+    /** What `push` answers: false = a result nothing took (invalid). Taken results are `pushed`. */
+    pushTaken: boolean
   }
   meta: Map<string, MemorySessionMeta>
   transcripts: Map<string, ReadLine[]>
@@ -83,6 +85,8 @@ export interface Harness {
   versionOk: Mock<() => boolean>
   setMemory: Mock<(id: string, memory: PastSessionMemory) => void>
   pushed: MemoryExtractResult[]
+  /** Every `push` call, taken or not. */
+  pushTries: { count: number }
   logs: string[]
   clock: { now: number }
   /** Appends lines to a session's transcript (each line 100 bytes on from the last). */
@@ -144,7 +148,8 @@ export function createHarness(): Harness {
     manual: false,
     linesPerRead: null,
     memoryOpen: true,
-    goalsOpen: true
+    goalsOpen: true,
+    pushTaken: true
   }
   const meta = new Map<string, MemorySessionMeta>()
   const transcripts = new Map<string, ReadLine[]>()
@@ -152,6 +157,7 @@ export function createHarness(): Harness {
   const calls: FakeCall[] = []
   const reads: Harness['reads'] = []
   const pushed: MemoryExtractResult[] = []
+  const pushTries = { count: 0 }
   const versionOk = vi.fn(() => set.version)
   const setMemory = vi.fn<(id: string, memory: PastSessionMemory) => void>()
 
@@ -188,7 +194,11 @@ export function createHarness(): Harness {
     },
     pastSessions: () => ({ setMemory }),
     activity,
-    push: (r) => pushed.push(r),
+    push: (r) => {
+      pushTries.count += 1
+      if (set.pushTaken) pushed.push(r)
+      return set.pushTaken
+    },
     now,
     log: (line) => logs.push(line)
   }
@@ -210,6 +220,7 @@ export function createHarness(): Harness {
     versionOk,
     setMemory,
     pushed,
+    pushTries,
     logs,
     clock,
     deps,

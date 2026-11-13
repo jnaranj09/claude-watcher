@@ -193,7 +193,8 @@ export const CH = {
   // `memory:commands` / `memory:delete-command` serve the Commands page (one workspace's commands;
   // a delete answers through `memory:changed`, `memory_command_not_found` for an unknown id).
   // `memory:extract-result` is the PUSH after a save from a session (counts, the session's name
-  // and codes only, validated at source: sendMemoryExtractResult.ts).
+  // and codes only, validated at source: sendMemoryExtractResult.ts); one produced before a
+  // renderer loaded is held in main and sent when one has (ipc/extractResultPush.ts).
   memoryList: 'memory:list',
   memoryGet: 'memory:get',
   memoryCreate: 'memory:create',

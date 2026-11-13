@@ -71,7 +71,9 @@ function setRecord(r: JobRun, row: ExtractRow, state: PastSessionMemory['state']
     ?.setMemory(row.sessionId, { state, ...row.counts, episodeId: row.episodeId })
 }
 
-/** R24: a session with no name gets no push. A `claude_version` failure is pushed once. */
+/** R24: a session with no name gets no push. A `claude_version` failure is pushed once: done when
+ *  the push delivered it or holds it for the first ready window (R38), so a push nothing took is
+ *  tried again by the next such failure. */
 function push(
   r: JobRun,
   row: ExtractRow,
@@ -80,11 +82,13 @@ function push(
 ): void {
   const name = row.meta.sessionName
   if (name === null || name === '') return
-  if (reason === 'claude_version') {
-    if (r.shared.versionPushed) return
-    r.shared.versionPushed = true
+  const result = { sessionName: name, trigger: r.job.trigger, outcome, counts: row.counts, reason }
+  if (reason !== 'claude_version') {
+    r.deps.push(result)
+    return
   }
-  r.deps.push({ sessionName: name, trigger: r.job.trigger, outcome, counts: row.counts, reason })
+  if (r.shared.versionPushed) return
+  r.shared.versionPushed = r.deps.push(result)
 }
 
 /** The last chunk of an end or a catch-up was written: the row is done, the record says what the

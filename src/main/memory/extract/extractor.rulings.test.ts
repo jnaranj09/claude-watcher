@@ -86,6 +86,21 @@ describe('R31: a too-old answer is kept for 10 minutes', () => {
     expect(h.state.pending()).toHaveLength(30)
   })
 
+  it('a claude_version result nothing took is tried again by the next such failure (R38)', async () => {
+    for (let i = 0; i < 3; i += 1) {
+      h.meta.set(`o${i}`, META)
+      conversation(`o${i}`)
+      stops(h, `o${i}`, 3)
+    }
+    h.set.version = false
+    h.set.pushTaken = false
+    const start = h.restart()
+    start.catchUp()
+    await start.idle()
+    expect(h.pushTries.count).toBe(3)
+    expect(h.pushed).toEqual([])
+  })
+
   it('a job within 10 minutes is not asked again; one after 10 minutes is', async () => {
     h.set.version = false
     conversation('s1')

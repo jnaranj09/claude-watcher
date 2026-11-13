@@ -55,7 +55,8 @@ export interface ExtractorDeps {
   call: (model: MemoryModel, input: string) => ExtractCall
   pastSessions: () => { setMemory(sessionId: string, memory: PastSessionMemory): void } | null
   activity: Pick<MemoryActivityLog, 'record'>
-  push: (result: MemoryExtractResult) => void
+  /** true when the result reached a ready window or is held for one (ipc/extractResultPush.ts). */
+  push: (result: MemoryExtractResult) => boolean
   now: () => number
   log: (line: string) => void
 }

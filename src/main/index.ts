@@ -56,7 +56,7 @@ import type { GoalsView } from '../shared/schemas/goal'
 import { createElectronGoalsBlobStore } from './persistence/electronGoalsBlobStore'
 import { sendGoalsChanged } from './ipc/sendGoalsChanged'
 import { sendMemoryChanged } from './ipc/sendMemoryChanged'
-import { sendMemoryExtractResult } from './ipc/sendMemoryExtractResult'
+import { createExtractResultPush } from './ipc/extractResultPush'
 import { MEMORY_DB_FILE } from './memory/memoryDb'
 import { createMemoryActivity } from './memory/memoryActivity'
 import { memoryNameLookups } from './memory/memoryNames'
@@ -619,6 +619,10 @@ const claudeVersionReads = createVersionReads(() => readClaudeVersionRaw(SHELL))
 // the quit closes it (and under SMOKE, where memory never opens). The hook, removal and `/clear`
 // save points are the watch feed's (window/memorySavePoints.ts); the start's catch-up is in the
 // ready block; the quit's kill is teardownAllSessions' first step.
+// What each save did reaches every ready window (validated at source; counts and a name only). The
+// start's catch-up runs before the window exists, so a result waits in the hold until a window's
+// renderer has loaded (createWindow's `rendererLoaded`, ruling R38).
+const extractResults = createExtractResultPush((line) => console.warn(line))
 const { extractor, start: startMemoryCatchUp } = createAppExtractor({
   settings: () => settingsStore?.get() ?? DEFAULT_SETTINGS,
   memory: () => memory,
@@ -626,12 +630,7 @@ const { extractor, start: startMemoryCatchUp } = createAppExtractor({
   pastSessions: () => pastSessionsStore,
   sessionMeta,
   activity: memoryActivity,
-  // What each save did reaches every window (validated at source; counts and a name only).
-  push: (result) => {
-    for (const win of BrowserWindow.getAllWindows()) {
-      sendMemoryExtractResult(win.webContents, result, (line) => console.warn(line))
-    }
-  },
+  push: (result) => extractResults.push(result),
   lookup: () => transcriptLookupDepsFromFs(),
   readSlice: (path, fromOffset, maxBytes) =>
     readTranscriptSlice(transcriptFsOnDisk, path, fromOffset, maxBytes),
@@ -867,7 +866,8 @@ const createWindow = makeCreateWindow({
   getThemeLifecycle: () => themeLifecycle,
   registerWatchFeed,
   teardownWatchFeed,
-  teardownWindowTerminals
+  teardownWindowTerminals,
+  rendererLoaded: (wc) => extractResults.ready(wc)
 })
 
 // The app-level registrars (ipc/registerAppIpc.ts), each called ONCE in the ready block.

@@ -62,7 +62,7 @@ function app(
     pastSessions: () => ({ setMemory: h.setMemory }),
     sessionMeta: (id) => h.meta.get(id) ?? null,
     activity: h.activity,
-    push: () => undefined,
+    push: () => true,
     lookup,
     readSlice: h.deps.read,
     version: { read: versionReads, held: () => undefined },

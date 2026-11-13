@@ -22,7 +22,8 @@
 // commands, with no folder filter (the operator has no "here"). A delete runs inside `store.batch`,
 // so it is one transaction whose commit tells the store's listeners once (the `memory:changed`
 // push lists the page again); an unknown id passes `memory_command_not_found` through, and a
-// write the disk refuses rolls back, reports and throws `store_write_failed`, with no push.
+// write the disk refuses rolls back, reports and throws `store_write_failed`, with no push. A list
+// the database fails throws `memory_read_failed`, as a store read does.
 import {
   MEMORY_ERROR,
   MemoryActivityGetSchema,
@@ -79,6 +80,8 @@ export function createMemoryIpcHandlers(deps: {
   store: () => MemoryStore | null
   commands: () => MemoryCommands | null
   names: MemoryNames
+  /** `code=` lines only. */
+  log: (line: string) => void
   activity: Pick<MemoryActivityLog, 'get'>
 }): MemoryIpcHandlers {
   const { names, activity } = deps
@@ -169,12 +172,20 @@ export function createMemoryIpcHandlers(deps: {
     },
     commands(raw) {
       const req = MemoryCommandsListSchema.parse(raw)
-      return requireCommands().list(req.workspaceId, {
-        query: req.query,
-        folder: null,
-        offset: req.offset,
-        limit: req.limit
-      })
+      const commands = requireCommands()
+      try {
+        return commands.list(req.workspaceId, {
+          query: req.query,
+          folder: null,
+          offset: req.offset,
+          limit: req.limit
+        })
+      } catch {
+        // A read the database failed (a bad row already logged its path and code): the renderer
+        // gets the store's read code, never SQLite's message.
+        deps.log(`[claude-watcher][memory] code=${MEMORY_ERROR.readFailed}`)
+        throw new Error(MEMORY_ERROR.readFailed)
+      }
     },
     removeCommand(raw) {
       const { id } = MemoryCommandDeleteSchema.parse(raw)

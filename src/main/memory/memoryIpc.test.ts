@@ -21,6 +21,7 @@ let commands: MemoryCommands
 let activity: MemoryActivityLog
 let names: MemoryNames
 let h: MemoryIpcHandlers
+let logs: string[]
 
 function openDb(): MemoryDb {
   const open = openMemoryDb(':memory:', { now: () => NOW, log: () => undefined })
@@ -47,7 +48,14 @@ beforeEach(() => {
     goalIdsByName: vi.fn((): string[] => []),
     tagName: vi.fn((): string | null => null)
   }
-  h = createMemoryIpcHandlers({ store: () => store, commands: () => commands, names, activity })
+  logs = []
+  h = createMemoryIpcHandlers({
+    store: () => store,
+    commands: () => commands,
+    names,
+    activity,
+    log: (line) => logs.push(line)
+  })
 })
 
 const LIST = {
@@ -317,8 +325,22 @@ describe('commands (the Commands page)', () => {
     expect(h.commands({ ...COMMANDS, query: 'build' }).rows.map((r) => r.text)).toEqual([
       'npm run build'
     ])
-    expect(() => h.commands({ ...COMMANDS, extra: 1 })).toThrow()
-    expect(() => h.commands({ ...COMMANDS, folder: '/work/demo' })).toThrow()
+    expect(() => h.commands({ ...COMMANDS, extra: 1 })).toThrow(/unrecognized_keys/)
+    expect(() => h.commands({ ...COMMANDS, folder: '/work/demo' })).toThrow(/unrecognized_keys/)
+  })
+
+  it("lists only the requested workspace's commands", () => {
+    ranOnce('npm test')
+    ranOnce('make', 'w2')
+    expect(h.commands({ ...COMMANDS, workspaceId: 'w2' }).rows.map((r) => r.text)).toEqual(['make'])
+    expect(h.commands({ ...COMMANDS, workspaceId: 'w3' })).toEqual({ rows: [], total: 0 })
+  })
+
+  it('has no global scope: a command always belongs to one workspace', () => {
+    ranOnce('npm test')
+    // The Commands page lists ONE workspace (no `Include global`, no null workspace).
+    expect(() => h.commands({ ...COMMANDS, includeGlobal: true })).toThrow(/unrecognized_keys/)
+    expect(() => h.commands({ ...COMMANDS, workspaceId: null })).toThrow(/invalid_type/)
   })
 
   it('deleting an unknown command throws memory_command_not_found', () => {
@@ -332,7 +354,22 @@ describe('commands (the Commands page)', () => {
     h.removeCommand({ id })
     expect(heard).toHaveBeenCalledTimes(1)
     expect(h.commands(COMMANDS).total).toBe(0)
-    expect(() => h.removeCommand({ id, extra: 1 })).toThrow()
+  })
+
+  it('a list the database fails throws memory_read_failed and logs the code only', () => {
+    ranOnce('npm test')
+    vi.spyOn(db, 'all').mockImplementation(() => {
+      throw new Error('SQLITE_CORRUPT: database disk image is malformed')
+    })
+    expect(() => h.commands(COMMANDS)).toThrow(new Error(MEMORY_ERROR.readFailed))
+    expect(logs).toEqual(['[claude-watcher][memory] code=memory_read_failed'])
+  })
+
+  it('refuses a delete with an extra key and keeps the row', () => {
+    const id = ranOnce('npm test')
+    expect(() => h.removeCommand({ id, extra: 1 })).toThrow(/unrecognized_keys/)
+    expect(() => h.removeCommand({ id: 7 })).toThrow(/invalid_type/)
+    expect(h.commands(COMMANDS).rows.map((r) => r.id)).toEqual([id])
   })
 })
 
@@ -342,7 +379,8 @@ describe('while memory is off (no store)', () => {
       store: () => null,
       commands: () => null,
       names,
-      activity
+      activity,
+      log: () => undefined
     })
     const id = { id: 'm1' }
     const calls: (() => unknown)[] = [
@@ -367,7 +405,8 @@ describe('while memory is off (no store)', () => {
       store: () => null,
       commands: () => null,
       names,
-      activity
+      activity,
+      log: () => undefined
     })
     activity.injected('s1', { chars: 8, itemIds: ['m1'] })
     expect(off.activity({ sessionId: 's1' })).toEqual({
