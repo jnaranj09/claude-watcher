@@ -239,6 +239,31 @@ describe('GoalsDialog', () => {
     expect(screen.getByTestId('task-done-by-t1')).toHaveTextContent('Closed by a session')
   })
 
+  it('the Done button of a reported task still closes it through setTaskStatus', async () => {
+    const user = userEvent.setup()
+    const report = {
+      at: 5,
+      sessionId: 's1',
+      sessionName: 'fix api port',
+      outcome: 'done',
+      evidence: 'the spec is merged'
+    } as const
+    open({
+      goals: [goal()],
+      tasks: [task({ check: 'git log --oneline -1', report })],
+      proposals: [],
+      fileProblems: []
+    })
+    await user.click(screen.getByTestId('goal-select-g1'))
+    expect(screen.getByTestId('task-check-t1')).toHaveTextContent('Check: git log --oneline -1')
+    expect(screen.getByTestId('task-report-evidence-t1')).toHaveTextContent('the spec is merged')
+    await user.click(screen.getByRole('button', { name: 'Done Write the spec' }))
+    expect(bridge.setTaskStatus).toHaveBeenLastCalledWith('t1', 'done')
+    // Closed by the operator: the flag goes, the check stays.
+    expect(screen.queryByTestId('task-report-t1')).not.toBeInTheDocument()
+    expect(screen.getByTestId('task-check-t1')).toBeInTheDocument()
+  })
+
   it('Delete arms in place and removes the goal', async () => {
     const user = userEvent.setup()
     open({ goals: [goal()], tasks: [task()], proposals: [], fileProblems: [] })

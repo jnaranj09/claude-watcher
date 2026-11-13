@@ -4,6 +4,7 @@ import {
   filterPastByFilters,
   filterPastByName,
   filterPastByScope,
+  pastMemoryLine,
   pastSessionErrorMessage,
   pastSessionsEmptyCopy,
   relativeEnded,
@@ -12,6 +13,7 @@ import {
 import { folderName } from '../../lib/filterCopy'
 import { NO_FILTERS } from '../../lib/sessionFilters'
 import type { PastSession } from '../../../../shared/ipc/contract'
+import type { PastSessionMemory } from '../../../../shared/schemas/pastSession'
 
 const row = (id: string, name: string, workspaceId = 'w1'): PastSession => ({
   id,
@@ -131,5 +133,33 @@ describe('resumeByIdErrorMessage', () => {
     expect(pastSessionErrorMessage(wrapped('transcript_missing'))).toBe(
       'Claude no longer has this conversation. Forget it to remove it from the list'
     )
+  })
+})
+
+// Memory phase 2: the record's `Memory:` line. The counts are what the saves WROTE (an update
+// counts too), so the words never say "new" or "different" items.
+describe('pastMemoryLine', () => {
+  const zero = { specifics: 0, facts: 0, tasks: 0, episodes: 0, episodeId: null }
+  it.each<[PastSessionMemory, string]>([
+    [
+      { state: 'saved', specifics: 4, facts: 1, tasks: 2, episodes: 1, episodeId: 'e1' },
+      'Memory: 4 specifics, 1 fact, 2 tasks, 1 episode'
+    ],
+    [
+      { state: 'saved', specifics: 1, facts: 2, tasks: 1, episodes: 2, episodeId: null },
+      'Memory: 1 specific, 2 facts, 1 task, 2 episodes'
+    ],
+    [{ ...zero, state: 'saved', facts: 3 }, 'Memory: 3 facts'],
+    [{ ...zero, state: 'saved' }, 'Memory: nothing new'],
+    [{ ...zero, state: 'nothing' }, 'Memory: nothing new'],
+    [{ ...zero, state: 'failed' }, 'Memory: failed'],
+    [{ ...zero, state: 'saving' }, 'Memory: saving…'],
+    [{ ...zero, state: 'off' }, 'Memory: off']
+  ])('%j reads %s', (m, text) => {
+    expect(pastMemoryLine(m)).toBe(text)
+  })
+
+  it('a record from before the field shows no Memory line', () => {
+    expect(pastMemoryLine(undefined)).toBeNull()
   })
 })

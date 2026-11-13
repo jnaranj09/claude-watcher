@@ -2,6 +2,7 @@
 // unavailable reasons). Copy maps from a CODE, never from an error's text (design.md Feedback).
 import { formatVersion, MIN_MOD_CLAUDE_VERSION } from '../../../../shared/launch/claudeVersion'
 import type { ContextRefusalCode, ModSkipReason } from '../../../../shared/ipc/contract'
+import type { DropReason } from '../../../../shared/schemas/memory'
 import { CONTEXT_REFUSAL_CODES } from '../../../../shared/schemas/contextIpc'
 import { BRIDGE_MOD_FAILED_COPY, STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 import { CONTEXT_TERMS, HISTORY_TERMS, MEMORY_TERMS } from '../../copy/terms'
@@ -48,13 +49,24 @@ export const CONTEXT_COPY = {
   injected: 'Injected',
   pulled: 'Pulled',
   saved: 'Saved',
+  dropped: 'Dropped',
   nothingInjected: 'Nothing injected.',
   nothingPulled: 'Nothing pulled.',
   nothingSaved: 'Nothing saved.',
+  nothingDropped: 'Nothing dropped.',
   injectedSummary: (tokens: number, items: number) =>
     `${tokens.toLocaleString('en-US')} tokens · ${items.toLocaleString('en-US')} ${items === 1 ? 'item' : 'items'}`,
   empty: (what: string) => `Claude listed no ${what}.`
 } as const
+
+/** Why extraction dropped a candidate (memory phase 2), in plain words, in `DROP_REASONS` order. */
+export const DROP_REASON_COPY: Readonly<Record<DropReason, string>> = {
+  evidence_not_found: 'Not found in the transcript',
+  secret: 'Held a secret',
+  invalid: 'Not valid',
+  operator_item: 'You wrote that item',
+  tasks_off: 'Tasks are off'
+}
 
 export const UNAVAILABLE_COPY: Record<ModSkipReason, string> = {
   claude_too_old: `Update claude to ${formatVersion(MIN_MOD_CLAUDE_VERSION)} or newer to see its context.`,

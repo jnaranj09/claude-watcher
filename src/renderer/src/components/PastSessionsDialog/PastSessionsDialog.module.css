@@ -59,3 +59,14 @@
 .none {
   color: var(--text-secondary);
 }
+/* Memory phase 2 (PICK.md look 2): the episode's text under its title, wrapping in full with its
+   line breaks, secondary at the body size. A body can be 2,000 characters; the form scrolls. */
+.episodeBody {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

@@ -1,5 +1,8 @@
 // One task as a boxed row: the title (done = secondary + line-through), the `Closed by a session`
-// marker when a session closed it, and its `Done` / `Undo` button. Drawn once for the Goals sheet
+// marker when a session closed it, and its `Done` / `Undo` button. Under that first line, the full
+// row wide (memory phase 2, PICK.md look 1): `Check: <recipe>` when the task has a check, and, while
+// it is open, `Reported done by "<session>" <date>` with the evidence when a session reported it
+// done. A report only FLAGS the task: the row is not drawn closed and `Done` stays the operator's. Drawn once for the Goals sheet
 // and the focused view's task panel (same meaning, same look); each passes its own `leading`
 // control (the sheet's select box) and trailing action (an `md` ghost icon button, the height of
 // `Done`). The Goals sheet also opens a row to its full title (`open`) and swaps the title for its
@@ -50,6 +53,8 @@ export function TaskRow({
       </li>
     )
   }
+  // A `done` report on a task the operator has not closed. Once closed, the flag has done its job.
+  const reported = task.report?.outcome === 'done' && !done ? task.report : null
   const title = (
     <span className={styles.title} title={task.title}>
       {task.title}
@@ -85,6 +90,54 @@ export function TaskRow({
         </Button>
         {trailing}
       </span>
+      {(task.check !== null || reported !== null) && (
+        <span className={styles.notes}>
+          {/* With a select box the lines start under the title, past the box. */}
+          {leading !== undefined && <span className={styles.noteIndent} aria-hidden="true" />}
+          <span className={styles.noteLines}>
+            {task.check !== null && (
+              <span
+                className={styles.note}
+                data-testid={`task-check-${task.id}`}
+                title={`Check: ${task.check}`}
+              >
+                Check: <span className={styles.recipe}>{task.check}</span>
+              </span>
+            )}
+            {reported !== null && (
+              <ReportLines id={task.id} name={reported.sessionName} at={reported.at}>
+                {reported.evidence}
+              </ReportLines>
+            )}
+          </span>
+        </span>
+      )}
     </li>
+  )
+}
+
+/** `Reported done by "<session>" <date>` and, under it, what the session saw. The date is the app's
+ *  `toLocaleString()`, as the forms' `Ended` and `Last seen`. */
+function ReportLines({
+  id,
+  name,
+  at,
+  children: evidence
+}: {
+  id: string
+  name: string
+  at: number
+  children: string
+}): JSX.Element {
+  const line = `Reported done by "${name}" ${new Date(at).toLocaleString()}`
+  return (
+    <>
+      <span className={styles.note} data-testid={`task-report-${id}`} title={line}>
+        {line}
+      </span>
+      <span className={styles.note} data-testid={`task-report-evidence-${id}`} title={evidence}>
+        {evidence}
+      </span>
+    </>
   )
 }

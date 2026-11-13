@@ -41,6 +41,7 @@ import {
   filterPastByName,
   filterPastByScope,
   isAlreadyOpenError,
+  pastMemoryLine,
   pastSessionErrorMessage,
   pastSessionsCapNote,
   pastSessionsEmptyCopy,
@@ -294,7 +295,41 @@ export function PastSessionsPage({
   )
 }
 
-/** The read-only form: name, full folder, workspace (its name in its tint, WorkspaceLabel), tags, times.
+type Episode = { id: string; title: string; body: string }
+
+/** The episode this record's save wrote (memory phase 2), read from memory by id while the record
+ *  is shown. null while it loads, when there is none, when the item is gone or not an episode, and
+ *  when the read fails: the form then shows the `Memory:` line only, and nothing is toasted (the
+ *  record is still whole). A failed read logs its code only, never the id or the text. */
+function useEpisode(episodeId: string | null): Episode | null {
+  const [episode, setEpisode] = useState<Episode | null>(null)
+  useEffect(() => {
+    if (episodeId === null) return
+    let live = true
+    window.memory
+      .get(episodeId)
+      .then(({ item }) => {
+        if (live)
+          setEpisode(
+            item.kind === 'episode' ? { id: item.id, title: item.title, body: item.body } : null
+          )
+      })
+      .catch(() => {
+        console.warn('[claude-watcher][memory] code=past_episode_read_failed')
+        // An earlier read of the same id (the item since deleted) is not shown again.
+        if (live) setEpisode(null)
+      })
+    return () => {
+      live = false
+    }
+  }, [episodeId])
+  // Held by id: another record's episode is never shown while this one's read is in flight.
+  return episode !== null && episode.id === episodeId ? episode : null
+}
+
+/** The read-only form: name, full folder, workspace (its name in its tint, WorkspaceLabel), tags,
+ *  times, then what memory kept from the session (PICK.md look 2: the `Memory:` line as a label,
+ *  the episode's title as a value and its body as a wrapping paragraph; no colour for any state).
  *  No editable field — name and tags change on the live card after Open. */
 function PastSessionDetails({
   session,
@@ -306,6 +341,8 @@ function PastSessionDetails({
   const tags = useTags(selectTags)
   const shownTags = tagsForIds(tags, session.tagIds)
   const workspace = workspaces.find((w) => w.id === session.workspaceId) ?? null
+  const memoryLine = pastMemoryLine(session.memory)
+  const episode = useEpisode(session.memory?.episodeId ?? null)
   return (
     <>
       <ManageDialog.Label>Name</ManageDialog.Label>
@@ -341,6 +378,21 @@ function PastSessionDetails({
       <p className={styles.value}>{new Date(session.launchedAt).toLocaleString()}</p>
       <ManageDialog.Label>Ended</ManageDialog.Label>
       <p className={styles.value}>{new Date(session.endedAt).toLocaleString()}</p>
+      {memoryLine !== null && <ManageDialog.Label>{memoryLine}</ManageDialog.Label>}
+      {memoryLine !== null && episode !== null && (
+        <>
+          <p
+            className={styles.value}
+            data-testid="past-session-form-episode-title"
+            title={episode.title}
+          >
+            {episode.title}
+          </p>
+          <p className={styles.episodeBody} data-testid="past-session-form-episode-body">
+            {episode.body}
+          </p>
+        </>
+      )}
     </>
   )
 }

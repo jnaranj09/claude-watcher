@@ -1,6 +1,6 @@
 // Past sessions — PURE helpers behind PastSessionsPage.tsx: the scope, name and session filters
-// (spec 2026-10-16), the three empty sentences, the relative time and the error copy. No React,
-// no store.
+// (spec 2026-10-16), the three empty sentences, the relative time, the `Memory:` line (memory
+// phase 2) and the error copy. No React, no store.
 import { formatVersion, MIN_CLAUDE_VERSION } from '../../../../shared/launch/claudeVersion'
 import type { PastSession } from '../../../../shared/ipc/contract'
 import { matchesFilters, type SessionFilters } from '../../lib/sessionFilters'
@@ -56,6 +56,38 @@ export function relativeEnded(endedAt: number, now: number): string {
   const d = Math.floor(h / 24)
   if (d < 30) return `${d} d ago`
   return new Date(endedAt).toLocaleDateString()
+}
+
+/** `4 specifics`, `1 fact`: a count and its word, in the singular for 1. */
+function counted(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`
+}
+
+/** `Memory: 4 specifics, 1 fact, 2 tasks, 1 episode` / `Memory: nothing new` / `Memory: failed` /
+ *  `Memory: saving…` / `Memory: off`; null for a record with no `memory` field. The counts are
+ *  what the saves WROTE (an update counts too), a 0 part left out; a save that wrote nothing
+ *  reads `nothing new`. */
+export function pastMemoryLine(memory: PastSession['memory']): string | null {
+  if (memory === undefined) return null
+  switch (memory.state) {
+    case 'saved': {
+      const parts = [
+        ...(memory.specifics > 0 ? [counted(memory.specifics, 'specific', 'specifics')] : []),
+        ...(memory.facts > 0 ? [counted(memory.facts, 'fact', 'facts')] : []),
+        ...(memory.tasks > 0 ? [counted(memory.tasks, 'task', 'tasks')] : []),
+        ...(memory.episodes > 0 ? [counted(memory.episodes, 'episode', 'episodes')] : [])
+      ]
+      return `Memory: ${parts.length === 0 ? 'nothing new' : parts.join(', ')}`
+    }
+    case 'nothing':
+      return 'Memory: nothing new'
+    case 'failed':
+      return 'Memory: failed'
+    case 'saving':
+      return 'Memory: saving…'
+    case 'off':
+      return 'Memory: off'
+  }
 }
 
 const ERROR_COPY = {

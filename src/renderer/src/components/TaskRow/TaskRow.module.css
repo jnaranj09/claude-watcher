@@ -2,9 +2,13 @@
    (ManageDialog `.row[data-selected]`: --bg-surface, a --border-strong edge, --rounded-md). The
    box is the row's own, so the Goals sheet and the focused view's task panel draw it the same way.
    44px tall like a Manage rail row, so `Done` is a full 32px button. The right inset is the compact
-   one: the row ends in a button that brings its own room. */
+   one: the row ends in a button that brings its own room. It wraps so the notes (a check, a
+   report) take a line of their own under the first; no gap between the two lines: the first is as
+   tall as its 32px button, which already leaves air under the title. */
 .row {
   display: flex;
+  flex-wrap: wrap;
+  row-gap: 0;
   align-items: center;
   gap: var(--gap-inline);
   min-height: 44px;
@@ -16,7 +20,7 @@
   font-size: var(--font-size-body);
 }
 /* With a leading control the title toggles it, so the whole box takes the shared row hover. */
-.row:has(> .label):hover {
+.row:has(> .main > .label):hover {
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 /* The title (or the labelled title) and, under it, the caller's `sessions` line. */
@@ -68,4 +72,46 @@
   display: flex;
   align-items: center;
   gap: var(--gap-inline-tight);
+}
+/* Memory phase 2 (PICK.md look 1): the notes under the first line, the full row wide (at the
+   default window a closed row shows only a few characters of its title, so a line beside it would
+   show nothing). */
+.notes {
+  flex: 1 0 100%;
+  min-width: 0;
+  display: flex;
+  gap: var(--gap-inline);
+  padding-bottom: var(--inset-compact-y);
+}
+/* With a select box the lines start under the title: a blank as wide as the 14px box (the width
+   of the Checkbox and of GoalsDialog's `.checkBlank`; geometry, not spacing). */
+.noteIndent {
+  flex: none;
+  width: 14px;
+}
+/* Check, then the report, then its evidence: the look of `.doneBy` (`Closed by a session`). */
+.noteLines {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+  font-size: var(--font-size-meta);
+  color: var(--text-secondary);
+}
+/* One line, ellipsis, `title` (a recipe and an evidence line can be 300 characters). */
+.note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* An open row (the sheet's ▾) shows every line whole, as it does the title. */
+.row[data-open='true'] .note {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+/* The recipe is machine data: mono, at the line's own size. */
+.recipe {
+  font-family: var(--font-mono);
 }

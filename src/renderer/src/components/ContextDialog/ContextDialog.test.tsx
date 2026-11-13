@@ -572,6 +572,67 @@ describe('ContextDialog — the Memory page', () => {
     expect(within(pulled).queryByText('memory_save')).not.toBeInTheDocument()
   })
 
+  it('Context lists a dropped candidate under Dropped with its reason in plain words', async () => {
+    await openMemory({
+      injected: null,
+      entries: [
+        {
+          at: NOW - 3 * 60_000,
+          action: 'dropped',
+          tool: 'extract',
+          itemId: null,
+          reason: 'evidence_not_found'
+        },
+        { at: NOW - 60_000, action: 'dropped', tool: 'extract', itemId: null, reason: 'secret' }
+      ]
+    })
+    const dropped = screen.getByTestId('context-memory-dropped')
+    expect(within(dropped).getByRole('heading', { name: 'Dropped' })).toBeVisible()
+    const rows = within(dropped).getAllByTestId('context-memory-dropped-entry')
+    expect(rows.map((r) => r.textContent)).toEqual([
+      'Not found in the transcript3 min ago',
+      'Held a secret1 min ago'
+    ])
+    expect(within(dropped).queryByText('evidence_not_found')).not.toBeInTheDocument()
+  })
+
+  it('Context says Nothing dropped. for a session with none', async () => {
+    await openMemory(NO_ACTIVITY)
+    expect(screen.getByTestId('context-memory-dropped')).toHaveTextContent('Nothing dropped.')
+  })
+
+  it('a dropped entry is not listed under Saved', async () => {
+    await openMemory({
+      injected: null,
+      entries: [
+        { at: NOW - 60_000, action: 'saved', tool: 'extract', itemId: 'm2', reason: null },
+        { at: NOW - 60_000, action: 'pulled', tool: 'memory_get', itemId: 'm1', reason: null },
+        { at: NOW - 60_000, action: 'dropped', tool: 'extract', itemId: null, reason: 'invalid' }
+      ]
+    })
+    const list = (id: string): HTMLElement[] =>
+      within(screen.getByTestId(id)).queryAllByTestId(/^context-memory-(dropped-)?entry$/)
+    expect(list('context-memory-saved')).toHaveLength(1)
+    expect(list('context-memory-pulled')).toHaveLength(1)
+    expect(list('context-memory-dropped')).toHaveLength(1)
+    expect(within(screen.getByTestId('context-memory-saved')).getByText('extract')).toBeVisible()
+    expect(
+      within(screen.getByTestId('context-memory-dropped')).getByText('Not valid')
+    ).toBeVisible()
+  })
+
+  it('a task report (an update with no item) lists under Saved by its tool, and nothing breaks', async () => {
+    await openMemory({
+      injected: null,
+      entries: [
+        { at: NOW - 60_000, action: 'updated', tool: 'task_report', itemId: null, reason: null }
+      ]
+    })
+    const saved = screen.getByTestId('context-memory-saved')
+    expect(within(saved).getByText('task_report')).toBeVisible()
+    expect(screen.getByTestId('context-memory-dropped')).toHaveTextContent('Nothing dropped.')
+  })
+
   it('reloads when memory changes, and stops listening when the dialog closes', async () => {
     const memory = await openMemory(NO_ACTIVITY)
     expect(memory.activity).toHaveBeenCalledTimes(1)

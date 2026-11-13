@@ -13,6 +13,7 @@ import { relativeEnded } from '../PastSessionsDialog/pastSessionsView'
 import { isAbsolutePath, isInstructionPath } from '../../../../shared/schemas/contextIpc'
 import {
   CONTEXT_COPY,
+  DROP_REASON_COPY,
   contextErrorCopy,
   fileName,
   tierLabel,
@@ -136,8 +137,22 @@ function InstructionsPage({
 
 export type MemoryLoad = { activity: MemoryActivity; at: number }
 
-/** What this session was given at launch, then what it pulled and saved (an update or a stale
- *  mark counts as saved). `at` is when the answer came, the "now" its times are measured from. */
+type ActivityEntry = MemoryActivity['entries'][number]
+
+/** Which list an entry is under: what the session pulled; what it saved (an update, a task report
+ *  and a stale mark are writes too, so they list with the saves); what extraction dropped. */
+const LIST_OF: Readonly<Record<ActivityEntry['action'], 'pulled' | 'saved' | 'dropped'>> = {
+  pulled: 'pulled',
+  saved: 'saved',
+  updated: 'saved',
+  marked_stale: 'saved',
+  dropped: 'dropped'
+}
+
+/** What this session was given at launch, then what it pulled, what it saved and what extraction
+ *  dropped (memory phase 2), each entry under exactly one of them. `at` is when the answer came,
+ *  the "now" its times are measured from. A row names the tool, or for a drop the reason in plain
+ *  words; it never needs an item id (a task report has none). */
 export function MemoryPage({
   memory,
   error
@@ -151,13 +166,15 @@ export function MemoryPage({
     )
   if (memory === null) return <>{notice}</>
   const { activity, at } = memory
-  const entries = (testId: string, title: string, none: string, saved: boolean): JSX.Element => {
-    // Updates and stale marks are writes, so they list under Saved with the saves.
-    const rows = activity.entries.filter((e) =>
-      saved ? e.action !== 'pulled' : e.action === 'pulled'
-    )
+  const entries = (
+    list: 'pulled' | 'saved' | 'dropped',
+    title: string,
+    none: string
+  ): JSX.Element => {
+    const rows = activity.entries.filter((e) => LIST_OF[e.action] === list)
+    const testId = list === 'dropped' ? 'context-memory-dropped-entry' : 'context-memory-entry'
     return (
-      <section data-testid={testId}>
+      <section data-testid={`context-memory-${list}`}>
         <h4 className={styles.section}>{title}</h4>
         {rows.length === 0 ? (
           <p className={styles.empty}>{none}</p>
@@ -166,8 +183,8 @@ export function MemoryPage({
             {rows.map((e, i) => (
               <Row
                 key={`${i}-${e.at}-${e.tool}`}
-                testId="context-memory-entry"
-                name={e.tool}
+                testId={testId}
+                name={list === 'dropped' && e.reason !== null ? DROP_REASON_COPY[e.reason] : e.tool}
                 details={[relativeEnded(e.at, at)]}
               />
             ))}
@@ -190,8 +207,9 @@ export function MemoryPage({
               )}
         </p>
       </section>
-      {entries('context-memory-pulled', CONTEXT_COPY.pulled, CONTEXT_COPY.nothingPulled, false)}
-      {entries('context-memory-saved', CONTEXT_COPY.saved, CONTEXT_COPY.nothingSaved, true)}
+      {entries('pulled', CONTEXT_COPY.pulled, CONTEXT_COPY.nothingPulled)}
+      {entries('saved', CONTEXT_COPY.saved, CONTEXT_COPY.nothingSaved)}
+      {entries('dropped', CONTEXT_COPY.dropped, CONTEXT_COPY.nothingDropped)}
     </div>
   )
 }
