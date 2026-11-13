@@ -1,8 +1,9 @@
-// The reconcile step of the candidate check (addendum step 5, D16, D17, R11) and twins inside one
-// model answer (R20), with synthetic text.
+// The reconcile step of the candidate check (addendum step 5, D16, D17, R11, P3-R1) and twins
+// inside one model answer (R20), with synthetic text.
 import { describe, expect, it } from 'vitest'
 import type { ScopeItem, ScopeTask } from './extractPrompt'
 import {
+  ENTRIES,
   RESULT_QUOTE,
   cand,
   check,
@@ -215,6 +216,181 @@ describe('checkCandidates: reconcile', () => {
     ])
     expect(out.kept.map((k) => k.kind)).toEqual(['item', 'task'])
     expect(out.dropped).toEqual(['evidence_not_found', 'invalid'])
+  })
+})
+
+describe("checkCandidates: an update only claude's own words support (P3-R1)", () => {
+  const SAID = entry(4, 'claude', 'The API port is 9300 now.')
+  const withSaid = { items: ITEMS, entries: [...ENTRIES, SAID] }
+  const said9300 = { body: '9300', evidence: 'The API port is 9300 now.' }
+
+  it("P3-R1: an update whose value stands only in claude's own text is dropped as claude_only", () => {
+    expect(check([cand({ action: 'update', id: 'i-1', ...said9300 })], withSaid)).toEqual({
+      kept: [],
+      dropped: ['claude_only']
+    })
+  })
+
+  it('P3-R1: a none that R11 turns into an update is dropped when only claude said the new value', () => {
+    expect(check([cand({ action: 'none', id: 'i-1', ...said9300 })], withSaid)).toEqual({
+      kept: [],
+      dropped: ['claude_only']
+    })
+  })
+
+  it('P3-R1: an add that D17 turns into an update is dropped when only claude said it', () => {
+    expect(check([cand({ head: 'api  PORT', ...said9300 })], withSaid)).toEqual({
+      kept: [],
+      dropped: ['claude_only']
+    })
+  })
+
+  it("P3-R1: an update whose value stands only in a tool call's arguments is dropped", () => {
+    const args = '{"command":"sed -i s/9280/9300/ config.ini"}'
+    expect(
+      check([cand({ action: 'update', id: 'i-1', body: '9300', evidence: args })], {
+        items: ITEMS,
+        entries: [...ENTRIES, entry(4, 'tool', args)]
+      })
+    ).toEqual({ kept: [], dropped: ['claude_only'] })
+  })
+
+  it('P3-R1: a fact claude reworded is dropped, not rewritten', () => {
+    const reworded = 'Running make all builds the whole project.'
+    expect(
+      check(
+        [
+          cand({
+            type: 'fact',
+            action: 'update',
+            id: 'i-2',
+            head: 'Build',
+            body: reworded,
+            evidence: reworded
+          })
+        ],
+        { items: ITEMS, entries: [...ENTRIES, entry(4, 'claude', reworded)] }
+      )
+    ).toEqual({ kept: [], dropped: ['claude_only'] })
+  })
+
+  it('P3-R1: the same update with its value in a tool result is kept as observed', () => {
+    expect(check([cand({ action: 'update', id: 'i-1' })], { items: ITEMS }).kept).toEqual([
+      { ...portItem('observed'), action: 'update', id: 'i-1' }
+    ])
+  })
+
+  it('P3-R1: a new item only claude said is still added, as inferred', () => {
+    const line = 'We build with pnpm here.'
+    expect(
+      check([cand({ head: 'Build tool', body: 'pnpm', evidence: line })], {
+        items: ITEMS,
+        entries: [...ENTRIES, entry(4, 'claude', line)]
+      })
+    ).toEqual({
+      kept: [
+        {
+          kind: 'item',
+          action: 'add',
+          id: null,
+          text: { kind: 'specific', key: 'Build tool', value: 'pnpm' },
+          check: null,
+          basis: 'inferred',
+          source: { entryId: 'e-4', quote: line }
+        }
+      ],
+      dropped: []
+    })
+  })
+
+  it("P3-R1: an update the operator's text supports is kept as stated", () => {
+    const line = 'Move the API port to 9300.'
+    expect(
+      check([cand({ action: 'update', id: 'i-1', body: '9300', evidence: line })], {
+        items: ITEMS,
+        entries: [...ENTRIES, entry(4, 'operator', line)]
+      }).kept
+    ).toEqual([
+      {
+        kind: 'item',
+        action: 'update',
+        id: 'i-1',
+        text: { kind: 'specific', key: 'API port', value: '9300' },
+        check: null,
+        basis: 'stated',
+        source: { entryId: 'e-4', quote: line }
+      }
+    ])
+  })
+
+  it('P3-R1: a quote claude repeats after a tool result shows it is kept as observed', () => {
+    const line = 'api listening on 9300'
+    const entries = [entry(4, 'claude', line), entry(5, 'result', line)]
+    expect(
+      check([cand({ action: 'update', id: 'i-1', body: '9300', evidence: line })], {
+        items: ITEMS,
+        entries
+      }).kept
+    ).toEqual([
+      {
+        kind: 'item',
+        action: 'update',
+        id: 'i-1',
+        text: { kind: 'specific', key: 'API port', value: '9300' },
+        check: null,
+        basis: 'observed',
+        source: { entryId: 'e-5', quote: line }
+      }
+    ])
+  })
+
+  it("P3-R1: a quote that runs from a tool result into claude's text is not found", () => {
+    const entries = [entry(4, 'result', 'api listening on'), entry(5, 'claude', '9300 from now on')]
+    expect(
+      check(
+        [
+          cand({
+            action: 'update',
+            id: 'i-1',
+            body: '9300',
+            evidence: 'api listening on 9300 from now on'
+          })
+        ],
+        { items: ITEMS, entries }
+      )
+    ).toEqual({ kept: [], dropped: ['evidence_not_found'] })
+  })
+
+  it('P3-R1: a none claude restates with the saved value stays a none, as inferred', () => {
+    const line = 'The API port is 9280, as memory says.'
+    expect(
+      check([cand({ action: 'none', id: 'i-1', body: '9280', evidence: line })], {
+        items: ITEMS,
+        entries: [...ENTRIES, entry(4, 'claude', line)]
+      })
+    ).toEqual({
+      kept: [
+        {
+          kind: 'item',
+          action: 'none',
+          id: 'i-1',
+          text: { kind: 'specific', key: 'API port', value: '9280' },
+          check: null,
+          basis: 'inferred',
+          source: { entryId: 'e-4', quote: line }
+        }
+      ],
+      dropped: []
+    })
+  })
+
+  it('P3-R1: an update of an item the operator wrote is still dropped as operator_item, whatever its basis', () => {
+    expect(
+      check([cand({ action: 'update', id: 'i-1', ...said9300 })], {
+        ...withSaid,
+        operatorWrote: (id) => id === 'i-1'
+      })
+    ).toEqual({ kept: [], dropped: ['operator_item'] })
   })
 })
 

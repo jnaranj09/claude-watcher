@@ -210,7 +210,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   result passes `ClaudeResultSchema` then `ExtractOutputSchema`, else the call failed. A candidate
   is kept only when its quote stands as whole words in the cleaned slice (a value next to a dotted
   or hyphenated continuation is not whole, R15), holds no secret and is not an item the operator
-  wrote (D16); its basis is where the quote was found. Only a quote found in a tool result or in
+  wrote (D16); its basis is where the quote was found. An update that only claude's own text or a
+  tool call supports is dropped (claude_only, P3-R1). Only a quote found in a tool result or in
   the operator's text moves an item's (a `none`) or a task's (an update) last-seen date; claude
   repeating what memory told it moves nothing (R48). A save never closes, pins or deletes: open
   work becomes a task (`settings.memorySaveTasks`) and a session only flags one (`task_report`).

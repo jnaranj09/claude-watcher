@@ -65,7 +65,8 @@ export const DROP_REASON_COPY: Readonly<Record<DropReason, string>> = {
   secret: 'Held a secret',
   invalid: 'Not valid',
   operator_item: 'You wrote that item',
-  tasks_off: 'Tasks are off'
+  tasks_off: 'Tasks are off',
+  claude_only: 'Only Claude said it'
 }
 
 export const UNAVAILABLE_COPY: Record<ModSkipReason, string> = {

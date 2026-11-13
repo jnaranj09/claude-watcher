@@ -119,8 +119,9 @@ function writeTask(deps: ApplyDeps, row: ExtractRow, task: TaskCandidate, at: nu
 
 /** An item candidate, inside the batch. null: no save to report. A `none` only moves the item's
  *  last-seen date, and only when its evidence is a sighting (R48). An update writes nothing when
- *  its item is gone or of another kind since the scope was read, or when the operator wrote it
- *  since the check ran (D16; a silent skip, R28). */
+ *  its item is gone or of another kind since the scope was read, when the operator wrote it
+ *  since the check ran (D16; a silent skip, R28), or when its evidence is no sighting (P3-R1, the
+ *  check's `claude_only`, again here; silent, in no count). */
 function writeItem(deps: ApplyDeps, write: ChunkWrite, c: ItemCandidate, at: number): Saved | null {
   const { store } = deps
   const source = stored(write.transcriptPath, c.source)
@@ -133,6 +134,8 @@ function writeItem(deps: ApplyDeps, write: ChunkWrite, c: ItemCandidate, at: num
     if (store.get(c.id)?.kind !== c.text.kind) return null
     // D16 again, inside the batch: the operator may have edited it since the check ran.
     if (store.currentWriter(c.id) === 'operator') return null
+    // P3-R1 again: the check drops an update no sighting supports (`claude_only`).
+    if (!isSighting(c.basis)) return null
     store.edit(
       c.id,
       { text: c.text, check: c.check, evidence: { basis: c.basis, source } },

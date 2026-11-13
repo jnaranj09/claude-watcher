@@ -41,9 +41,8 @@ const BASIS_OF: Record<CleanEntry['kind'], Basis> = {
 }
 const STRENGTH: Record<Basis, number> = { observed: 0, stated: 1, inferred: 2 }
 
-/** R48: only evidence in a tool result (`observed`) or in the operator's text (`stated`) is a
- *  sighting. claude repeating what memory told it (`inferred`) moves no last-seen date. Moved here
- *  from applyChunk.ts, which imports it. */
+/** R48 and P3-R1: only evidence in a tool result (observed) or in the operator's text (stated) is a
+ *  sighting. Moved here from applyChunk.ts, which imports it. */
 export const isSighting = (basis: Basis): boolean => basis !== 'inferred'
 
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -268,7 +267,8 @@ function reconcileTask(
   return same === undefined ? { action: 'add', id: null } : { action: 'update', id: same.id }
 }
 
-/** Steps 2 to 5 for one candidate whose shape passed. */
+/** Steps 2 to 5 for one candidate whose shape passed. After D16, an item update whose evidence is
+ *  no sighting is dropped (`claude_only`, P3-R1); an inferred add or none is kept. */
 function checkOne(c: ExtractCandidate, s: Shaped, ctx: Ctx): Checked | DropReason {
   if (s.kind === 'task' && !ctx.tasksOn) return 'tasks_off'
   if ([c.head, c.body, c.check, c.evidence].some((v) => v !== null && hasSecret(v))) return 'secret'
@@ -295,6 +295,9 @@ function checkOne(c: ExtractCandidate, s: Shaped, ctx: Ctx): Checked | DropReaso
     return 'evidence_not_found'
   const reconciled = reconcileItem(c, s.text, ctx)
   if (reconciled === 'operator_item') return reconciled
+  // P3-R1: an update (asked for, or made by D17 or R11) only claude's own text or a tool call
+  // supports never rewrites a saved item.
+  if (reconciled.action === 'update' && !isSighting(found.basis)) return 'claude_only'
   return { kind: 'item', ...reconciled, text: s.text, check: s.check, basis: found.basis, source }
 }
 

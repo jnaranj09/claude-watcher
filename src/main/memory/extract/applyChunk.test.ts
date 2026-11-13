@@ -299,6 +299,36 @@ describe('items', () => {
     expect(state.get('t-1')?.byteOffset).toBe(400)
   })
 
+  it('P3-R1: an update with inferred evidence that reaches the writer changes nothing', () => {
+    const id = addSaved(specific('API port', '9280'))
+    const before = store.get(id)
+    const later = { ...deps, now: () => NOW + 500 }
+    const out = applyChunk(
+      later,
+      write({ kept: [item('update', specific('API port', '9300'), 'inferred', 'e-4', id)] })
+    )
+    expect([out.added, out.saved]).toEqual([NO_COUNTS, []])
+    expect(store.get(id)).toEqual(before)
+    expect(store.get(id)).toMatchObject({ value: '9280', lastSeenAt: NOW, updatedAt: NOW })
+    expect(store.versions(id)).toHaveLength(1)
+    expect(sourceRow(id)).toEqual({ source_path: null, source_entry: null, source_quote: null })
+    expect(state.get('t-1')?.byteOffset).toBe(400)
+  })
+
+  it("an update with the operator's text as evidence is written as stated", () => {
+    const id = addSaved(specific('API port', '9280'))
+    const out = applyChunk(
+      deps,
+      write({ kept: [item('update', specific('API port', '9300'), 'stated', 'u2', id)] })
+    )
+    expect(out.saved).toEqual([{ itemId: id, action: 'updated' }])
+    expect(store.get(id)).toMatchObject({ value: '9300', basis: 'stated' })
+    expect(store.versions(id).map((v) => [v.body, v.basis])).toEqual([
+      ['9300', 'stated'],
+      ['9280', 'inferred']
+    ])
+  })
+
   it('a none only moves the last-seen date and is not counted', () => {
     const id = addSaved(specific('API port', '9281'))
     const later = { ...deps, now: () => NOW + 500 }

@@ -23,9 +23,14 @@ describe('DROP_REASON_COPY', () => {
     ['secret', 'Held a secret'],
     ['invalid', 'Not valid'],
     ['operator_item', 'You wrote that item'],
-    ['tasks_off', 'Tasks are off']
+    ['tasks_off', 'Tasks are off'],
+    ['claude_only', 'Only Claude said it']
   ])('%s reads %s', (reason, copy) => {
     expect(DROP_REASON_COPY[reason]).toBe(copy)
+  })
+
+  it('says why an update only claude supported was dropped', () => {
+    expect(DROP_REASON_COPY.claude_only).toBe('Only Claude said it')
   })
 
   it('has a sentence for every reason main can drop for', () => {

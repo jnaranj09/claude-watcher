@@ -191,7 +191,8 @@ export const DROP_REASONS = [
   'secret',
   'invalid',
   'operator_item',
-  'tasks_off'
+  'tasks_off',
+  'claude_only'
 ] as const
 export type DropReason = (typeof DROP_REASONS)[number]
 

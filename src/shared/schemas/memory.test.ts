@@ -270,6 +270,11 @@ describe('memory records', () => {
     ).toBe(false)
   })
 
+  it('P3-R1: an activity entry may be a drop of an update only claude supported', () => {
+    const drop = { at: 1, action: 'dropped', tool: 'extract', itemId: null, reason: 'claude_only' }
+    expect(MemoryActivitySchema.parse({ injected: null, entries: [drop] }).entries).toEqual([drop])
+  })
+
   const episodeItem = {
     ...item,
     kind: 'episode',
