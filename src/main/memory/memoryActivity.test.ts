@@ -67,6 +67,14 @@ describe('memory activity', () => {
     expect(log.get('s1').entries).toHaveLength(1)
   })
 
+  it('a caller changing the recall mode get returned does not change the record', () => {
+    const log = createMemoryActivity()
+    log.recallMode('s1', { mode: 'launch', reason: 'setting_off' })
+    const answer = log.get('s1').recall
+    Object.assign(answer ?? {}, { reason: 'claude_too_old' })
+    expect(log.get('s1').recall).toEqual({ mode: 'launch', reason: 'setting_off' })
+  })
+
   it('rebind moves the record to the new session id', () => {
     const log = createMemoryActivity()
     log.injected('old', { chars: 8, itemIds: ['a'] })

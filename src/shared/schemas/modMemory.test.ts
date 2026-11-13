@@ -66,4 +66,76 @@ describe('mod memory bodies', () => {
       )
     ).toEqual([true, true, false])
   })
+  it('a window is at most 1,000,000', () => {
+    expect(
+      [0, 1_000_000, 1_000_001].map(
+        (window) => ModMemoryIndexSchema.safeParse({ version: 1, window }).success
+      )
+    ).toEqual([true, true, false])
+  })
+
+  it('an origin is at most 64 characters', () => {
+    const body = (origin: string): unknown => ({ version: 1, window: 0, origin, text: 'port' })
+    expect(
+      ['x'.repeat(64), 'x'.repeat(65)].map((o) => ModMemoryRecallSchema.safeParse(body(o)).success)
+    ).toEqual([true, false])
+  })
+
+  it('a remember origin is at most 64 characters', () => {
+    const body = (origin: string): unknown => ({ version: 1, origin, text: 'port' })
+    expect(
+      ['x'.repeat(64), 'x'.repeat(65)].map(
+        (o) => ModMemoryRememberSchema.safeParse(body(o)).success
+      )
+    ).toEqual([true, false])
+  })
+
+  it('an at-use folder is 1 to 4,096 characters', () => {
+    const body = (folder: string): unknown => ({ version: 1, window: 3, folders: [folder] })
+    expect(
+      ['', 'x'.repeat(4096), 'x'.repeat(4097)].map(
+        (f) => ModMemoryAtUseSchema.safeParse(body(f)).success
+      )
+    ).toEqual([false, true, false])
+  })
+
+  it('an index body with a key the mod never sends is refused', () => {
+    const ok = { version: 1, window: 0 }
+    expect(
+      [ok, { ...ok, sessionId: 's1' }].map((b) => ModMemoryIndexSchema.safeParse(b).success)
+    ).toEqual([true, false])
+  })
+
+  it('an at-use body with a key the mod never sends is refused', () => {
+    const ok = { version: 1, window: 0, folders: ['/work/app'] }
+    expect(
+      [ok, { ...ok, sessionId: 's1' }].map((b) => ModMemoryAtUseSchema.safeParse(b).success)
+    ).toEqual([true, false])
+  })
+
+  it('a remember body with a key the mod never sends is refused', () => {
+    const ok = { version: 1, origin: 'composer', text: 'port' }
+    expect(
+      [ok, { ...ok, sessionId: 's1' }].map((b) => ModMemoryRememberSchema.safeParse(b).success)
+    ).toEqual([true, false])
+  })
+
+  it('every body is version 1 only', () => {
+    const bodies = [
+      [ModMemoryIndexSchema, { window: 0 }],
+      [ModMemoryRecallSchema, { window: 0, origin: 'composer', text: 'port' }],
+      [ModMemoryAtUseSchema, { window: 0, folders: ['/work/app'] }],
+      [ModMemoryRememberSchema, { origin: 'composer', text: 'port' }]
+    ] as const
+    expect(
+      bodies.map(([schema, body]) =>
+        [1, 2].map((version) => schema.safeParse({ ...body, version }).success)
+      )
+    ).toEqual([
+      [true, false],
+      [true, false],
+      [true, false],
+      [true, false]
+    ])
+  })
 })
