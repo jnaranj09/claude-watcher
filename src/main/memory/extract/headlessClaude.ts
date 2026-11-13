@@ -7,8 +7,8 @@
 //
 // Every path ends exactly once, with no child signalled after it exited and no timer left:
 // exit 0 → the parsed result; another exit → `exit`; no exit in `timeoutMs` → `timeout`; stdout
-// past `stdoutBytes` → `exit`; a spawn error or no pid → `spawn`; `cancel()` → `cancelled`. A
-// kill sends SIGTERM to the group, SIGKILL `killGraceMs` later, and the call ends at the child's
+// past `stdoutBytes` or a stdout read error → `exit`; a spawn error, no pid or no stdio streams →
+// `spawn`; `cancel()` → `cancelled`. Nothing throws out of `runExtractCall`. A kill sends SIGTERM to the group, SIGKILL `killGraceMs` later, and the call ends at the child's
 // close, or `killGraceMs` after the SIGKILL when even that close never comes. `killNow()` (app
 // quit) sends the SIGKILL at once. A kill stops reading stdout, and stdout is held only up to
 // `stdoutBytes`, so a flood is never buffered.
@@ -160,8 +160,17 @@ export function boundedCollector(cap: number): {
  *  drained, so the parse sees every byte. */
 export interface ChildSeam {
   pid?: number | undefined
-  stdin: { end(text: string): void; on(event: 'error', cb: () => void): void }
-  stdout: { on(event: 'data', cb: (chunk: Buffer) => void): void; destroy(): void }
+  /** Missing when Node ran out of file descriptors at the spawn (EMFILE, ENFILE), whatever its
+   *  types say. */
+  stdin?: { end(text: string): void; on(event: 'error', cb: () => void): void } | null | undefined
+  stdout?:
+    | {
+        on(event: 'data', cb: (chunk: Buffer) => void): void
+        on(event: 'error', cb: () => void): void
+        destroy(): void
+      }
+    | null
+    | undefined
   kill(signal: 'SIGTERM' | 'SIGKILL'): void
   on(event: 'close', cb: (code: number | null) => void): void
   on(event: 'error', cb: () => void): void
@@ -178,9 +187,10 @@ export type SpawnSeam = (
 ) => ChildSeam
 
 /** Spawns `shell -l -c command` in its own process group, writes `input` to stdin and closes it. Resolves
- *  once, never rejects: exit 0 → parseClaudeResult; another exit → 'exit'; no exit after `timeoutMs` →
- *  SIGTERM to the group (`kill(-pid)`), SIGKILL after `killGraceMs`, 'timeout'; stdout over `stdoutBytes`
- *  → killed, 'exit'; a spawn error or no pid → 'spawn'; `cancel()` → killed the same way, 'cancelled';
+ *  once, never rejects, never throws: exit 0 → parseClaudeResult; another exit → 'exit'; no exit after
+ *  `timeoutMs` → SIGTERM to the group (`kill(-pid)`), SIGKILL after `killGraceMs`, 'timeout'; stdout over
+ *  `stdoutBytes` or a stdout error → killed, 'exit'; a spawn error, no pid or no stdin / stdout →
+ *  'spawn'; `cancel()` → killed the same way, 'cancelled';
  *  `killNow()` → SIGKILL at once, 'cancelled' unless a kill had already started. */
 export function runExtractCall(
   deps: {
@@ -250,7 +260,7 @@ export function runExtractCall(
    *  is buffered. */
   const startKill = (why: ExtractCallFailure): void => {
     killedFor = why
-    child?.stdout.destroy()
+    child?.stdout?.destroy()
   }
   /** SIGTERM to the group now, SIGKILL after the grace time. Once per call; never after it ended. */
   const stop = (why: ExtractCallFailure): void => {
@@ -283,33 +293,42 @@ export function runExtractCall(
     return call
   }
   const spawned = child
-  // Listened to before anything else: an 'error' with no listener would throw in main.
-  spawned.on('error', () => {
+  try {
+    // Listened to before anything else: an 'error' with no listener would throw in main.
+    spawned.on('error', () => {
+      if (spawned.pid === undefined) finish(failed('spawn'))
+      else stop('spawn')
+    })
+    const { stdin, stdout } = spawned
+    // Node leaves no pid when the spawn failed, and no stdio streams at all when it ran out of file
+    // descriptors (EMFILE, ENFILE). The child's own kill is the fallback, in case one runs anyway.
+    if (spawned.pid === undefined || !stdin || !stdout) {
+      signal('SIGKILL')
+      finish(failed('spawn'))
+      return call
+    }
+    stdin.on('error', () => {
+      // EPIPE: the child closed stdin early. Its close decides the result; nothing to do here.
+    })
+    stdout.on('error', () => stop('exit'))
+    stdout.on('data', (chunk) => {
+      if (!out.push(chunk)) stop('exit')
+    })
+    spawned.on('close', (code) => {
+      if (killedFor !== null) finish(failed(killedFor))
+      else if (code === 0) finish(parseClaudeResult(out.text()))
+      else finish(failed('exit'))
+    })
+    timer = deps.setTimer(() => {
+      timer = null
+      stop('timeout')
+    }, deps.timeoutMs)
+    stdin.end(input)
+  } catch {
+    // A child that breaks its own contract: the caller gets `spawn`, a failure it tells from every
+    // real result. With a pid the group is killed and the call ends at its close (or the timers).
     if (spawned.pid === undefined) finish(failed('spawn'))
     else stop('spawn')
-  })
-  spawned.stdin.on('error', () => {
-    // EPIPE: the child closed stdin early. Its close decides the result; nothing to do here.
-  })
-  if (spawned.pid === undefined) {
-    // Node leaves no pid when the spawn failed; the child's own kill is the fallback, in case one
-    // runs anyway.
-    signal('SIGKILL')
-    finish(failed('spawn'))
-    return call
   }
-  spawned.stdout.on('data', (chunk) => {
-    if (!out.push(chunk)) stop('exit')
-  })
-  spawned.on('close', (code) => {
-    if (killedFor !== null) finish(failed(killedFor))
-    else if (code === 0) finish(parseClaudeResult(out.text()))
-    else finish(failed('exit'))
-  })
-  timer = deps.setTimer(() => {
-    timer = null
-    stop('timeout')
-  }, deps.timeoutMs)
-  spawned.stdin.end(input)
   return call
 }

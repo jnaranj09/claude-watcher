@@ -161,9 +161,11 @@ interface FakeChild extends ChildSeam {
   close(code: number | null): void
   fail(): void
   stdinFail(): void
+  stdoutFail(): void
 }
 
-function fakeChild(pid: number | undefined): FakeChild {
+/** `streams: false` is Node's child after EMFILE / ENFILE: no pid and no stdio streams at all. */
+function fakeChild(pid: number | undefined, streams = true): FakeChild {
   const events = new EventEmitter()
   const stdin = new EventEmitter()
   const stdout = new EventEmitter()
@@ -174,22 +176,26 @@ function fakeChild(pid: number | undefined): FakeChild {
     pid,
     written,
     ownKills,
-    stdin: {
-      end: (text) => {
-        written.push(text)
-      },
-      on: (event, cb) => {
-        stdin.on(event, cb)
-      }
-    },
-    stdout: {
-      on: (event, cb) => {
-        stdout.on(event, cb)
-      },
-      destroy: () => {
-        destroyed = true
-      }
-    },
+    stdin: streams
+      ? {
+          end: (text) => {
+            written.push(text)
+          },
+          on: (event, cb) => {
+            stdin.on(event, cb)
+          }
+        }
+      : undefined,
+    stdout: streams
+      ? {
+          on: (event: 'data' | 'error', cb: (chunk: Buffer) => void) => {
+            stdout.on(event, cb)
+          },
+          destroy: () => {
+            destroyed = true
+          }
+        }
+      : undefined,
     kill: (signal) => {
       ownKills.push(signal)
     },
@@ -209,6 +215,9 @@ function fakeChild(pid: number | undefined): FakeChild {
     },
     stdinFail: () => {
       stdin.emit('error', Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }))
+    },
+    stdoutFail: () => {
+      stdout.emit('error', Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }))
     }
   }
 }
@@ -466,8 +475,8 @@ describe('runExtractCall', () => {
     expect(timers.pending()).toBe(0)
   })
 
-  it('a spawn that gives no pid is a failed call, its later error is taken, and only the child itself is killed', async () => {
-    child = fakeChild(undefined)
+  it('a spawn that gives no pid and no stdio (EMFILE) is a failed call, never a throw, its later error is taken, and only the child itself is killed', async () => {
+    child = fakeChild(undefined, false)
     const call = run()
     expect(child.written).toEqual([])
     expect(() => child.fail()).not.toThrow()
@@ -602,6 +611,55 @@ describe('runExtractCall', () => {
     })
     expect(() => failedSpawn.killNow()).not.toThrow()
     expect(kills).toEqual([])
+    expect(timers.pending()).toBe(0)
+  })
+  it('a spawn that gives no pid but has its streams (ENOENT) is a failed call and writes nothing', async () => {
+    child = fakeChild(undefined)
+    const call = run()
+    expect(child.written).toEqual([])
+    child.fail()
+    await expect(call.result).resolves.toEqual({ ok: false, reason: 'spawn', issue: null })
+    expect(kills).toEqual([])
+  })
+
+  it.each([
+    ['no stdin', { stdin: null }],
+    ['no stdout', { stdout: null }]
+  ])(
+    'a child with a pid but %s is a spawn failure, never a throw, and its group is killed',
+    async (_n, over) => {
+      child = { ...fakeChild(4242), ...over }
+      const call = run()
+      await expect(call.result).resolves.toEqual({ ok: false, reason: 'spawn', issue: null })
+      expect(kills).toEqual([[-4242, 'SIGKILL']])
+      expect(timers.pending()).toBe(0)
+    }
+  )
+
+  it('a child whose stdin throws on write is a spawn failure, never a throw, and its group is killed', async () => {
+    const base = fakeChild(4242)
+    child = {
+      ...base,
+      stdin: {
+        end: () => {
+          throw new Error('write after end')
+        },
+        on: () => undefined
+      }
+    }
+    const call = run()
+    expect(kills).toEqual([[-4242, 'SIGTERM']])
+    child.close(null)
+    await expect(call.result).resolves.toEqual({ ok: false, reason: 'spawn', issue: null })
+    expect(timers.pending()).toBe(0)
+  })
+
+  it('a stdout error is taken, never thrown, kills the group and ends the call as exit', async () => {
+    const call = run()
+    expect(() => child.stdoutFail()).not.toThrow()
+    expect(kills).toEqual([[-4242, 'SIGTERM']])
+    child.close(0)
+    await expect(call.result).resolves.toEqual({ ok: false, reason: 'exit', issue: null })
     expect(timers.pending()).toBe(0)
   })
 })
