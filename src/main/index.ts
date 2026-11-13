@@ -12,7 +12,7 @@ import type { TerminalManager } from './pty/terminalManager'
 // Version gate — the spawn depends on `--session-id`, `-n` and `--settings`; a claude that
 // does not know one of them dies instantly instead of degrading. Fails OPEN on an unreadable
 // version (see claudeVersion.ts for why that inversion is deliberate).
-import { createClaudeVersionGate } from './pty/claudeVersion'
+import { createClaudeVersionGate, createVersionReads } from './pty/claudeVersion'
 import type { AttentionTracker } from './c9watch/attention'
 // Story 2.4 — the app-global settings store (electron-store in MAIN, behind a DI seam) +
 // its versioned-Zod payload schema. The store is constructed ONCE (settings are app-global,
@@ -65,17 +65,10 @@ import {
   createMemoryMcp,
   liveSessionMeta,
   markSessionsDeletedInMemory,
-  memorySpawnExtras,
-  memoryStep
+  memorySpawnExtras
 } from './memory/memoryLaunch'
-import { createExtractor } from './memory/extract/extractor'
-import {
-  createExtractCall,
-  createExtractVersionGate,
-  createTimerPair,
-  extractSources,
-  memoryCascadeStep
-} from './memory/extract/extractWiring'
+import { createAppExtractor } from './memory/extract/appExtractor'
+import { memoryCascadeStep } from './memory/extract/extractWiring'
 import { readTranscriptSlice, transcriptFsOnDisk } from './memory/extract/transcriptReader'
 import { buildPtyEnv } from './pty/ptyEnv'
 import { goalSpawnExtras } from './goals/goalLaunch'
@@ -614,49 +607,39 @@ const memoryMcp = createMemoryMcp({
   now: () => Date.now(),
   log: (line) => console.warn(line)
 })
-// Saving memory from sessions (memory phase 2, memory/extract/): one queue for the app. Every seam
-// is a getter, so it is safe before memory opens and after the quit closes it (and under SMOKE,
-// where memory never opens). The hook, removal and `/clear` save points are the watch feed's
-// (window/memorySavePoints.ts); the start's catch-up and the quit's kill are below.
-const memorySettings = (): typeof DEFAULT_SETTINGS => settingsStore?.get() ?? DEFAULT_SETTINGS
-const extractor = createExtractor({
-  enabled: memoryEnabled,
-  checkpoint: () => memorySettings().memoryCheckpoint,
-  tasksOn: () => memorySettings().memorySaveTasks,
-  model: () => memorySettings().memoryModel,
-  ...extractSources({ memory: () => memory, lookup: () => transcriptLookupDepsFromFs() }),
+// One run's `claude --version` reads (R37): the launch gate reads through it; a memory save reuses
+// its answer instead of a second blocking login-shell probe on main.
+const claudeVersionReads = createVersionReads(() => readClaudeVersionRaw(SHELL))
+// Saving memory from sessions (memory phase 2, memory/extract/appExtractor.ts): one queue for the
+// app. Every input is a getter or Node's own function, so it is safe before memory opens and after
+// the quit closes it (and under SMOKE, where memory never opens). The hook, removal and `/clear`
+// save points are the watch feed's (window/memorySavePoints.ts); the start's catch-up is in the
+// ready block; the quit's kill is teardownAllSessions' first step.
+const { extractor, start: startMemoryCatchUp } = createAppExtractor({
+  settings: () => settingsStore?.get() ?? DEFAULT_SETTINGS,
+  memory: () => memory,
   goals: () => goalsStore,
-  sessionMeta,
-  read: (path, fromOffset, maxBytes) =>
-    readTranscriptSlice(transcriptFsOnDisk, path, fromOffset, maxBytes),
-  // R35: an OK answer is kept for the run; only a job asks (never a hook, never window creation).
-  versionOk: createExtractVersionGate(() => readClaudeVersionRaw(SHELL)),
-  call: createExtractCall({
-    shell: SHELL,
-    userData: () => app.getPath('userData'),
-    env: () => buildPtyEnv(),
-    resolveClaude: () => resolveClaudeOnDisk(buildPtyEnv()),
-    spawn,
-    // Already the negated process-group id: passed on unchanged, never negated again.
-    kill: (groupId, signal) => process.kill(groupId, signal),
-    // Called with `{ recursive: true, mode: 0o700 }` by createExtractCall itself (R36).
-    mkdir: mkdirSync,
-    ...createTimerPair()
-  }),
   pastSessions: () => pastSessionsStore,
+  sessionMeta,
   activity: memoryActivity,
   // Dropped for now: Task 12 sends the result to the renderer.
   push: () => undefined,
+  lookup: () => transcriptLookupDepsFromFs(),
+  readSlice: (path, fromOffset, maxBytes) =>
+    readTranscriptSlice(transcriptFsOnDisk, path, fromOffset, maxBytes),
+  version: { read: claudeVersionReads.read, held: claudeVersionReads.last },
+  shell: SHELL,
+  userData: () => app.getPath('userData'),
+  ptyEnv: () => buildPtyEnv(),
+  resolveClaude: resolveClaudeOnDisk,
+  spawn,
+  kill: process.kill,
+  mkdir: mkdirSync,
   now: () => Date.now(),
   log: (line) => console.warn(line)
 })
-/** The quit path: a running save call gets its SIGKILL now (R17), before the archive. */
-const quitExtractor = (): void =>
-  memoryStep(
-    (line) => console.warn(line),
-    'memory_extract_quit_failed',
-    () => extractor.quit()
-  )
+/** The quit's first step (teardownAllSessions): a running save call gets its SIGKILL now (R17). */
+const quitExtractor = (): void => extractor.quit()
 /** A deleted session's save is forgotten and its memory items and commands stay, marked `Session
  *  deleted` (pastSessions.ts `onRemove` for a Forget or a card's Delete, `onDropped` for a record a
  *  cascade or the cap dropped). */
@@ -845,7 +828,7 @@ const {
  * The decision lives in `createClaudeVersionGate` (claudeVersion.ts, unit-tested).
  */
 const claudeVersionGate = createClaudeVersionGate({
-  readRaw: () => readClaudeVersionRaw(SHELL),
+  readRaw: claudeVersionReads.read,
   now: Date.now,
   log: (m) => console.warn(m)
 })
@@ -1218,8 +1201,9 @@ app
     // Memory's catch-up for the saves the last run owed (it also reads the rest of a session whose
     // save stopped on `more`, R22). Only now: it needs the memory database, the goals store (a
     // task candidate with no goals store is lost for good) and the past-sessions store. With
-    // Memory off, each owed save is dropped and its record says `off` (D24). Not under SMOKE.
-    if (!SMOKE) extractor.catchUp()
+    // Memory off, each owed save is dropped and its record says `off` (D24). Under SMOKE memory
+    // never opens, so it does nothing.
+    startMemoryCatchUp()
 
     // Story 3.5 (SM-2) — build the ONE app-global telemetry store AFTER app-ready
     // (app.getPath('userData') needs ready) and register the telemetry IPC ONCE.
@@ -1500,13 +1484,11 @@ app.on('before-quit', (e) => {
   const showed = handleBeforeQuit(quitGuardState, {
     teardownAllSessions,
     teardownDeps: {
+      // Memory — a running save call is killed first (teardownAllSessions' order).
+      quitExtractor,
       // Past sessions (D-3) — the nothing-live quit archives too (a bound session the guard's
-      // count did not see still gets its record). Runs only when this quit goes ahead. A running
-      // memory save is killed first, so the archive's ends queue nothing new.
-      archiveLiveSessions: () => {
-        quitExtractor()
-        archiveLiveSessions()
-      },
+      // count did not see still gets its record). Runs only when this quit goes ahead.
+      archiveLiveSessions: () => archiveLiveSessions(),
       terminalManager,
       clearTerminalOwners: () => terminalOwners.clear()
     },

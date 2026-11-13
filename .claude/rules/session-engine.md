@@ -165,13 +165,15 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   a store change and an activity change both push: `memoryStartup.ts`) and the origin of the items the session
   saved, the commands it ran and its save state (`window/cardState.ts`; the items last, guarded:
   `code=memory_rebind_failed`); a removed card drops token, file and activity, never the items.
-  Saving from sessions (phase 2, `memory/extract/`): the hooks add save points, never a status
-  transition (`window/memorySavePoints.ts`): a launched session's `Stop` counts toward a
-  checkpoint; its end (archive, and the kept `SessionEnd` of a `/clear`, which ends the OLD id
-  before a hook of the new id adopts the card) runs once per card exit while the card still holds
-  the id; a delete forgets its save. The quit path stops the extractor first (a running call gets
-  SIGKILL at once); the start catches up what the last run owed, after the goals and past-sessions
-  stores exist. A
+  Saving from sessions (phase 2, `memory/extract/`, built by `appExtractor.ts`): the hooks add
+  save points, never a status transition (`window/memorySavePoints.ts`: `routeHookEnd`,
+  `runRemoval`): a launched session's `Stop` counts toward a checkpoint after its status is
+  shipped; its end runs once per card exit (archive, a pty exit after `/exit` included) and once
+  per `/clear` (the kept `SessionEnd` ends the OLD id before a hook of the new id adopts the card),
+  each while the card still holds the id; a delete forgets its save. `teardownAllSessions` stops
+  the extractor first, before the archive (a running call gets SIGKILL at once); the start catches
+  up what the last run owed, after the goals and past-sessions stores exist. A save's version
+  check reuses the launch path's `--version` answer (`createVersionReads`). A
   deleted session (Past sessions `Forget`, or a card's `Delete`) has its save forgotten and keeps
   its items and commands, marked
   `Session deleted` (`pastSessions.ts` `onRemove` → `markSessionsDeletedInMemory`), and so does a
@@ -210,7 +212,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   close → reason `archive`: snapshot into `claude-watcher-past-sessions.json`
   (`persistence/pastSessions.ts`, v1, cap 200, cascades on workspace delete) BEFORE the reducer
   drops it. Quit/close fire no pty onExit, so `archiveBoundSessions` (`pty/launchRemoval.ts`) runs
-  first — in `teardownAllSessions` before `destroyAll`, and in `teardownWindowTerminals` before
+  first — in `teardownAllSessions` before `destroyAll` (only memory's `quitExtractor` comes
+  before it), and in `teardownWindowTerminals` before
   `teardownWatchFeed`. Never throws (`code=teardown_archive_failed`). `Delete` → reason `delete`:
   no record, earlier record dropped, using the override's `lastSessionId` (`deleteTerminalSession`;
   renderer `sessionId` is a hint). Never touches claude's files. Late `SessionEnd` is idempotent.

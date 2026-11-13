@@ -507,4 +507,25 @@ describe('markSessionsDeletedInMemory', () => {
     expect(marked).toEqual(['item s1', 'command s1'])
     expect(lines).toEqual(['[claude-watcher][memory] code=memory_forget_failed'])
   })
+
+  it('a failed commands mark logs its own code and still forgets the save and marks the items', () => {
+    const lines: string[] = []
+    const done: string[] = []
+    markSessionsDeletedInMemory(
+      {
+        store: () => ({ markSessionDeleted: () => done.push('items') }),
+        commands: () => ({
+          markSessionDeleted: () => {
+            throw new Error('boom')
+          }
+        }),
+        extractor: () => ({ forget: () => void done.push('forget') }),
+        now: () => NOW
+      },
+      ['s1'],
+      (line) => lines.push(line)
+    )
+    expect(done).toEqual(['forget', 'items'])
+    expect(lines).toEqual(['[claude-watcher][memory] code=memory_mark_commands_deleted_failed'])
+  })
 })

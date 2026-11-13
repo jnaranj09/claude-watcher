@@ -391,6 +391,33 @@ describe('createExtractVersionGate (R35)', () => {
   })
 })
 
+describe("the version gate reuses the launch path's answer (R37)", () => {
+  it('after a launch read an OK version, many saves run no --version of their own', () => {
+    const readRaw = vi.fn(() => '2.1.330')
+    const gate = createExtractVersionGate(readRaw, () => '2.1.330')
+    expect([gate(), gate(), gate(), gate(), gate()]).toEqual([true, true, true, true, true])
+    expect(readRaw).not.toHaveBeenCalled()
+  })
+
+  it('an unreadable launch answer is OK too (fail open), with no read of its own', () => {
+    const readRaw = vi.fn(() => '2.1.330')
+    expect(createExtractVersionGate(readRaw, () => null)()).toBe(true)
+    expect(readRaw).not.toHaveBeenCalled()
+  })
+
+  it('a too-old launch answer is not trusted: the gate reads again, so an upgrade can save', () => {
+    const readRaw = vi.fn(() => '2.1.330')
+    expect(createExtractVersionGate(readRaw, () => '2.1.322')()).toBe(true)
+    expect(readRaw).toHaveBeenCalledTimes(1)
+  })
+
+  it('before any launch read, a catch-up reads the version itself', () => {
+    const readRaw = vi.fn(() => '2.1.322')
+    expect(createExtractVersionGate(readRaw, () => undefined)()).toBe(false)
+    expect(readRaw).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('the workspace cascade step', () => {
   it('a workspace delete cancels its running save before its rows are removed', async () => {
     const h = createHarness()

@@ -6,8 +6,12 @@
 // and `enrichDelta.ts` as the extract-for-unit-coverage precedent.
 //
 // What it does:
+//   -1. `quitExtractor()` — memory's save queue stops for good, and a running save call (a
+//      detached `claude -p` process group) gets its SIGKILL at once (R17). FIRST, so the archive's
+//      ends below queue nothing new, and before anything that could cost the call its kill (the
+//      app exits with no timer left to send it). Contained: a throw logs a code.
 //   0. `archiveLiveSessions()` — Past sessions (D-3): a quit is a pty exit the operator caused,
-//      so every live launched session is ARCHIVED. It runs FIRST because step 1 disposes each
+//      so every live launched session is ARCHIVED. It runs before step 1 because that disposes each
 //      pty's exit listener before the kill (no onExit, so the pty-exit archive never runs), and
 //      step 2 drops the routing each archive needs. Contained: a throw logs a code, the quit
 //      goes on.
@@ -45,8 +49,13 @@ import type { TerminalManager } from '../pty/terminalManager'
 /** Minimal seam so the unit test can inject + assert without importing Electron. */
 export interface TeardownDeps {
   /**
+   * Memory (phase 2) — `Extractor.quit`: start no more saves, SIGKILL a running save call's group.
+   * Called FIRST, before the archive. Required, so neither quit path can forget to wire it.
+   */
+  quitExtractor: () => void
+  /**
    * Past sessions (D-3) — archive every bound launched session (index.ts → `archiveBoundSessions`,
-   * launchRemoval.ts). Called FIRST, before the terminals are destroyed and before the owners
+   * launchRemoval.ts). Called right after `quitExtractor`, before the terminals are destroyed and before the owners
    * are cleared. Required, so neither quit path can forget to wire it.
    */
   archiveLiveSessions: () => void
@@ -76,6 +85,13 @@ export interface TeardownDeps {
  * @param deps Injectable seam (production: live registries; tests: fakes/spies).
  */
 export function teardownAllSessions(deps: TeardownDeps): void {
+  // -1. Memory — a running save call dies now, while the app is still here to signal it.
+  try {
+    deps.quitExtractor()
+  } catch {
+    console.warn('[claude-watcher][quit] code=quit_extractor_failed')
+  }
+
   // 0. Past sessions (D-3) — archive every live session while its pty, its card and its owner
   //    routing all still exist. NEVER let it cost the quit: a throw is contained and logged by
   //    CODE only (the error can quote a path or a name), and the teardown below always runs.

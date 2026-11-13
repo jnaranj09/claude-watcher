@@ -8,6 +8,7 @@ import {
   gateClaudeVersion,
   formatVersion,
   createClaudeVersionGate,
+  createVersionReads,
   API_VERSION_REFUSAL_TTL_MS,
   MIN_CLAUDE_VERSION,
   type ClaudeVersion
@@ -229,5 +230,17 @@ describe('createClaudeVersionGate', () => {
       g.allowsInteractiveLaunch()
       expect(g.lastVersion()).toBeNull()
     })
+  })
+})
+
+describe('createVersionReads (R37)', () => {
+  it('keeps the raw answer of each read: nothing before the first, then the newest', () => {
+    const answers = ['2.1.322\n', null]
+    const reads = createVersionReads(() => answers.shift() ?? null)
+    expect(reads.last()).toBeUndefined()
+    expect(reads.read()).toBe('2.1.322\n')
+    expect(reads.last()).toBe('2.1.322\n')
+    expect(reads.read()).toBeNull()
+    expect(reads.last()).toBeNull()
   })
 })

@@ -103,6 +103,24 @@ export function gateClaudeVersion(raw: string | null): VersionGate {
  */
 export const API_VERSION_REFUSAL_TTL_MS = 30_000
 
+/** One run's `claude --version` reads (ruling R37, memory phase 2): `read` runs the probe and keeps
+ *  its raw answer; `last` is that answer (null: unreadable), or undefined before any read. The
+ *  launch gate reads through it exactly as before; a memory save reuses `last` instead of running
+ *  its own blocking login-shell probe. */
+export function createVersionReads(probe: () => string | null): {
+  read: () => string | null
+  last: () => string | null | undefined
+} {
+  let last: string | null | undefined
+  return {
+    read: () => {
+      last = probe()
+      return last
+    },
+    last: () => last
+  }
+}
+
 export interface ClaudeVersionGateDeps {
   /** Raw `claude --version` output, or null when the binary could not be run. */
   readRaw: () => string | null

@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { META, createHarness, prompt, said, stops } from '../../__fixtures__/extractorHarness'
 import { dropCardState, moveCardState } from './cardState'
-import { savePointForHook } from './memorySavePoints'
+import { routeHookEnd } from './memorySavePoints'
 import { createGoalsStore } from '../persistence/goals'
 import { createGoalTokens } from '../goals/mcp/goalTokens'
 import { MCP_SERVER_NAME, createMcpConfigs } from '../goals/mcp/mcpConfigFile'
@@ -290,8 +290,19 @@ describe('card state', () => {
         h.ex.rebind(oldId, newId)
       }
     }
-    expect(savePointForHook({ hook_event_name: 'SessionEnd', reason: 'clear' }, true)).toBe('clear')
-    h.ex.ended('old')
+    // The feed's end of the hook callback for the kept `SessionEnd` (reason clear) of the old id.
+    routeHookEnd({
+      sessionId: 'old',
+      evt: { hook_event_name: 'SessionEnd', reason: 'clear' },
+      removed: true,
+      knownLaunched: true,
+      keep: () => true,
+      archive: () => undefined,
+      apply: () => undefined,
+      extractor: h.ex,
+      log: () => undefined
+    })
+    // Later: the new id's first hook adopts the card.
     moveCardState({ ...deps(), memoryExtract: moveCard }, 'old', 'new')
     await h.ex.idle()
     expect(h.logs).not.toContain('[claude-watcher][memory] code=memory_extract_end_missing')

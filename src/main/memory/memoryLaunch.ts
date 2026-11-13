@@ -219,7 +219,7 @@ export function markSessionsDeletedInMemory(
     memoryStep(log, 'memory_mark_deleted_failed', () =>
       memory.store()?.markSessionDeleted(sessionId)
     )
-    memoryStep(log, 'memory_mark_deleted_failed', () =>
+    memoryStep(log, 'memory_mark_commands_deleted_failed', () =>
       memory.commands()?.markSessionDeleted(sessionId, memory.now())
     )
   }

@@ -1,7 +1,8 @@
 // The extractor's seams that touch the real world (memory phase 2, Task 11; addendum "The call",
 // rulings R16–R18, R25, R35): the model call over the real `spawn` and `process.kill`, the claude
-// version gate, and the workspace cascade's memory step. index.ts only builds them and hands them
-// over; every branch lives here so a `main-unit` test reaches it.
+// version gate, and the workspace cascade's memory step. `appExtractor.ts` builds the app's one
+// extractor from them (index.ts only hands over its getters and Node's own functions); every
+// branch lives here or there so a `main-unit` test reaches it.
 //
 // SENSITIVE: the slice goes to the child on stdin (`runExtractCall`), never on argv, and nothing
 // here logs it, the prompt or the child's output; a log carries a code only.
@@ -148,18 +149,36 @@ export function createTimerPair(): {
   }
 }
 
+/** A raw `--version` answer is good enough to save with: it reads at or above
+ *  MIN_EXTRACT_CLAUDE_VERSION, or it cannot be read (fail open). */
+function extractVersionOk(raw: string | null): boolean {
+  const version = raw === null ? null : parseClaudeVersion(raw)
+  return version === null || compareVersions(version, MIN_EXTRACT_CLAUDE_VERSION) >= 0
+}
+
 /** Ruling R35 (D41): false only when the version reads and is below MIN_EXTRACT_CLAUDE_VERSION. An OK answer
  *  (a version at or above the floor, or one that cannot be read: fail open) is kept for the whole run, so
  *  `readRaw` runs once however many jobs ask. A not-OK answer is NOT kept and there is no retry: the next
  *  call reads again. The extractor alone remembers a not-OK answer, for 10 minutes (R31), and asks at most
- *  once per job (R7). */
-export function createExtractVersionGate(readRaw: () => string | null): () => boolean {
+ *  once per job (R7).
+ *
+ *  Ruling R37: `heldRaw` is the answer the session-launch path already read this run (undefined when
+ *  it has read none). An OK held answer is used and kept with no read of its own, so a save after a
+ *  launch runs no second blocking login-shell `--version`. A not-OK held answer is not trusted: the
+ *  gate reads again, so a claude upgraded since can save. */
+export function createExtractVersionGate(
+  readRaw: () => string | null,
+  heldRaw: () => string | null | undefined = () => undefined
+): () => boolean {
   let ok = false
   return () => {
     if (ok) return true
-    const raw = readRaw()
-    const version = raw === null ? null : parseClaudeVersion(raw)
-    if (version !== null && compareVersions(version, MIN_EXTRACT_CLAUDE_VERSION) < 0) return false
+    const held = heldRaw()
+    if (held !== undefined && extractVersionOk(held)) {
+      ok = true
+      return true
+    }
+    if (!extractVersionOk(readRaw())) return false
     ok = true
     return true
   }
