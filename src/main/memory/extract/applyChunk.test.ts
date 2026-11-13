@@ -257,6 +257,48 @@ describe('items', () => {
     expect(state.get('t-1')?.byteOffset).toBe(400)
   })
 
+  it('an update the check passed is not written once the operator edited the item (D16)', () => {
+    const id = addSaved(specific('API port', '9280'))
+    const entries = [entry(5, 'result', 'listening on 9281')]
+    const checked = checkCandidates(
+      {
+        candidates: [
+          {
+            type: 'specific',
+            action: 'update',
+            id,
+            head: 'API port',
+            body: '9281',
+            check: null,
+            leftWith: null,
+            evidence: 'listening on 9281'
+          }
+        ],
+        note: 'n'
+      },
+      {
+        entries,
+        notes: [],
+        final: false,
+        tasksOn: true,
+        items: store.scopeForExtract('w1', META.folder, 'card-1', 150),
+        tasks: [],
+        operatorWrote: (itemId) => store.currentWriter(itemId) === 'operator'
+      }
+    )
+    expect(checked.kept).toEqual([expect.objectContaining({ action: 'update', id })])
+    // The operator saves an edit after the check and before the write.
+    store.edit(id, { text: specific('API port', '9282'), check: null }, 'operator', null)
+    const out = applyChunk(deps, write({ kept: checked.kept, entries }))
+    expect([out.added, out.saved]).toEqual([NO_COUNTS, []])
+    expect(store.get(id)).toMatchObject({ value: '9282', basis: 'stated', source: null })
+    expect(store.versions(id).map((v) => [v.body, v.by])).toEqual([
+      ['9282', 'operator'],
+      ['9280', 'extract']
+    ])
+    expect(state.get('t-1')?.byteOffset).toBe(400)
+  })
+
   it('a none only moves the last-seen date and is not counted', () => {
     const id = addSaved(specific('API port', '9281'))
     const later = { ...deps, now: () => NOW + 500 }
