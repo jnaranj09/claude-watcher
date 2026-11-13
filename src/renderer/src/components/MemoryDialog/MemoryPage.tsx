@@ -3,8 +3,9 @@
 // `Filter` (MemoryFilters), a row per item with its pin, and `+ New`; on the right the item's form,
 // its History, or the placeholder. Episodes (addendum D30, PICK look 4) are written by extraction
 // only: no `+ New`, no pin, and the right column is the read-only EpisodeForm. The list comes from
-// main a page at a time (useMemoryList); an open item is read whole (`window.memory.get`) and read again whenever main says memory changed,
-// without touching the draft being typed (the form keeps its own state, keyed by the item).
+// main a page at a time (useMemoryList); an open item is read whole (`window.memory.get`) and read
+// again whenever main says memory changed, without touching the draft being typed (the form keeps
+// its own state, keyed by the item).
 import { useEffect, useLayoutEffect, useRef, useState, type JSX, type ReactNode } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { MemoryGetResult } from '../../../../shared/ipc/contract'
