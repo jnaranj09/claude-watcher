@@ -216,15 +216,19 @@ export async function launchApp({ args = [] } = {}) {
         /* already gone */
       }
     }
-    // Already exited (the scenario quit the app): nothing to kill or wait for.
+    // The group is killed even when main already exited (the scenario quit the app): a child it
+    // left behind still dies. Only the group recorded at launch, and only a real one: `-0` or a
+    // negative of a bad pid would signal the wrong processes.
     const exited = child.exitCode !== null || child.signalCode !== null
-    if (!exited) {
-      const closed = new Promise((resolve) => child.once('close', resolve))
+    const closed = exited ? null : new Promise((resolve) => child.once('close', resolve))
+    if (Number.isInteger(pid) && pid > 1) {
       try {
         process.kill(-pid, 'SIGKILL')
       } catch {
         /* group already gone */
       }
+    }
+    if (closed !== null) {
       await Promise.race([closed, new Promise((resolve) => setTimeout(resolve, 5000))])
     }
     display.stop()
