@@ -247,7 +247,7 @@ function reconcileItem(
 }
 
 /** Step 5 for a task: `none` is `update`; an id out of scope → add; an add with an open task's
- *  title (trimmed, case ignored) → update of it. */
+ *  title (whitespace normalised, case ignored) → update of it. */
 function reconcileTask(
   c: ExtractCandidate,
   title: string,

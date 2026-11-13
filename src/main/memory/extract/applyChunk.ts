@@ -4,9 +4,10 @@
 // side is all or nothing and a written chunk is never read again; a failed one is read again whole.
 // A task written before a failed batch stays. The chunk is read again, and the task is then one
 // of the open tasks the next check is given (while it is within that list's cap), so a candidate
-// with the same title (trimmed, case ignored) becomes an update of it (D17). A re-run guarantees
-// no second item and no second command count (the batch wrote none of them); it does not
-// guarantee no second task: a title the model words differently on the re-run is a new task.
+// with the same title (whitespace normalised, case ignored) becomes an update of it (D17). A
+// re-run guarantees no second item and no second command count (the batch wrote none of them); it
+// does not guarantee no second task: a title the model words differently on the re-run is a new
+// task.
 //
 // Nothing inside the batch catches a throw: the batch has no savepoint, so a caught store throw
 // would commit what came before it. Memory, task and command text are SENSITIVE: logs carry a
@@ -115,8 +116,9 @@ function writeTask(deps: ApplyDeps, row: ExtractRow, task: TaskCandidate, at: nu
   }
 }
 
-/** An item candidate, inside the batch. null: nothing written (a `none`, or an update of an item
- *  that is gone, of another kind, or that the operator wrote since the scope was read). */
+/** An item candidate, inside the batch. null: no save to report. A `none` only moves the item's
+ *  last-seen date. An update writes nothing when its item is gone or of another kind since the
+ *  scope was read, or when the operator wrote it since the check ran (D16; a silent skip, R28). */
 function writeItem(deps: ApplyDeps, write: ChunkWrite, c: ItemCandidate, at: number): Saved | null {
   const { store } = deps
   const source = stored(write.transcriptPath, c.source)
@@ -125,7 +127,7 @@ function writeItem(deps: ApplyDeps, write: ChunkWrite, c: ItemCandidate, at: num
     return null
   }
   if (c.action === 'update' && c.id !== null) {
-    // The operator may have deleted it while the call ran: that is their choice, kept.
+    // The operator may have deleted it since the scope was read: that is their choice, kept.
     if (store.get(c.id)?.kind !== c.text.kind) return null
     // D16 again, inside the batch: the operator may have edited it since the check ran.
     if (store.currentWriter(c.id) === 'operator') return null
