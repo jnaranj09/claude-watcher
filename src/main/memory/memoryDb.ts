@@ -20,9 +20,10 @@ export interface MemoryDb {
   /** Each row goes through `schema`; a row that fails throws (a bug, not operator data). */
   all<T>(sql: string, schema: z.ZodType<T>, params?: readonly SqlValue[]): T[]
   get<T>(sql: string, schema: z.ZodType<T>, params?: readonly SqlValue[]): T | null
-  /** All-or-nothing: a throw inside rolls back and rethrows. Re-entrant: a call made while a
-   *  transaction is open runs `work` inside it (no second BEGIN); only the outermost call
-   *  commits, and a throw anywhere rolls the whole of it back and rethrows. */
+  /** All-or-nothing: a throw that leaves the outermost `work` rolls it all back and rethrows.
+   *  Re-entrant: a call made while a transaction is open runs `work` inside it (no second BEGIN,
+   *  no savepoint); only the outermost call commits. An inner throw that an outer `work` catches
+   *  is not undone: what the inner call wrote before it threw commits with the outer one. */
   transaction<T>(work: () => T): T
   close(): void
 }

@@ -173,10 +173,74 @@ describe('schema version 2', () => {
     after.close()
   })
 
+  it('a version 1 file with a version row whose item is gone is not migrated', () => {
+    writeVersion1(file)
+    const orphan = createMemoryDbAt(file, 1, deps)
+    orphan.run('PRAGMA foreign_keys = OFF')
+    insertVersion(orphan, 'ghost', 1, 'x')
+    orphan.close()
+    expect(openMemoryDb(file, deps)).toEqual({ ok: false, problem: 'read_failed' })
+    expect(lines).toEqual(['[claude-watcher][memory] code=memory_db_read_failed'])
+    const after = createMemoryDbAt(file, 1, deps)
+    expect(after.get('PRAGMA user_version', VersionRow)).toEqual({ user_version: 1 })
+    expect(count(after, 'item')).toBe(2)
+    expect(count(after, 'version')).toBe(4)
+    after.close()
+  })
+
+  it('a migrated file has the item, command and extract_state indexes', () => {
+    writeVersion1(file)
+    const db = openOk(file)
+    const NameRow = z.object({ name: z.string() })
+    const names = db
+      .all(`SELECT name FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL`, NameRow)
+      .map((r) => r.name)
+    expect(names.sort()).toEqual([
+      'command_recent',
+      'extract_origin',
+      'item_origin',
+      'item_scope',
+      'version_item'
+    ])
+    db.close()
+  })
+
   it('creates the command and extract_state tables', () => {
     const db = openOk(':memory:')
     expect(count(db, 'command')).toBe(0)
     expect(count(db, 'extract_state')).toBe(0)
+    db.close()
+  })
+
+  it('a command is kept once per workspace, folder and text', () => {
+    const db = openOk(':memory:')
+    const INSERT_COMMAND = `INSERT INTO command (id, workspace_id, folder, text, count, last_at,
+        last_session_id, session_deleted_at) VALUES (?, 'w1', '/work/app', 'npm test', 1, 1, 's1',
+        NULL)`
+    db.run(INSERT_COMMAND, ['c1'])
+    expect(() => db.run(INSERT_COMMAND, ['c2'])).toThrow(/UNIQUE constraint failed/)
+    db.close()
+  })
+
+  it('a save state takes only a known phase and JSON columns', () => {
+    const db = openOk(':memory:')
+    const INSERT_STATE = `INSERT INTO extract_state (session_id, origin_session_id, workspace_id,
+        meta, byte_offset, entry_count, prompts, notes, phase, attempts, counts, episode_id,
+        updated_at) VALUES (?, 's1', 'w1', '{}', 0, 0, 0, ?, ?, 0, '{}', NULL, 1)`
+    db.run(INSERT_STATE, ['s1', '[]', 'live'])
+    expect(() => db.run(INSERT_STATE, ['s2', '[]', 'paused'])).toThrow(/CHECK constraint failed/)
+    expect(() => db.run(INSERT_STATE, ['s3', 'not json', 'live'])).toThrow(
+      /CHECK constraint failed/
+    )
+    expect(count(db, 'extract_state')).toBe(1)
+    db.close()
+  })
+
+  it('createMemoryDbAt refuses to take a newer file back to an older version', () => {
+    openOk(file).close()
+    expect(() => createMemoryDbAt(file, 1, deps)).toThrow('code=memory_db_migration_missing to=1')
+    const db = openOk(file)
+    expect(db.get('PRAGMA user_version', VersionRow)).toEqual({ user_version: 2 })
     db.close()
   })
 })
