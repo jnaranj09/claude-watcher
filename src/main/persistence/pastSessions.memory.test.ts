@@ -246,6 +246,42 @@ describe('past sessions: the memory state file (R50)', () => {
   })
 })
 
+describe('past sessions: what each file keeps (R50)', () => {
+  it('the Past sessions blob never holds `memory`, after setMemory, an archive that carries it and a load', () => {
+    const { store, past, memory } = make()
+    store.archive({ ...ROW, memory: SAVED })
+    store.setMemory(ROW.id, { ...SAVED, specifics: 5 })
+    store.archive({ ...ROW, endedAt: 900, memory: SAVED })
+    expect(pastFile(past).sessions.map((r) => Object.keys(r).includes('memory'))).toEqual([false])
+    const next = make({ past, memory }).store
+    expect(next.get(ROW.id)?.memory).toEqual(SAVED)
+    expect(pastFile(past).sessions.map((r) => Object.keys(r).includes('memory'))).toEqual([false])
+  })
+
+  it("a hidden record's entry is kept (UX-03: its workspace may come back)", () => {
+    let exists = true
+    const { store, past, memory } = make({ workspaceExists: () => exists })
+    store.archive({ ...ROW, workspaceId: 'w2' })
+    store.setMemory(ROW.id, SAVED)
+    exists = false
+    store.archive({ ...ROW, id: 's2' })
+    make({ past, memory, workspaceExists: () => exists })
+    expect(memoryFile(memory).records).toEqual({ s1: SAVED })
+  })
+
+  it('a Forget the disk refuses keeps the entry', () => {
+    const { store, past, memory } = make()
+    store.archive(ROW)
+    store.setMemory(ROW.id, SAVED)
+    past.blobStore.write = () => {
+      throw new Error('disk full')
+    }
+    expect(() => store.remove(ROW.id)).toThrow('store_write_failed')
+    expect(memoryFile(memory).records).toEqual({ s1: SAVED })
+    expect(store.get(ROW.id)?.memory).toEqual(SAVED)
+  })
+})
+
 describe('past sessions: a file an earlier build of this branch wrote (R50 migration)', () => {
   const OLD = {
     version: 1,
@@ -262,6 +298,55 @@ describe('past sessions: a file an earlier build of this branch wrote (R50 migra
     expect(past.backups()).toBe(0)
     expect(store.list().map((r) => r.id)).toEqual(['s1', 's2'])
     expect(log).not.toHaveBeenCalled()
+  })
+
+  it('a refused state write leaves the inline field in the Past sessions file and reports it', () => {
+    const past = fakeBlob<PastSessionsFile>(OLD)
+    const memory = fakeBlob<PastSessionsMemoryFile>()
+    memory.blobStore.write = () => {
+      throw new Error('disk full')
+    }
+    const reportMemory = vi.fn()
+    const { store } = make({ past, memory, reportMemory, log: () => undefined })
+    expect(reportMemory).toHaveBeenCalledWith('write_failed')
+    expect(pastFile(past).sessions.find((r) => r.id === 's1')?.memory).toEqual(SAVED)
+    expect(store.get('s1')?.memory).toEqual(SAVED)
+  })
+
+  it('a later load completes a migration whose state write was refused, and a third changes nothing', () => {
+    const past = fakeBlob<PastSessionsFile>(OLD)
+    const refused = fakeBlob<PastSessionsMemoryFile>()
+    refused.blobStore.write = () => {
+      throw new Error('disk full')
+    }
+    make({ past, memory: refused, log: () => undefined })
+    const memory = fakeBlob<PastSessionsMemoryFile>()
+    make({ past, memory })
+    expect(memoryFile(memory)).toEqual({ version: 1, records: { s1: SAVED } })
+    expect(pastFile(past).sessions.map((r) => Object.keys(r).includes('memory'))).toEqual([
+      false,
+      false
+    ])
+    const before = [JSON.stringify(past.current()), JSON.stringify(memory.current())]
+    make({ past, memory })
+    expect([JSON.stringify(past.current()), JSON.stringify(memory.current())]).toEqual(before)
+  })
+
+  it('a state write that succeeds later in the run strips the Past sessions file then', () => {
+    const past = fakeBlob<PastSessionsFile>(OLD)
+    const memory = fakeBlob<PastSessionsMemoryFile>()
+    const write = memory.blobStore.write
+    memory.blobStore.write = () => {
+      throw new Error('disk full')
+    }
+    const { store } = make({ past, memory, log: () => undefined })
+    memory.blobStore.write = write
+    store.setMemory('s2', SAVED)
+    expect(memoryFile(memory).records).toEqual({ s1: SAVED, s2: SAVED })
+    expect(pastFile(past).sessions.map((r) => Object.keys(r).includes('memory'))).toEqual([
+      false,
+      false
+    ])
   })
 
   it('moves the field into the state file and writes the record back without it', () => {

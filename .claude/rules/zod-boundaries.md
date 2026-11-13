@@ -67,7 +67,8 @@ The memory settings (`memoryCheckpoint`, `memorySaveTasks`, `memoryModel`) are a
 defaults on v1 and parse with their file (the persisted file read row); `settings:set` patches go
 through `SettingsPatchSchema`. A Past sessions record's `memory` is never written into the record
 (R50): its own file (row above), merged by main on read; a record an earlier phase-2 build wrote
-with the field still parses, and the load moves the field out.
+with the field still parses, and the load moves the field out (the record is stripped only once
+the state file holds it).
 
 **Never log the parsed value.** A `ZodError` stringifies its input (prompts, assistant text, tool
 input, PTY content). Log PATH + CODE only — never `error`, never the body. Asserted by

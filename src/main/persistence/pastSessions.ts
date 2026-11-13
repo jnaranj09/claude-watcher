@@ -115,6 +115,11 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   /** The memory state file as last written: a change to the records only rewrites it when an
    *  entry went with its record. null: not written yet this run. */
   let memoryWritten: string | null = null
+  /** Ids whose `memory` a load found inside the record (a file an earlier phase-2 build wrote).
+   *  Until the state file holds it, the Past sessions file keeps it inline: a refused or
+   *  interrupted state write never loses it, and the next load tries again. */
+  const inlineUntilSaved = new Set<string>()
+  let loading = true
 
   const loaded = loadPersistedOrReset<PastSessionsFile>({
     blobStore,
@@ -140,9 +145,12 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   let skipped = 0
   for (const loadedRecord of loaded.sessions) {
     // A file an earlier build of memory phase 2 wrote holds `memory` inside the record: it moves
-    // to the state file (the load-time write below writes the record back without it).
+    // to the state file, and the record is written back without it only once that file has it.
     const record = withoutMemory(loadedRecord)
-    if (loadedRecord.memory !== undefined) memoryById.set(record.id, loadedRecord.memory)
+    if (loadedRecord.memory !== undefined) {
+      memoryById.set(record.id, loadedRecord.memory)
+      inlineUntilSaved.add(record.id)
+    }
     // UX-01 — nothing is on the board yet (one instance per profile), so a record still marked
     // live was left by a run that died without archiving it: it is a normal record now, ended at
     // the last time that run saw the card — unless claude never wrote its transcript (NEW-5).
@@ -162,6 +170,9 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   if (skipped > 0) log(`${LOG_PREFIX} code=past_sessions_no_transcript_skipped count=${skipped}`)
   if (hidden > 0) log(`${LOG_PREFIX} code=past_sessions_hidden_unknown_workspace count=${hidden}`)
   const evictedAtLoad = trim()
+  // The state file first: a migrated record is stripped only once its state is on disk.
+  syncMemory()
+  loading = false
   persistOrReport()
   dropped(evictedAtLoad)
 
@@ -196,6 +207,11 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
     try {
       memoryBlobStore.write(file)
       memoryWritten = text
+      if (inlineUntilSaved.size > 0) {
+        inlineUntilSaved.clear()
+        // The migrated state is on disk now: strip it from the records (the load writes next).
+        if (!loading && !persist()) report('write_failed')
+      }
     } catch {
       log(`${LOG_PREFIX} code=past_sessions_memory_write_failed`)
       reportMemory('write_failed')
@@ -204,7 +220,8 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
 
   function persist(): boolean {
     try {
-      blobStore.write({ version: PAST_SESSIONS_FILE_VERSION, sessions: all() })
+      const sessions = all().map((r) => (inlineUntilSaved.has(r.id) ? shown(r) : r))
+      blobStore.write({ version: PAST_SESSIONS_FILE_VERSION, sessions })
       return true
     } catch {
       log(`${LOG_PREFIX} code=past_sessions_write_failed`)
