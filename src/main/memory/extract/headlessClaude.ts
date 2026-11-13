@@ -155,10 +155,11 @@ export function boundedCollector(cap: number): {
   }
 }
 
-/** A pid the call may signal: a positive integer. `0`, a negative or no pid would reach the OS as
- *  "my own group" or worse, so such a child is never signalled. */
+/** A pid the call may signal: an integer over 1. `0`, a negative or no pid would reach the OS as
+ *  "my own group" or worse, and `1` as `-1`, every process of the user (R51), so such a child is
+ *  never signalled. */
 const signallable = (pid: number | undefined): pid is number =>
-  pid !== undefined && Number.isInteger(pid) && pid > 0
+  pid !== undefined && Number.isInteger(pid) && pid > 1
 
 /** What the call needs of a spawned child; Node's `ChildProcess` from `spawn` with
  *  `stdio: ['pipe', 'pipe', 'ignore']` fits it as is (a type test pins that). It has no `kill`:

@@ -491,7 +491,9 @@ describe('runExtractCall', () => {
   it.each([
     ['no pid (ENOENT)', undefined],
     ['pid 0', 0],
+    ['pid 1 (R51: -1 would signal every process of the user)', 1],
     ['a negative pid', -1],
+    ['a pid that is NaN', Number.NaN],
     ['a pid that is not an integer', 1.5]
   ])(
     'a child with %s is a spawn failure: its streams are closed and it is never signalled, by any path',
@@ -513,16 +515,19 @@ describe('runExtractCall', () => {
     }
   )
 
-  it('deps.kill never gets a pid that is not a positive integer, even when the pid reads 0 after the spawn', async () => {
-    const call = run()
-    child.pid = 0
-    call.cancel()
-    timers.advance(5_000)
-    call.killNow()
-    child.close(null)
-    await expect(call.result).resolves.toEqual({ ok: false, reason: 'cancelled', issue: null })
-    expect(kills).toEqual([])
-  })
+  it.each([0, 1, -5, Number.NaN])(
+    'deps.kill is never called when the pid reads %s after the spawn',
+    async (pid) => {
+      const call = run()
+      child.pid = pid
+      call.cancel()
+      timers.advance(5_000)
+      call.killNow()
+      child.close(null)
+      await expect(call.result).resolves.toEqual({ ok: false, reason: 'cancelled', issue: null })
+      expect(kills).toEqual([])
+    }
+  )
 
   it('a child error after the spawn kills the group and is a spawn failure', async () => {
     const call = run()
