@@ -1,6 +1,7 @@
 // Memory — the dialog that lists what sessions saved (spec 2026-11-11 memory §8, mockup option B):
-// pages Specifics and Facts, a row per item, the form, History, the empty page and memory off. The
-// real dialog runs; only `window.memory` is a stand-in for main.
+// its four pages, Specifics and Facts, a row per item, the form, `Open source`, History, the empty
+// page and memory off (Episodes and Commands have their own files). The real dialog runs; only
+// `window.memory` is a stand-in for main.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { render, screen, within } from '@testing-library/react'
@@ -56,6 +57,17 @@ const row = (name: string): HTMLElement =>
   screen.getByRole('button', { name: new RegExp(`^${name}`) })
 
 describe('MemoryDialog — pages', () => {
+  it('the dialog has four pages in order', async () => {
+    bridge = installMemoryBridge([])
+    await open()
+    const nav = screen.getByRole('navigation', { name: 'Memory pages' })
+    expect(
+      within(nav)
+        .getAllByRole('button')
+        .map((b) => b.textContent)
+    ).toEqual(['Specifics', 'Facts', 'Episodes', 'Commands'])
+  })
+
   it('Specifics lists the specifics main returns, and Facts the facts', async () => {
     bridge = installMemoryBridge([specificItem(), factItem()])
     await open()
@@ -281,5 +293,52 @@ describe('MemoryDialog — opened from a result toast', () => {
     expect(filtersOf('specific').map((f) => f.session)).toEqual(
       filtersOf('specific').map(() => undefined)
     )
+  })
+})
+
+describe('MemoryDialog — Open source', () => {
+  const SOURCE = { entryId: 'u-7', quote: 'The staging port is 9281.\nRun: echo 9281 <ok>' }
+  let scrolled: ReturnType<typeof vi.fn>
+  beforeEach(() => {
+    // jsdom has no layout, so no scrollIntoView: a stand-in records the call.
+    scrolled = vi.fn()
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      value: scrolled,
+      configurable: true,
+      writable: true
+    })
+  })
+  afterEach(() => {
+    Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+  })
+
+  it('an item with no source has no Open source button', async () => {
+    bridge = installMemoryBridge([specificItem()])
+    await open()
+    await userEvent.click(row('API port'))
+    await screen.findByTestId('memory-form')
+    expect(screen.queryByRole('button', { name: 'Open source' })).not.toBeInTheDocument()
+  })
+
+  it('Open source shows only for an item with a source and opens its quote', async () => {
+    bridge = installMemoryBridge([specificItem({ source: SOURCE })])
+    await open()
+    await userEvent.click(row('API port'))
+    const toggle = await screen.findByRole('button', { name: 'Open source' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle).not.toHaveAttribute('data-lit')
+    expect(screen.queryByTestId('memory-source')).not.toBeInTheDocument()
+
+    await userEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(toggle).toHaveAttribute('data-lit')
+    const quote = screen.getByTestId('memory-source')
+    expect(quote).toHaveTextContent(SOURCE.quote, { normalizeWhitespace: false })
+    expect(toggle).toHaveAttribute('aria-controls', quote.id)
+    // It opens below the fold at the default window: the press brings it into view.
+    expect(scrolled).toHaveBeenCalledWith({ block: 'nearest' })
+
+    await userEvent.click(toggle)
+    expect(screen.queryByTestId('memory-source')).not.toBeInTheDocument()
   })
 })

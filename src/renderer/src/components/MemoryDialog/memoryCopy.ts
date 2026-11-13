@@ -19,6 +19,18 @@ export const MEMORY_COPY = {
   noMatches: 'No matches',
   onlyStale: 'Every item here is stale. Turn on Show stale to see them.',
   placeholder: 'Select an item on the left, or create a new one.',
+  // Episodes and Commands have no `+ New` (design.md: then the sentence drops "or create…").
+  episodePlaceholder: 'Select an episode on the left.',
+  commandPlaceholder: 'Select a command on the left.',
+  episodesEmpty: 'No episodes yet. A session leaves one when it ends.',
+  commandsEmpty: 'No commands yet. Commands that worked in a session are listed here.',
+  searchCommands: 'Search commands',
+  commandDeleted: 'Command deleted.',
+  commandDeleteFailed: 'Could not delete command.',
+  /** An episode's end (the Past page's `Ended`). */
+  ended: 'Ended',
+  lastRun: 'Last run',
+  openSource: 'Open source',
   loading: 'Loading…',
   offTitle: 'Memory is off.',
   // Names the Settings category and its row by their own word (`MEMORY_TERMS.label`, both).
@@ -46,6 +58,8 @@ export const MEMORY_COPY = {
   pickVersion: 'Pick a version to compare it with the text now.',
   currentVersion: 'This is the text now.',
   reason: (why: string): string => `Reason: ${why}`,
+  /** How many times a command ran: `1 run`, `3 runs`. */
+  runs: (n: number): string => (n === 1 ? '1 run' : `${n} runs`),
   /** A History version's age and who wrote it: `2 d ago, by Claude`. */
   versionWhen: (age: string, by: MemoryWriter): string => `${age}, by ${WRITER_WORD[by]}`
 } as const

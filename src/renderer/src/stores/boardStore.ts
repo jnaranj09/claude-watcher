@@ -348,6 +348,12 @@ export interface BoardState {
    */
   sessionsDialog: SessionsPage | null
   /**
+   * Memory (phase 2) — the Past sessions record the open Sessions dialog starts on (an episode's
+   * `Past sessions` button), else null (RENDERER VIEW-STATE). Set only by `openSessionsDialog`,
+   * cleared by `closeSessionsDialog`.
+   */
+  pastSessionTarget: string | null
+  /**
    * Phrase shortcuts — whether the Manage-shortcuts dialog is open (RENDERER VIEW-STATE).
    * [state.md: modal open/closed = renderer view-state]
    */
@@ -548,9 +554,10 @@ export interface BoardState {
   /** Mark the prompt's invoke in flight (true also clears the error) or done. */
   setSessionNamePromptBusy: (busy: boolean) => void
   setSessionNamePromptError: (message: string | null) => void
-  /** Sessions — open the dialog on `page`, or switch to `page` while it is open. Same page: no-op. */
-  openSessionsDialog: (page: SessionsPage) => void
-  /** Sessions — close the dialog. No-op if already closed. */
+  /** Sessions — open the dialog on `page`, or switch to `page` while it is open. Same page and no
+   *  target: no-op. `target` names the Past sessions record the dialog starts on. */
+  openSessionsDialog: (page: SessionsPage, target?: { pastSessionId: string }) => void
+  /** Sessions — close the dialog and drop its target. No-op if already closed. */
   closeSessionsDialog: () => void
   /**
    * Phrase shortcuts — open the Manage-shortcuts dialog. No-op if already open.
@@ -678,6 +685,7 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     sessionNamePromptError: null,
     // Session templates — the templates picker dialog starts closed.
     sessionsDialog: null,
+    pastSessionTarget: null,
     // Phrase shortcuts — the Manage-shortcuts dialog starts closed.
     shortcutsDialogOpen: false,
     // Workspaces — the Manage-workspaces dialog starts closed.
@@ -1036,11 +1044,13 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       if (get().sessionNamePromptError !== message) set({ sessionNamePromptError: message })
     },
 
-    openSessionsDialog: (page) => {
-      if (get().sessionsDialog !== page) set({ sessionsDialog: page })
+    openSessionsDialog: (page, target) => {
+      if (target !== undefined)
+        set({ sessionsDialog: page, pastSessionTarget: target.pastSessionId })
+      else if (get().sessionsDialog !== page) set({ sessionsDialog: page })
     },
     closeSessionsDialog: () => {
-      if (get().sessionsDialog !== null) set({ sessionsDialog: null })
+      if (get().sessionsDialog !== null) set({ sessionsDialog: null, pastSessionTarget: null })
     },
 
     openShortcutsDialog: () => {
@@ -1305,6 +1315,8 @@ export const selectSessionNamePromptError = (state: BoardState): string | null =
 
 /** Sessions — the open page, or null while the dialog is closed (RENDERER VIEW-STATE). */
 export const selectSessionsDialog = (state: BoardState): SessionsPage | null => state.sessionsDialog
+/** Sessions — the Past sessions record the open dialog starts on, or null (RENDERER VIEW-STATE). */
+export const selectPastSessionTarget = (state: BoardState): string | null => state.pastSessionTarget
 
 /**
  * Phrase shortcuts — whether the Manage-shortcuts dialog is open (RENDERER VIEW-STATE).

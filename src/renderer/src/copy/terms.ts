@@ -118,6 +118,12 @@ export const MEMORY_TERMS = {
   model: 'Memory model'
 } as const
 
+/** The Sessions dialog's record of ended sessions: the ☰ Sessions row, the empty board's way
+ *  there, and an episode's way to its record in the Memory dialog. */
+export const PAST_SESSIONS_TERMS = {
+  label: 'Past sessions'
+} as const
+
 /** A thing's earlier versions and the way back to one: Context's instruction files and Memory's
  *  items. */
 export const HISTORY_TERMS = {

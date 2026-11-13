@@ -4,6 +4,7 @@
 // dialog's tests.
 import { vi, type Mock } from 'vitest'
 import type {
+  MemoryCommand,
   MemoryCreateRequest,
   MemoryEditRequest,
   MemoryItem,
@@ -11,7 +12,11 @@ import type {
   MemoryRow,
   MemoryVersion
 } from '../../../shared/schemas/memory'
-import type { MemoryGetResult, MemoryListResult } from '../../../shared/ipc/contract'
+import type {
+  MemoryCommandsResult,
+  MemoryGetResult,
+  MemoryListResult
+} from '../../../shared/ipc/contract'
 
 export const MEMORY_NOW = new Date(2026, 10, 12, 15, 0).getTime()
 const DAY = 86_400_000
@@ -66,6 +71,38 @@ export function factItem(over: Partial<Extract<MemoryItem, { kind: 'fact' }>> = 
   }
 }
 
+/** An episode: what a session did, written by extraction only. */
+export function episodeItem(
+  over: Partial<Extract<MemoryItem, { kind: 'episode' }>> = {}
+): MemoryItem {
+  return {
+    ...BASE,
+    meta: { ...BASE.meta, tagIds: [] },
+    origin: { by: 'extract', sessionId: 's-1' },
+    basis: 'inferred',
+    kind: 'episode',
+    id: 'e1',
+    title: 'Fixed the health check',
+    body: 'Moved the probe to /healthz.\nThe deploy passed.',
+    endedAt: MEMORY_NOW - DAY,
+    ...over
+  }
+}
+
+/** A command a session ran that worked. */
+export function commandRow(over: Partial<MemoryCommand> = {}): MemoryCommand {
+  return {
+    id: 'c1',
+    workspaceId: 'w1',
+    folder: '/srv/acme/api',
+    text: 'npm run build',
+    count: 3,
+    lastAt: MEMORY_NOW - 7 * 3_600_000,
+    sessionDeletedAt: null,
+    ...over
+  }
+}
+
 function head(item: MemoryItem): string {
   return item.kind === 'specific' ? item.key : item.title
 }
@@ -107,6 +144,16 @@ export interface MemoryBridge {
   sessionCount: Mock<(sessionId: string) => Promise<number>>
   removeSession: Mock<(sessionId: string) => Promise<number>>
   onChanged: Mock<(cb: () => void) => () => void>
+  commandRows: MemoryCommand[]
+  commands: Mock<
+    (req: {
+      workspaceId: string
+      query: string | null
+      offset: number
+      limit: number
+    }) => Promise<MemoryCommandsResult>
+  >
+  removeCommand: Mock<(id: string) => Promise<void>>
 }
 
 /** Main's wrapped rejection for an id it does not hold. */
@@ -125,9 +172,13 @@ function replace(bridge: MemoryBridge, next: MemoryItem): MemoryItem {
 }
 
 /** Installs the stand-in as `window.memory` and returns it. */
-export function installMemoryBridge(items: MemoryItem[]): MemoryBridge {
+export function installMemoryBridge(
+  items: MemoryItem[],
+  commandRows: MemoryCommand[] = []
+): MemoryBridge {
   const bridge: MemoryBridge = {
     items,
+    commandRows,
     versions: {},
     list: vi.fn((req: MemoryListRequest) => {
       const rows = bridge.items.filter((i) => i.kind === req.kind).map(rowOf)
@@ -197,7 +248,17 @@ export function installMemoryBridge(items: MemoryItem[]): MemoryBridge {
       bridge.items = kept
       return Promise.resolve(removed)
     }),
-    onChanged: vi.fn(() => () => {})
+    onChanged: vi.fn(() => () => {}),
+    commands: vi.fn((req) =>
+      Promise.resolve({
+        rows: bridge.commandRows.slice(req.offset, req.offset + req.limit),
+        total: bridge.commandRows.length
+      })
+    ),
+    removeCommand: vi.fn((id: string) => {
+      bridge.commandRows = bridge.commandRows.filter((c) => c.id !== id)
+      return Promise.resolve()
+    })
   }
   Object.defineProperty(window, 'memory', { value: bridge, configurable: true, writable: true })
   return bridge

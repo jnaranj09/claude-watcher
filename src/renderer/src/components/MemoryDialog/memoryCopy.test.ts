@@ -1,7 +1,7 @@
 // Memory's refusal copy: mapped from the code inside Electron's wrapped rejection, never from the
 // message.
 import { describe, it, expect } from 'vitest'
-import { memoryErrorCopy } from './memoryCopy'
+import { MEMORY_COPY, memoryErrorCopy } from './memoryCopy'
 import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 
 const wrapped = (code: string): Error =>
@@ -22,5 +22,15 @@ describe('memoryErrorCopy', () => {
     expect(memoryErrorCopy(new Error('disk on fire at /home/x'), 'Could not save memory.')).toBe(
       'Could not save memory.'
     )
+  })
+})
+
+describe('MEMORY_COPY.runs', () => {
+  it.each([
+    [0, '0 runs'],
+    [1, '1 run'],
+    [3, '3 runs']
+  ])('%i is "%s"', (n, words) => {
+    expect(MEMORY_COPY.runs(n)).toBe(words)
   })
 })

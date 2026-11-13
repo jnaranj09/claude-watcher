@@ -1,5 +1,6 @@
-/* Memory — what is this dialog's own in the Manage shell: the two-line rail row, the empty
-   sentence, the form's action row and read-only values, and History. The shell, rail, rows, form,
+/* Memory — what is this dialog's own in the Manage shell: the rail row, the empty sentence, the
+   form's action row and read-only values (an episode's prose too), the source quote, the Commands
+   row, and History. The shell, rail, rows, form,
    footer and every button are ManageDialog.module.css (.claude/rules/design.md). Text on the
    raised panel is --text-secondary, never --text-muted. */
 
@@ -25,6 +26,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* The Commands row's first line is the command: mono, at the row's own size. */
+.commandName {
+  font-family: var(--font-mono);
 }
 /* The value line: one mono line that ends in `…` (a fact body can be 2,000 characters), at the
    meta size, as Past sessions' mono row line (a theme's larger mono size would make rows grow). */
@@ -101,6 +106,15 @@
   font-family: var(--font-mono);
   font-size: var(--font-size-mono);
 }
+/* A read-only value that is prose (an episode's title and body): `.value` that wraps in full and
+   keeps its line breaks instead of ending in `…`. */
+.text {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: var(--line-height-body);
+}
 /* A value that holds a name box or chips (origin session, tags, workspace). */
 .valueRow {
   margin: 0;
@@ -165,19 +179,24 @@
   color: var(--text-secondary);
   font-size: var(--font-size-meta);
 }
-/* The change: one line per row, its mark first; added and removed lines carry the success and
-   danger FILLS (text stays primary: a --danger text colour is the Callout's alone). */
-.diff {
-  display: flex;
-  flex-direction: column;
+/* A read-only block of stored machine text: one frame (border, corner, inset, mono) for History's
+   change and for a quote or a command (same meaning, same look; PICK looks 3 and 5). */
+.diff,
+.quote {
   margin: 0;
   padding: var(--inset-compact-y) var(--inset-compact-x);
-  overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--rounded-sm);
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: var(--font-size-mono);
+}
+/* The change: one line per row, its mark first; added and removed lines carry the success and
+   danger FILLS (text stays primary: a --danger text colour is the Callout's alone). */
+.diff {
+  display: flex;
+  flex-direction: column;
+  overflow-x: auto;
 }
 .line {
   white-space: pre;
@@ -187,4 +206,16 @@
 }
 .line[data-op='del'] {
   background: var(--danger-fill);
+}
+/* An item's source quote (`Open source`): it wraps and keeps its line breaks instead of scrolling
+   sideways, a section under the last read-only line. */
+.quote {
+  margin-top: calc(var(--gap-section) - var(--gap-field));
+  line-height: var(--line-height-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* A command is the first thing in its pane: no section gap above it. */
+.quoteFirst {
+  margin-top: 0;
 }

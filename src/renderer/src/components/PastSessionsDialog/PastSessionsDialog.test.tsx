@@ -527,3 +527,47 @@ describe('Sessions → Past — rail filter', () => {
     expect(q(r, '[data-testid="past-filter-toggle"]')?.getAttribute('aria-label')).toBe('Filter')
   })
 })
+
+// Memory phase 2: an episode's `Past sessions` opens this page on its record.
+describe('PastSessionsDialog — opened on a record', () => {
+  afterEach(() => {
+    act(() => boardStore.getState().closeSessionsDialog())
+  })
+
+  it('opened with a target, the Past page selects that record when it is listed', async () => {
+    act(() => boardStore.getState().openSessionsDialog('past', { pastSessionId: 'sa' }))
+    const { r } = render()
+    await flush()
+    expect(q(r, '[data-testid="past-session-form-name"]')?.textContent).toBe('billing api')
+  })
+
+  it('a target in another workspace opens the scope on that workspace', async () => {
+    act(() => boardStore.getState().openSessionsDialog('past', { pastSessionId: 'sb' }))
+    const { r } = render()
+    await flush()
+    expect(rows(r)).toEqual(['deploy'])
+    expect(q(r, '[data-testid="past-session-form-name"]')?.textContent).toBe('deploy')
+  })
+
+  it('a target that is not listed selects nothing', async () => {
+    act(() => boardStore.getState().openSessionsDialog('past', { pastSessionId: 's-gone' }))
+    const { r } = render()
+    await flush()
+    expect(q(r, '[data-testid="past-session-placeholder"]')).not.toBeNull()
+  })
+
+  it('closing the dialog drops the target', () => {
+    act(() => boardStore.getState().openSessionsDialog('past', { pastSessionId: 'sa' }))
+    expect(boardStore.getState().pastSessionTarget).toBe('sa')
+    act(() => boardStore.getState().closeSessionsDialog())
+    expect(boardStore.getState().pastSessionTarget).toBeNull()
+  })
+
+  it('opened with no target, nothing is selected', async () => {
+    act(() => boardStore.getState().openSessionsDialog('past'))
+    const { r } = render()
+    await flush()
+    expect(boardStore.getState().pastSessionTarget).toBeNull()
+    expect(q(r, '[data-testid="past-session-placeholder"]')).not.toBeNull()
+  })
+})

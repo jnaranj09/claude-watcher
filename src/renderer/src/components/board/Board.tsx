@@ -22,6 +22,7 @@ import { LiveAnnouncer } from '../../styles/LiveAnnouncer'
 import { StartingBanner } from './StartingBanner'
 import { NewSessionButton } from '../NewSessionMenu/NewSessionButton'
 import { Button } from '../Button/Button'
+import { PAST_SESSIONS_TERMS } from '../../copy/terms'
 import { FilterBar } from '../FilterBar/FilterBar'
 import {
   boardStore,
@@ -261,7 +262,7 @@ export function Board({
                 is starting (the board is about to fill). */}
             {startingCount === 0 && onOpenPastSessions !== undefined && (
               <Button testId="empty-board-past-sessions" onClick={onOpenPastSessions}>
-                Past sessions
+                {PAST_SESSIONS_TERMS.label}
               </Button>
             )}
           </div>

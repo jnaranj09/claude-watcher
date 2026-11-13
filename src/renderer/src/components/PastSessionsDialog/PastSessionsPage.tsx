@@ -4,7 +4,8 @@
 // with the rail's `Filter` beside it (tag, folder, launched, ended; RailFilter, spec 2026-10-16),
 // a FLAT list newest first, a READ-ONLY form, and a [Forget] [Open] footer. Importing a session
 // the app did not launch is the dialog's Import page. No `+ New` (there is nothing to create) and
-// no RowActions. UX-DR14: App.tsx guards it against the other modals and closes it on the quit
+// no RowActions. Opened on a record (an episode's `Past sessions`, memory phase 2: the store's
+// `pastSessionTarget`), the page selects it once it is listed, on its own workspace. UX-DR14: App.tsx guards it against the other modals and closes it on the quit
 // guard. Never logs a record value.
 import { useEffect, useRef, useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -14,7 +15,7 @@ import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDial
 import { Callout } from '../Callout/Callout'
 import type { DialogPageProps } from '../ManageDialog/dialogPage'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
-import type { ScopeFilterValue } from '../ScopeFilter/scope'
+import { workspaceScope, type ScopeFilterValue } from '../ScopeFilter/scope'
 import { TagChipRow } from '../TagChip/TagChipRow'
 import { SearchIcon } from '../Icon/MenuIcons'
 import { TextInput } from '../TextInput/TextInput'
@@ -23,6 +24,7 @@ import { folderName } from '../../lib/filterCopy'
 import { effectiveFilters, type FilterType, type SessionFilters } from '../../lib/sessionFilters'
 import { RailFilter } from '../SessionsDialog/RailFilter'
 import { railTags, type ScopedFilters } from '../SessionsDialog/railFilters'
+import { selectPastSessionTarget, useBoard } from '../../stores/boardStore'
 import { selectTags, tagsForIds, useTags } from '../../stores/tagsStore'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
 import {
@@ -114,6 +116,19 @@ export function PastSessionsPage({
   const listed = filterPastByFilters(filterPastByName(scoped, query), shown, now())
   const folders = [...new Set(scoped.map((s) => s.cwd))]
   const selected = sessions.find((s) => s.id === dialog.state.selectedId) ?? null
+
+  // The record this open started on: selected once, when the history lists it, with the scope on
+  // its workspace so the rail shows the row. `select` is the shell's stable action.
+  const target = useBoard(selectPastSessionTarget)
+  const targetDone = useRef(false)
+  const targetRecord = sessions.find((s) => s.id === target) ?? null
+  const { select } = dialog.actions
+  useEffect(() => {
+    if (targetDone.current || targetRecord === null) return
+    targetDone.current = true
+    setScope(workspaceScope(targetRecord.workspaceId))
+    select(targetRecord.id)
+  }, [targetRecord, setScope, select])
 
   function changeScope(next: ScopeFilterValue): void {
     // Never offered here (showGlobal / showOrphans are off); the narrowing keeps the type honest.

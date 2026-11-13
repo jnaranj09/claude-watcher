@@ -14,7 +14,7 @@
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react'
 import type { SessionsPage } from '../../stores/boardStore'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
-import { MEMORY_TERMS } from '../../copy/terms'
+import { MEMORY_TERMS, PAST_SESSIONS_TERMS } from '../../copy/terms'
 import {
   ArchiveIcon,
   ClockIcon,
@@ -65,7 +65,7 @@ type SubmenuId = 'tags' | 'sessions'
 /** The Sessions submenu's rows, in the dialog's page order. */
 const SESSIONS_ROWS: readonly { page: SessionsPage; label: string; icon: JSX.Element }[] = [
   { page: 'active', label: 'Active sessions', icon: <TerminalIcon /> },
-  { page: 'past', label: 'Past sessions', icon: <ArchiveIcon /> },
+  { page: 'past', label: PAST_SESSIONS_TERMS.label, icon: <ArchiveIcon /> },
   { page: 'templates', label: 'Templates', icon: <TemplateIcon /> },
   { page: 'import', label: 'Import session', icon: <ImportIcon /> }
 ]

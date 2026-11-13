@@ -139,6 +139,7 @@ export function resetBoardView(): void {
     sessionNamePromptBusy: false,
     sessionNamePromptError: null,
     sessionsDialog: null,
+    pastSessionTarget: null,
     tagsDialog: null,
     settingsDialogOpen: false,
     contextDialogTerminalId: null,

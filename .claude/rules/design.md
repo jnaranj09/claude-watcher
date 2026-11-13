@@ -76,7 +76,7 @@ a new one.` (no `+ New` → `Select a <thing> on the left.`). No button in it.
   "selected" style (a bar, a tint, bold text) for another list. Hover is the shared `.row` hover
   (the whole row, pin and checkbox included).
 - **Page column** (spec 2026-10-03 C): a dialog with SIBLING pages (Sessions: Active · Past ·
-  Templates · Import; Tags: Tags · Rules; Memory: Specifics · Facts) puts them in `ManageDialog.Pages` at the far left —
+  Templates · Import; Tags: Tags · Rules; Memory: Specifics · Facts · Episodes · Commands) puts them in `ManageDialog.Pages` at the far left —
   `pages | rail | form`, or `pages | form` with no list. Text rows, a `nav` with
   `aria-current="page"`; its rows ARE rail rows, so the current page has the one selected look
   (above), the same as a Settings category. Never tabs, never a second dialog. The dialog owns the

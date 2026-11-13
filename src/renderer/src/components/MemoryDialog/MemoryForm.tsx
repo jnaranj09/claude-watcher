@@ -1,33 +1,32 @@
 // Memory — one item's form (spec 2026-11-11 memory §8, mockup option B): `Key` + `Value` (a
 // specific) or `Title` + `Body` (a fact), `Check`, explicit `Save`. An open item adds the action
-// row `[History] [Mark stale | Mark active]`, then what main stamped, read-only: `Basis`,
-// `Last seen`, `Origin session` (with `Session deleted`), `Folder`, `Tags`, `Workspace`; the
-// footer is `[Delete] [Save]`. The pin is on the row, never here (owner). A New form adds a
-// `Global` switch: off, it is saved in the scope's workspace. Keyed by the item, so a selection
-// change remounts it with a fresh draft, and a read of the same item (main's push) keeps the draft.
-import { useId, useState, type FormEvent, type JSX } from 'react'
-import { useShallow } from 'zustand/react/shallow'
+// row `[History] [Mark stale | Mark active]`, plus `[Open source]` when extraction kept where it
+// came from, then what main stamped, read-only: `Basis`, `Last seen`, then the lines it shares with
+// an episode (MemoryItemParts: `Origin session` with `Session deleted`, `Folder`, `Tags`,
+// `Workspace`), and, while `Open source` is on, the stored quote in History's frame (PICK look 3;
+// nothing reads the transcript at view time, addendum D31). The footer is `[Delete] [Save]`. The
+// pin is on the row, never here (owner). A New form adds a `Global` switch: off, it is saved in the
+// scope's workspace. Keyed by the item, so a selection change remounts it with a fresh draft, and a
+// read of the same item (main's push) keeps the draft.
+import { useEffect, useId, useRef, useState, type FormEvent, type JSX } from 'react'
 import {
   MemoryCreateSchema,
   MemoryEditSchema,
   type MemoryItem
 } from '../../../../shared/schemas/memory'
-import { HISTORY_TERMS, MEMORY_TERMS } from '../../copy/terms'
+import { HISTORY_TERMS } from '../../copy/terms'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
-import { useFlash } from '../../hooks/useFlash'
-import { selectTags, tagsForIds, useTags } from '../../stores/tagsStore'
-import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
+import { Button } from '../Button/Button'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { Switch } from '../Switch/Switch'
-import { TagChipRow } from '../TagChip/TagChipRow'
 import { TextArea } from '../TextArea/TextArea'
 import { TextInput } from '../TextInput/TextInput'
-import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import { FIELD_HINT, MEMORY_COPY, memoryErrorCopy } from './memoryCopy'
+import { MemoryItemDelete, MemoryOriginLines, MemoryStateButton } from './MemoryItemParts'
 import styles from './MemoryDialog.module.css'
 
 export interface MemoryFormProps {
-  kind: MemoryItem['kind']
+  kind: 'specific' | 'fact'
   /** Null: the New form. */
   item: MemoryItem | null
   /** The scope's workspace: where a new item lives unless `Global` is on. */
@@ -57,14 +56,19 @@ export function MemoryForm({
   onHistory
 }: MemoryFormProps): JSX.Element {
   const { actions } = useManageDialogContext()
-  const workspaces = useWorkspaces(useShallow(selectWorkspaces))
-  const tags = useTags(selectTags)
   const globalId = useId()
+  const quoteId = useId()
   const [head, setHead] = useState(item === null ? '' : headOf(item))
   const [text, setText] = useState(item === null ? '' : textOf(item))
   const [check, setCheck] = useState(item?.check ?? '')
   const [global, setGlobal] = useState(false)
-  const [marked, flashMarked] = useFlash<true>()
+  // `Open source`: the quote opens under the last read-only line, below the fold at the default
+  // window, so opening it scrolls it into view (PICK look 3).
+  const [sourceOpen, setSourceOpen] = useState(false)
+  const quoteRef = useRef<HTMLParagraphElement | null>(null)
+  useEffect(() => {
+    if (sourceOpen) quoteRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [sourceOpen])
 
   const checkValue = check.trim() === '' ? null : check
   const draftText =
@@ -105,31 +109,6 @@ export function MemoryForm({
     }
   })
 
-  const remove = useAsyncAction(async (): Promise<void> => {
-    if (item === null) return
-    try {
-      await window.memory.remove(item.id)
-      onDeleted()
-    } catch (err) {
-      console.warn('[claude-watcher][memory] code=memory_delete_failed')
-      actions.setError(memoryErrorCopy(err, MEMORY_COPY.deleteFailed))
-    }
-  })
-
-  const changeState = useAsyncAction(async (): Promise<void> => {
-    if (item === null) return
-    const next = item.state === 'active' ? 'stale' : 'active'
-    actions.setError(null)
-    try {
-      await window.memory.setState(item.id, next)
-      flashMarked(true)
-      onChanged()
-    } catch (err) {
-      console.warn('[claude-watcher][memory] code=memory_state_failed')
-      actions.setError(memoryErrorCopy(err, MEMORY_COPY.saveFailed))
-    }
-  })
-
   const canSave = dirty && valid && !save.busy
 
   function submit(e: FormEvent<HTMLFormElement>): void {
@@ -148,11 +127,7 @@ export function MemoryForm({
   const headId = kind === 'specific' ? 'memory-key' : 'memory-title'
   const textId = kind === 'specific' ? 'memory-value' : 'memory-body'
   const hint = dirty && !valid ? (FIELD_HINT[field] ?? null) : null
-  const shownTags = item === null ? [] : tagsForIds(tags, item.meta.tagIds)
-  const deleted = item !== null && item.originDeletedAt !== null
-  const originName = item?.meta.sessionName ?? null
-  // Where the item lives (Past sessions' form: the name in its tint; a gone one is an orphan).
-  const owner = workspaces.find((w) => w.id === item?.workspaceId)
+  const source = item?.source ?? null
 
   return (
     <ManageDialog.Form testId="memory-form" onSubmit={submit}>
@@ -194,16 +169,20 @@ export function MemoryForm({
             <ManageDialog.GhostButton testId="memory-history-open" size="sm" onClick={onHistory}>
               {HISTORY_TERMS.history}
             </ManageDialog.GhostButton>
-            <ManageDialog.GhostButton
-              testId="memory-state"
-              size="sm"
-              busy={changeState.busy}
-              feedback={MEMORY_COPY.marked}
-              feedbackShown={marked !== null}
-              onClick={() => void changeState.run()}
-            >
-              {item.state === 'active' ? MEMORY_COPY.markStale : MEMORY_COPY.markActive}
-            </ManageDialog.GhostButton>
+            <MemoryStateButton item={item} onChanged={onChanged} />
+            {source !== null && (
+              <Button
+                variant="secondary"
+                size="sm"
+                lit={sourceOpen}
+                aria-expanded={sourceOpen}
+                aria-controls={quoteId}
+                testId="memory-source-open"
+                onClick={() => setSourceOpen((open) => !open)}
+              >
+                {MEMORY_COPY.openSource}
+              </Button>
+            )}
           </div>
 
           <ManageDialog.Label>{MEMORY_COPY.basis}</ManageDialog.Label>
@@ -212,61 +191,17 @@ export function MemoryForm({
           </p>
           <ManageDialog.Label>{MEMORY_COPY.lastSeen}</ManageDialog.Label>
           <p className={styles.value}>{new Date(item.lastSeenAt).toLocaleString()}</p>
-          {(originName !== null || deleted) && (
-            <>
-              <ManageDialog.Label>{MEMORY_COPY.originSession}</ManageDialog.Label>
-              <p className={styles.valueRow} data-testid="memory-form-origin">
-                {originName !== null && (
-                  <span className={styles.value} title={originName}>
-                    {originName}
-                  </span>
-                )}
-                {deleted && <WorkspaceLabel name={MEMORY_TERMS.sessionDeleted} tone="orphan" />}
-              </p>
-            </>
+          <MemoryOriginLines item={item} />
+          {source !== null && sourceOpen && (
+            <p id={quoteId} ref={quoteRef} className={styles.quote} data-testid="memory-source">
+              {source.quote}
+            </p>
           )}
-          {item.meta.folder !== null && (
-            <>
-              <ManageDialog.Label>{MEMORY_COPY.folder}</ManageDialog.Label>
-              <p
-                className={`${styles.value} ${styles.mono}`}
-                data-testid="memory-form-folder"
-                title={item.meta.folder}
-              >
-                {item.meta.folder}
-              </p>
-            </>
-          )}
-          {shownTags.length > 0 && (
-            <>
-              <ManageDialog.Label>{MEMORY_COPY.tags}</ManageDialog.Label>
-              <div className={styles.valueRow}>
-                <TagChipRow tags={shownTags} testId="memory-form-tags" />
-              </div>
-            </>
-          )}
-          <ManageDialog.Label>{MEMORY_COPY.workspace}</ManageDialog.Label>
-          <p className={styles.valueRow} data-testid="memory-form-workspace">
-            {item.workspaceId === null ? (
-              <WorkspaceLabel name={MEMORY_COPY.global} tone="global" />
-            ) : (
-              <WorkspaceLabel
-                name={owner?.name ?? '(no workspace)'}
-                tone={owner?.color ?? 'orphan'}
-              />
-            )}
-          </p>
         </>
       )}
 
       <ManageDialog.Footer>
-        {item !== null && (
-          <ManageDialog.Delete
-            testId="memory-delete"
-            busy={remove.busy}
-            onConfirm={() => void remove.run()}
-          />
-        )}
+        {item !== null && <MemoryItemDelete item={item} onDeleted={onDeleted} />}
         <ManageDialog.Save testId="memory-save" disabled={!canSave} busy={save.busy} />
       </ManageDialog.Footer>
     </ManageDialog.Form>

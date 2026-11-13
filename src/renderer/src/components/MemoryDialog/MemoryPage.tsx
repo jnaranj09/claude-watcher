@@ -1,7 +1,8 @@
-// Memory — one PAGE of the Memory dialog (Specifics or Facts; spec 2026-11-11 memory §8, mockup
-// option B): the header's scope, `Include global` and `Show stale`; the rail's search and `Filter`
-// (MemoryFilters), a row per item with its pin, and `+ New`; on the right the item's form, its
-// History, or the placeholder. The list comes from main a page at a time (useMemoryList); an open
+// Memory — one PAGE of the Memory dialog (Specifics, Facts or Episodes; spec 2026-11-11 memory §8,
+// mockup option B): the header's scope, `Include global` and `Show stale`; the rail's search and
+// `Filter` (MemoryFilters), a row per item with its pin, and `+ New`; on the right the item's form,
+// its History, or the placeholder. Episodes (addendum D30, PICK look 4) are written by extraction
+// only: no `+ New`, no pin, and the right column is the read-only EpisodeForm. The list comes from main a page at a time (useMemoryList); an open
 // item is read whole (`window.memory.get`) and read again whenever main says memory changed,
 // without touching the draft being typed (the form keeps its own state, keyed by the item).
 import { useEffect, useLayoutEffect, useRef, useState, type JSX, type ReactNode } from 'react'
@@ -26,6 +27,7 @@ import { ScopeMarker } from '../ScopeFilter/ScopeMarker'
 import { scopeWorkspaceId, type ScopeFilterValue } from '../ScopeFilter/scope'
 import { railTags } from '../SessionsDialog/railFilters'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
+import { EpisodeForm } from './EpisodeForm'
 import { MemoryFilters } from './MemoryFilters'
 import { MemoryForm } from './MemoryForm'
 import { MemoryHistory } from './MemoryHistory'
@@ -36,7 +38,7 @@ import styles from './MemoryDialog.module.css'
 
 export interface MemoryPageProps {
   kind: MemoryRow['kind']
-  /** `Specifics` / `Facts`: History's way back names the page. */
+  /** `Specifics` / `Facts` / `Episodes`: History's way back names the page. */
   pageLabel: string
   pages: ReactNode
   workspaceId: string
@@ -69,6 +71,8 @@ export function MemoryPage({
   const goals = useGoals(selectGoalsIn(workspaceId))
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const [query, setQuery] = useState('')
+  // An episode is extraction's alone: nothing creates one here, and it is never pinned.
+  const episodes = kind === 'episode'
   // One workspace, always (no unfiltered entry): a `ws:` scope.
   const scope: `ws:${string}` = `ws:${workspaceId}`
 
@@ -195,14 +199,16 @@ export function MemoryPage({
     : list.anySaved
       ? MEMORY_COPY.onlyStale
       : memoryOn
-        ? MEMORY_COPY.empty
+        ? episodes
+          ? MEMORY_COPY.episodesEmpty
+          : MEMORY_COPY.empty
         : null
   // An empty scope draws no search and no `Filter` (mockup B5); a search or filter that emptied
   // the list keeps them, so the way back stays in reach.
   const drawFilters = list.anySaved || searching
 
   function rightColumn(): JSX.Element {
-    if (dialog.state.creating) {
+    if (dialog.state.creating && kind !== 'episode') {
       return (
         <MemoryForm
           key="new"
@@ -215,6 +221,9 @@ export function MemoryPage({
           onHistory={() => {}}
         />
       )
+    }
+    if (item?.kind === 'episode') {
+      return <EpisodeForm key={item.id} item={item} onDeleted={deleted} onChanged={refresh} />
     }
     if (item !== null && detail !== null && historyOf === item.id) {
       return (
@@ -235,7 +244,7 @@ export function MemoryPage({
       return (
         <MemoryForm
           key={item.id}
-          kind={kind}
+          kind={item.kind}
           item={item}
           workspaceId={workspaceId}
           onSaved={revealSaved}
@@ -247,7 +256,11 @@ export function MemoryPage({
     }
     return (
       <ManageDialog.Placeholder testId="memory-placeholder">
-        {selectedId === null ? MEMORY_COPY.placeholder : MEMORY_COPY.loading}
+        {selectedId !== null
+          ? MEMORY_COPY.loading
+          : episodes
+            ? MEMORY_COPY.episodePlaceholder
+            : MEMORY_COPY.placeholder}
       </ManageDialog.Placeholder>
     )
   }
@@ -306,15 +319,17 @@ export function MemoryPage({
                 testId="memory-row"
                 selectTestId={`memory-select-${r.id}`}
               >
-                <ManageDialog.RowFavorite>
-                  <FavoriteToggle
-                    name={r.head}
-                    favorite={r.pinned}
-                    busy={pinning.has(r.id)}
-                    onToggle={() => togglePin(r)}
-                    testId={`memory-pin-${r.id}`}
-                  />
-                </ManageDialog.RowFavorite>
+                {!episodes && (
+                  <ManageDialog.RowFavorite>
+                    <FavoriteToggle
+                      name={r.head}
+                      favorite={r.pinned}
+                      busy={pinning.has(r.id)}
+                      onToggle={() => togglePin(r)}
+                      testId={`memory-pin-${r.id}`}
+                    />
+                  </ManageDialog.RowFavorite>
+                )}
                 <span className={styles.rowMain}>
                   <span className={styles.rowLine}>
                     <span className={styles.rowName} title={r.head}>
@@ -357,7 +372,7 @@ export function MemoryPage({
               </span>
             )}
           </ManageDialog.Rows>
-          <ManageDialog.New testId="memory-new" />
+          {!episodes && <ManageDialog.New testId="memory-new" />}
         </ManageDialog.List>
         {rightColumn()}
       </ManageDialog.Columns>
