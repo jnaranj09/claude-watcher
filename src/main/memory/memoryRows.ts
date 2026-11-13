@@ -6,7 +6,7 @@
 import { z } from 'zod'
 import {
   MEMORY_BASES,
-  MEMORY_KINDS,
+  MEMORY_ITEM_KINDS,
   MEMORY_STATES,
   MEMORY_WRITERS,
   MemoryItemSchema,
@@ -17,7 +17,8 @@ import {
 /** `item` and its current text: the newest version, `seq` breaking a tie on `at`. */
 const ITEM_COLUMNS = `item.id, item.kind, item.workspace_id, item.state, item.pinned, item.basis,
   item.check_text, item.folder, item.origin_by, item.origin_session_id, item.origin_deleted_at,
-  item.last_seen_at, item.created_at, item.updated_at, item.meta, cur.head, cur.body`
+  item.last_seen_at, item.created_at, item.updated_at, item.meta, item.source_path,
+  item.source_entry, item.source_quote, item.ended_at, cur.head, cur.body`
 const CURRENT_JOIN = `JOIN version AS cur ON cur.seq = (SELECT v.seq FROM version AS v
   WHERE v.item_id = item.id ORDER BY v.at DESC, v.seq DESC LIMIT 1)`
 
@@ -45,7 +46,7 @@ const MetaColumn = z
 
 const StoredRow = z.object({
   id: z.string(),
-  kind: z.enum(MEMORY_KINDS),
+  kind: z.enum(MEMORY_ITEM_KINDS),
   workspace_id: z.string().nullable(),
   state: z.enum(MEMORY_STATES),
   pinned: z.union([z.literal(0), z.literal(1)]),
@@ -59,10 +60,21 @@ const StoredRow = z.object({
   created_at: z.number(),
   updated_at: z.number(),
   meta: MetaColumn,
+  source_path: z.string().nullable(),
+  source_entry: z.string().nullable(),
+  source_quote: z.string().nullable(),
+  ended_at: z.number().nullable(),
   head: z.string(),
   body: z.string()
 })
 type Stored = z.output<typeof StoredRow>
+
+/** Where an extracted item came from: null when no quote was kept. A quote without its entry
+ *  fails the row (`source.entryId`), as any other bad row does. */
+function sourceOf(r: Stored): z.input<typeof MemoryItemSchema>['source'] {
+  if (r.source_quote === null) return null
+  return { entryId: r.source_entry ?? '', quote: r.source_quote }
+}
 
 /** A `selectItems()` row as the whole item. */
 export const ItemRow = StoredRow.transform((r): z.input<typeof MemoryItemSchema> => {
@@ -78,13 +90,23 @@ export const ItemRow = StoredRow.transform((r): z.input<typeof MemoryItemSchema>
     updatedAt: r.updated_at,
     origin: { by: r.origin_by, sessionId: r.origin_session_id },
     originDeletedAt: r.origin_deleted_at,
-    // No source column yet: every stored item reads as not extracted.
-    source: null,
+    source: sourceOf(r),
     meta: { folder: r.folder, ...r.meta }
   }
-  return r.kind === 'specific'
-    ? { kind: 'specific', key: r.head, value: r.body, ...fields }
-    : { kind: 'fact', title: r.head, body: r.body, ...fields }
+  switch (r.kind) {
+    case 'specific':
+      return { kind: 'specific', key: r.head, value: r.body, ...fields }
+    case 'fact':
+      return { kind: 'fact', title: r.head, body: r.body, ...fields }
+    case 'episode':
+      return {
+        kind: 'episode',
+        title: r.head,
+        body: r.body,
+        endedAt: r.ended_at ?? r.updated_at,
+        ...fields
+      }
+  }
 }).pipe(MemoryItemSchema)
 
 /** A `selectItems()` row as one list line. */

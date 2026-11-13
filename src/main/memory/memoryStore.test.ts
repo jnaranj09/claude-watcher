@@ -120,6 +120,100 @@ describe('add and get', () => {
   })
 })
 
+/** A row as extraction writes it: kind, source columns and `ended_at` by hand, one version. */
+function insertExtracted(row: {
+  id: string
+  kind: string
+  sourceEntry: string | null
+  sourceQuote: string | null
+  endedAt: number | null
+}): void {
+  db.run(
+    `INSERT INTO item (id, kind, workspace_id, state, pinned, basis, check_text, folder,
+       origin_by, origin_session_id, origin_deleted_at, last_seen_at, created_at, updated_at, meta,
+       source_path, source_entry, source_quote, ended_at)
+     VALUES (?, ?, 'w1', 'active', 0, 'inferred', NULL, NULL, 'extract', 's1', NULL, ?, ?, ?,
+       '{"sessionName":null,"tagIds":[],"templateId":null,"goalId":null,"taskIds":[]}',
+       NULL, ?, ?, ?)`,
+    [row.id, row.kind, NOW, NOW, NOW, row.sourceEntry, row.sourceQuote, row.endedAt]
+  )
+  db.run(
+    `INSERT INTO version (item_id, at, by, basis, reason, head, body)
+     VALUES (?, ?, 'extract', 'inferred', NULL, 'Moved the port', 'The API now listens on 9281.')`,
+    [row.id, NOW]
+  )
+}
+
+describe('rows written by extraction', () => {
+  it('reads an item with a source and an episode', () => {
+    insertExtracted({
+      id: 'f1',
+      kind: 'fact',
+      sourceEntry: 'entry-7',
+      sourceQuote: 'listens on 9281',
+      endedAt: null
+    })
+    insertExtracted({
+      id: 'e1',
+      kind: 'episode',
+      sourceEntry: null,
+      sourceQuote: null,
+      endedAt: NOW + 5
+    })
+    expect(store.get('f1')).toMatchObject({
+      kind: 'fact',
+      title: 'Moved the port',
+      source: { entryId: 'entry-7', quote: 'listens on 9281' }
+    })
+    expect(store.get('e1')).toMatchObject({
+      kind: 'episode',
+      title: 'Moved the port',
+      body: 'The API now listens on 9281.',
+      endedAt: NOW + 5,
+      source: null
+    })
+  })
+
+  it('an episode with no end time reads its last update as the end', () => {
+    insertExtracted({
+      id: 'e1',
+      kind: 'episode',
+      sourceEntry: null,
+      sourceQuote: null,
+      endedAt: null
+    })
+    expect(store.get('e1')).toMatchObject({ kind: 'episode', endedAt: NOW })
+  })
+
+  it('a quote without its entry is a failed read', () => {
+    insertExtracted({
+      id: 'f1',
+      kind: 'fact',
+      sourceEntry: null,
+      sourceQuote: 'listens on 9281',
+      endedAt: null
+    })
+    expect(() => store.get('f1')).toThrow(MEMORY_ERROR.readFailed)
+  })
+
+  it('a list row carries the episode kind', () => {
+    insertExtracted({
+      id: 'e1',
+      kind: 'episode',
+      sourceEntry: null,
+      sourceQuote: null,
+      endedAt: null
+    })
+    expect(
+      store.search(
+        { workspaceId: 'w1', includeGlobal: false },
+        { kind: null, query: null, filters: {}, offset: 0, limit: 20 },
+        { sessionFolder: null, tagIdsByName: () => [], goalIdsByName: () => [] }
+      ).rows
+    ).toMatchObject([{ id: 'e1', kind: 'episode', head: 'Moved the port' }])
+  })
+})
+
 describe('versions', () => {
   it('an edit keeps the old value in history with its reason', () => {
     const { id } = store.add(input(PORT))

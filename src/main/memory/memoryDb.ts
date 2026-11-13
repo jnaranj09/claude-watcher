@@ -11,7 +11,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
 
 export const MEMORY_DB_FILE = 'claude-watcher-memory.db'
-export const MEMORY_SCHEMA_VERSION = 1
+export const MEMORY_SCHEMA_VERSION = 2
 
 export type SqlValue = string | number | null
 
@@ -20,7 +20,9 @@ export interface MemoryDb {
   /** Each row goes through `schema`; a row that fails throws (a bug, not operator data). */
   all<T>(sql: string, schema: z.ZodType<T>, params?: readonly SqlValue[]): T[]
   get<T>(sql: string, schema: z.ZodType<T>, params?: readonly SqlValue[]): T | null
-  /** All-or-nothing: a throw inside rolls back and rethrows. */
+  /** All-or-nothing: a throw inside rolls back and rethrows. Re-entrant: a call made while a
+   *  transaction is open runs `work` inside it (no second BEGIN); only the outermost call
+   *  commits, and a throw anywhere rolls the whole of it back and rethrows. */
   transaction<T>(work: () => T): T
   close(): void
 }
@@ -43,8 +45,8 @@ const SQLITE_NOTADB = 26
 /** The side files SQLite keeps next to a WAL database; a backup takes them along. */
 const SIDE_FILES: readonly string[] = ['-wal', '-shm']
 
-/** `MIGRATIONS[n]` takes a file from `user_version` n to n + 1, inside one transaction.
- *  `item` holds what lists filter on as real columns and the rest in `meta` (JSON: sessionName,
+/** `MIGRATIONS[n]` takes a file from `user_version` n to n + 1, inside one transaction, with
+ *  foreign keys off (`migrate`). `item` holds what lists filter on as real columns and the rest in `meta` (JSON: sessionName,
  *  tagIds, templateId, goalId, taskIds). The text lives in `version` (newest = current, `seq`
  *  breaks a tie on `at`), each with the basis of its own text (the item's `basis` is the current
  *  one's); the two FTS5 indexes hold the current head (key/title) and body
@@ -83,7 +85,71 @@ const MIGRATIONS: readonly string[] = [
    ) STRICT;
    CREATE INDEX version_item ON version (item_id, at);
    CREATE VIRTUAL TABLE item_words USING fts5 (item_id UNINDEXED, head, body);
-   CREATE VIRTUAL TABLE item_trigram USING fts5 (item_id UNINDEXED, head, body, tokenize = 'trigram');`
+   CREATE VIRTUAL TABLE item_trigram USING fts5 (item_id UNINDEXED, head, body, tokenize = 'trigram');`,
+  // Version 2 (spec 2026-11-12 memory phase 2): `item` takes episodes, where an extracted item
+  // came from (`source_*`, all null for an item written before) and an episode's end; SQLite
+  // cannot change a CHECK, so `item` is rebuilt with every row and `rid` kept (the FTS rows point
+  // at it). `command` holds the commands a session ran, `extract_state` each session's save state.
+  `CREATE TABLE item_v2 (
+     rid INTEGER PRIMARY KEY,
+     id TEXT NOT NULL UNIQUE,
+     kind TEXT NOT NULL CHECK (kind IN ('specific', 'fact', 'episode')),
+     workspace_id TEXT,
+     state TEXT NOT NULL CHECK (state IN ('active', 'stale')),
+     pinned INTEGER NOT NULL CHECK (pinned IN (0, 1)),
+     basis TEXT NOT NULL CHECK (basis IN ('observed', 'stated', 'inferred')),
+     check_text TEXT,
+     folder TEXT,
+     origin_by TEXT NOT NULL CHECK (origin_by IN ('agent', 'extract', 'operator')),
+     origin_session_id TEXT,
+     origin_deleted_at INTEGER,
+     last_seen_at INTEGER NOT NULL,
+     created_at INTEGER NOT NULL,
+     updated_at INTEGER NOT NULL,
+     meta TEXT NOT NULL CHECK (json_valid(meta)),
+     source_path TEXT,
+     source_entry TEXT,
+     source_quote TEXT,
+     ended_at INTEGER
+   ) STRICT;
+   INSERT INTO item_v2 (rid, id, kind, workspace_id, state, pinned, basis, check_text, folder,
+     origin_by, origin_session_id, origin_deleted_at, last_seen_at, created_at, updated_at, meta)
+   SELECT rid, id, kind, workspace_id, state, pinned, basis, check_text, folder,
+     origin_by, origin_session_id, origin_deleted_at, last_seen_at, created_at, updated_at, meta
+   FROM item;
+   DROP TABLE item;
+   ALTER TABLE item_v2 RENAME TO item;
+   CREATE INDEX item_scope ON item (workspace_id, kind, state, updated_at);
+   CREATE INDEX item_origin ON item (origin_session_id);
+   CREATE TABLE command (
+     rid INTEGER PRIMARY KEY,
+     id TEXT NOT NULL UNIQUE,
+     workspace_id TEXT NOT NULL,
+     folder TEXT NOT NULL,
+     text TEXT NOT NULL,
+     count INTEGER NOT NULL,
+     last_at INTEGER NOT NULL,
+     last_session_id TEXT NOT NULL,
+     session_deleted_at INTEGER,
+     UNIQUE (workspace_id, folder, text)
+   ) STRICT;
+   CREATE INDEX command_recent ON command (workspace_id, last_at);
+   CREATE TABLE extract_state (
+     session_id TEXT PRIMARY KEY,
+     origin_session_id TEXT NOT NULL,
+     workspace_id TEXT NOT NULL,
+     meta TEXT NOT NULL CHECK (json_valid(meta)),
+     byte_offset INTEGER NOT NULL,
+     entry_count INTEGER NOT NULL,
+     prompts INTEGER NOT NULL,
+     notes TEXT NOT NULL CHECK (json_valid(notes)),
+     phase TEXT NOT NULL CHECK (phase IN ('live', 'ending', 'done')),
+     attempts INTEGER NOT NULL,
+     counts TEXT NOT NULL CHECK (json_valid(counts)),
+     episode_id TEXT,
+     updated_at INTEGER NOT NULL
+   ) STRICT;
+   CREATE INDEX extract_origin ON extract_state (origin_session_id);`
 ]
 
 const UserVersionRow = z.object({ user_version: z.number().int() })
@@ -136,24 +202,35 @@ function inspectOnDisk(file: string, log: (code: string) => void): number | 'cor
   }
 }
 
-function migrate(raw: DatabaseSync, from: number, log: (code: string) => void): void {
-  if (from === MEMORY_SCHEMA_VERSION) return
-  raw.exec('BEGIN IMMEDIATE')
+/** Takes the file from `from` to `to` in one transaction. Foreign keys are off around it (a pragma
+ *  inside a transaction does nothing): rebuilding `item` with them on deletes every `version` row
+ *  through its ON DELETE CASCADE (probed, SQLite 3.53.1). `PRAGMA foreign_key_check` must answer no
+ *  row before the commit. */
+function migrate(raw: DatabaseSync, from: number, to: number, log: (code: string) => void): void {
+  if (from === to) return
+  if (from > to) throw new Error(`code=memory_db_migration_missing to=${to}`)
+  raw.exec('PRAGMA foreign_keys = OFF')
   try {
-    for (let v = from; v < MEMORY_SCHEMA_VERSION; v++) {
-      const step = MIGRATIONS[v]
-      if (step === undefined) throw new Error(`code=memory_db_migration_missing to=${v + 1}`)
-      raw.exec(step)
+    raw.exec('BEGIN IMMEDIATE')
+    try {
+      for (let v = from; v < to; v++) {
+        const step = MIGRATIONS[v]
+        if (step === undefined) throw new Error(`code=memory_db_migration_missing to=${v + 1}`)
+        raw.exec(step)
+      }
+      if (raw.prepare('PRAGMA foreign_key_check').all().length > 0)
+        throw new Error('code=memory_db_migration_check')
+      raw.exec(`PRAGMA user_version = ${to}`)
+      raw.exec('COMMIT')
+    } catch (e) {
+      if (raw.isTransaction) raw.exec('ROLLBACK')
+      throw e
     }
-    raw.exec(`PRAGMA user_version = ${MEMORY_SCHEMA_VERSION}`)
-    raw.exec('COMMIT')
-  } catch (e) {
-    if (raw.isTransaction) raw.exec('ROLLBACK')
-    throw e
+  } finally {
+    raw.exec('PRAGMA foreign_keys = ON')
   }
   // A migration is checked after it runs (spec §2).
-  if (userVersion(raw, log) !== MEMORY_SCHEMA_VERSION)
-    throw new Error('code=memory_db_migration_check')
+  if (userVersion(raw, log) !== to) throw new Error('code=memory_db_migration_check')
 }
 
 function wrap(raw: DatabaseSync, log: (code: string) => void): MemoryDb {
@@ -171,6 +248,8 @@ function wrap(raw: DatabaseSync, log: (code: string) => void): MemoryDb {
       return row === undefined ? null : parseRow(schema, row, log)
     },
     transaction: (work) => {
+      // Inside an open transaction: join it; the outermost call commits or rolls back.
+      if (raw.isTransaction) return work()
       raw.exec('BEGIN IMMEDIATE')
       try {
         const out = work()
@@ -185,6 +264,32 @@ function wrap(raw: DatabaseSync, log: (code: string) => void): MemoryDb {
       raw.close()
     }
   }
+}
+
+/** WAL, foreign keys on, then the migrations from `from` to `to`. */
+function bringTo(raw: DatabaseSync, from: number, to: number, log: (code: string) => void): void {
+  raw.exec('PRAGMA journal_mode = WAL')
+  raw.exec('PRAGMA foreign_keys = ON')
+  migrate(raw, from, to, log)
+}
+
+/** A file at an OLDER schema `version` (its tables, nothing newer); a file already at `version`
+ *  opens unchanged. A test keeps this export on purpose: `memoryDb.test.ts` builds a version 1
+ *  file to migrate. Throws where `openMemoryDb` would answer a problem. */
+export function createMemoryDbAt(
+  file: string,
+  version: number,
+  deps: { now: () => number; log: (line: string) => void }
+): MemoryDb {
+  const log = (code: string): void => deps.log(`${LOG_PREFIX} code=${code}`)
+  const raw = new DatabaseSync(file)
+  try {
+    bringTo(raw, userVersion(raw, log), version, log)
+  } catch (e) {
+    raw.close()
+    throw e
+  }
+  return wrap(raw, log)
 }
 
 type Attempt = MemoryDbOpen | 'corrupt'
@@ -208,9 +313,7 @@ function attemptOpen(file: string, log: (code: string) => void): Attempt {
         log('memory_db_newer_version')
         return READ_FAILED
       }
-      raw.exec('PRAGMA journal_mode = WAL')
-      raw.exec('PRAGMA foreign_keys = ON')
-      migrate(raw, from, log)
+      bringTo(raw, from, MEMORY_SCHEMA_VERSION, log)
       kept = true
       return { ok: true, db: wrap(raw, log), problem: null }
     } finally {
