@@ -165,8 +165,8 @@ lists what was dropped and why, while the session is on the board). When a sessi
 toast says how its save went: **Memory saved from "…"** with what went to memory and how many
 tasks (**Show**, offered only when something went to memory, opens Memory on that session),
 **Nothing new to remember**, or **Could not save memory**. A save at a checkpoint or at the next
-start shows a toast only when it fails. A session with no name gets no toast, and one that never
-got a prompt ends quietly.
+start shows a toast only when it fails. A session with no name or with fewer than two prompts
+gets no toast, and one that never got a prompt ends quietly.
 
 **Open work becomes tasks.** Work a session leaves open becomes a task in **Goals**, with how to
 check it (`Check:`). A later session sees the folder's open tasks and can report what it found;
@@ -205,7 +205,8 @@ and the model's answers are never written to a log, a notification or the local 
   - **Memory model** — **Haiku** or **Sonnet** (the default): the model that reads a session to
     save from it, on your own Claude account. Haiku uses less.
 
-  Switching **Memory** off cancels a save that is running; nothing of it is kept.
+  Switching **Memory** off cancels the save call that is running, and nothing of that call is
+  kept; what the save had already written before stays.
 
 - **Claude's auto memory** — Claude Code's own memory, in the sessions this app starts: **Off**,
   **On**, or **Claude decides** (the default: the app changes nothing, so your Claude settings
