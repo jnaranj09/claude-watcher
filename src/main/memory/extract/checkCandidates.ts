@@ -209,7 +209,8 @@ function shape(c: ExtractCandidate, final: boolean, firstEpisode: boolean): Shap
   return shapeOf(c)
 }
 
-const headKey = (head: string): string => head.trim().toLowerCase()
+/** A head or title as D17 and R20 compare it: whitespace normalised, case folded. */
+const headKey = (head: string): string => normalise(head).toLowerCase()
 const headOf = (text: MemoryText): string => (text.kind === 'specific' ? text.key : text.title)
 const bodyOf = (text: MemoryText): string => (text.kind === 'specific' ? text.value : text.body)
 
@@ -287,8 +288,6 @@ function checkOne(c: ExtractCandidate, s: Shaped, ctx: Ctx): Checked | DropReaso
   return { kind: 'item', ...reconciled, text: s.text, check: s.check, basis: found.basis, source }
 }
 
-const twinFold = (text: string): string => normalise(text).toLowerCase()
-
 /** R20: what a kept candidate writes to. An `add` writes a new item or task in the session's
  *  workspace (D18: every add of one answer has the same scope), so its kind and folded key or
  *  title name it; an `update` or `none` writes to a saved item or task, named by its id. null
@@ -296,9 +295,9 @@ const twinFold = (text: string): string => normalise(text).toLowerCase()
 function twinKey(checked: Checked): string | null {
   if (checked.kind === 'episode') return null
   if (checked.kind === 'task')
-    return checked.action === 'add' ? `task add ${twinFold(checked.title)}` : `task ${checked.id}`
+    return checked.action === 'add' ? `task add ${headKey(checked.title)}` : `task ${checked.id}`
   return checked.action === 'add'
-    ? `${checked.text.kind} add ${twinFold(headOf(checked.text))}`
+    ? `${checked.text.kind} add ${headKey(headOf(checked.text))}`
     : `item ${checked.id}`
 }
 
