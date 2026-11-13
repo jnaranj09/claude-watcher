@@ -3,7 +3,7 @@
 // moves what is written next to the card's new id, Memory switched off stops the job, a full queue
 // refuses only a checkpoint, and one bad session never stops the others. Each test ends in a
 // defined state of the save row, the store and the Past sessions record.
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NO_COUNTS } from '../../../shared/schemas/memory'
 import { specific } from '../../../__fixtures__/extractCandidates'
 import {
@@ -338,6 +338,64 @@ describe('never crash', () => {
       ['catchup', 'failed'],
       ['catchup', 'failed']
     ])
+  })
+
+  it.each([3, 4])(
+    '%i unreadable reads at checkpoints never close the row, and the end still saves the text',
+    async (failures) => {
+      conversation('s1')
+      const read = h.deps.read
+      h.deps.read = () => Promise.resolve(null)
+      for (let i = 0; i < failures; i += 1) {
+        stops(h, 's1', 15)
+        await h.ex.idle()
+      }
+      expect(h.state.get('s1')?.attempts).toBe(failures)
+      expect(h.state.get('s1')?.phase).toBe('live')
+      h.deps.read = read
+      h.answers.push(answer([API]))
+      h.ex.ended('s1')
+      await h.ex.idle()
+      expect(h.calls).toHaveLength(1)
+      expect(h.state.get('s1')?.phase).toBe('done')
+      expect(h.setMemory).toHaveBeenLastCalledWith('s1', {
+        state: 'saved',
+        ...NO_COUNTS,
+        specifics: 1,
+        episodeId: null
+      })
+    }
+  )
+
+  it('a job whose failure cannot even be counted never rejects, and the next session still saves', async () => {
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    try {
+      h.meta.set('s2', META)
+      conversation('s1')
+      conversation('s2', 'the db listens on port 5433')
+      const get = h.state.get
+      let broken = false
+      h.state.get = (id) => {
+        if (broken) throw new Error('database refuses reads')
+        return get(id)
+      }
+      h.ex.ended('s1')
+      broken = true
+      await expect(h.ex.idle()).resolves.toBeUndefined()
+      await flush()
+      expect(unhandled).not.toHaveBeenCalled()
+      expect(
+        h.logs.filter((l) => l.endsWith('code=memory_extract_failed reason=internal'))
+      ).toHaveLength(2)
+      broken = false
+      h.ex.ended('s2')
+      await h.ex.idle()
+      expect(h.state.get('s2')?.phase).toBe('done')
+      expect(h.state.get('s1')?.attempts).toBe(0)
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
   })
 
   it('an unreadable transcript is a failed attempt, and the next session still saves', async () => {

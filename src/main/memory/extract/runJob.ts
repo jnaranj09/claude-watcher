@@ -111,7 +111,9 @@ function finishFailed(r: JobRun, mem: Mem, reason: 'claude_version' | null, clos
 
 /** R32: a step other than the write threw, or the transcript could not be read: a failed call
  *  with reason `internal`. It counts an attempt; at `attempts` an end or a catch-up gives the
- *  session up (row `done`), so it never repeats at every start. */
+ *  session up (row `done`), so it never repeats at every start. A checkpoint is counted and
+ *  pushed but never closes the row: the session is still running, and its end must still read
+ *  the text (its attempts may pass `attempts`; the next failed call then gives its chunk up). */
 function failInternal(r: JobRun): void {
   const mem = r.deps.memory()
   if (mem === null || mem.state.get(r.job.id) === null) return
