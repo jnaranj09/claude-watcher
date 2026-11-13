@@ -161,9 +161,10 @@ it.
 a quit or crash left owed. A session with fewer than two prompts is not saved. A model reads
 what is new in the session's transcript and proposes what to keep; the app keeps a value only
 when the quote it gives is found in the transcript, and drops the rest (Context → **Memory**
-lists what was dropped and why, while the session is on the board). When a session ends, a
-toast says how its save went: **Memory saved from "…"** with what went to memory and how many
-tasks (**Show**, offered only when something went to memory, opens Memory on that session),
+lists what was dropped and why, while the session is on the board). A save updates a fact only
+when it brings a new exact value that the session saw; a reworded fact is edited by hand. When a
+session ends, a toast says how its save went: **Memory saved from "…"** with what went to memory
+and how many tasks (**Show**, offered only when something went to memory, opens Memory on that session),
 **Nothing new to remember**, or **Could not save memory**. A save at a checkpoint or at the next
 start shows a toast only when it fails. A session with no name or with fewer than two prompts
 gets no toast, and one that never got a prompt ends quietly.

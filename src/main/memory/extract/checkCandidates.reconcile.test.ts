@@ -547,6 +547,32 @@ describe('checkCandidates: twins in one answer (R20)', () => {
     expect(out.dropped).toEqual(['invalid'])
   })
 
+  it('R20 after P3-R1: a claude_only drop claims nothing, so a later update of the same item is kept', () => {
+    const items: ScopeItem[] = [{ id: 'i-1', kind: 'specific', head: 'API port', body: '9280' }]
+    const said = 'The API port is 9281 now.'
+    const out = check(
+      [
+        cand({ action: 'update', id: 'i-1', evidence: said }),
+        cand({ action: 'update', id: 'i-1', evidence: Q })
+      ],
+      { entries: [...entries, entry(5, 'claude', said)], items }
+    )
+    expect(out).toEqual({
+      kept: [
+        {
+          kind: 'item',
+          action: 'update',
+          id: 'i-1',
+          text: { kind: 'specific', key: 'API port', value: '9281' },
+          check: null,
+          basis: 'observed',
+          source: { entryId: 'e-4', quote: Q }
+        }
+      ],
+      dropped: ['claude_only']
+    })
+  })
+
   it('a fact and a task with one title are not twins', () => {
     const out = check([fact('Do X', 'X needs doing.', Q), task('Do X', Q)], { entries })
     expect(out.kept.map((k) => k.kind)).toEqual(['item', 'task'])

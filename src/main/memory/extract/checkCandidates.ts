@@ -21,6 +21,7 @@ import {
 } from '../../../shared/schemas/memory'
 import { TaskCheckSchema, TaskTitleSchema, type TaskLeftWith } from '../../../shared/schemas/goal'
 import type { ScopeItem, ScopeTask } from './extractPrompt'
+import { isExactTerm, termRuns } from '../exactTerms'
 import { hasSecret } from './secretScan'
 import type { CleanEntry } from './sliceCleaner'
 
@@ -267,8 +268,23 @@ function reconcileTask(
   return same === undefined ? { action: 'add', id: null } : { action: 'update', id: same.id }
 }
 
+const exactValues = (text: string): string[] => termRuns(text).filter(isExactTerm)
+/** `value` stands whole (`valueAt`) in `text`, between the cleaner's marks. */
+const standsIn = (text: string, value: string): boolean =>
+  text.split(MARKS).some((segment) => valueAt(normalise(segment), value) !== -1)
+
+/** P3-C6: the new body holds at least one exact value (`isExactTerm`) the old body does not
+ *  (case ignored), and each such value stands whole in the entry the quote was found in. */
+function bringsSeenValue(oldBody: string, newBody: string, at: CleanEntry | undefined): boolean {
+  const old = new Set(exactValues(oldBody).map((v) => v.toLowerCase()))
+  const fresh = exactValues(newBody).filter((v) => !old.has(v.toLowerCase()))
+  return fresh.length > 0 && at !== undefined && fresh.every((v) => standsIn(at.text, v))
+}
+
 /** Steps 2 to 5 for one candidate whose shape passed. After D16, an item update whose evidence is
- *  no sighting is dropped (`claude_only`, P3-R1); an inferred add or none is kept. */
+ *  no sighting is dropped (`claude_only`, P3-R1), and so is a fact update that brings no new exact
+ *  value its evidence entry holds (P3-C6: a fact's body is never looked for in its quote, so a
+ *  reworded fact is edited by hand); an inferred add or none is kept. */
 function checkOne(c: ExtractCandidate, s: Shaped, ctx: Ctx): Checked | DropReason {
   if (s.kind === 'task' && !ctx.tasksOn) return 'tasks_off'
   if ([c.head, c.body, c.check, c.evidence].some((v) => v !== null && hasSecret(v))) return 'secret'
@@ -298,6 +314,12 @@ function checkOne(c: ExtractCandidate, s: Shaped, ctx: Ctx): Checked | DropReaso
   // P3-R1: an update (asked for, or made by D17 or R11) only claude's own text or a tool call
   // supports never rewrites a saved item.
   if (reconciled.action === 'update' && !isSighting(found.basis)) return 'claude_only'
+  // P3-C6: the same paths, for a fact.
+  if (reconciled.action === 'update' && s.text.kind === 'fact') {
+    const oldBody = ctx.items.find((item) => item.id === reconciled.id)?.body ?? ''
+    const at = ctx.entries.find((e) => e.entryId === found.entryId)
+    if (!bringsSeenValue(oldBody, s.text.body, at)) return 'claude_only'
+  }
   return { kind: 'item', ...reconciled, text: s.text, check: s.check, basis: found.basis, source }
 }
 

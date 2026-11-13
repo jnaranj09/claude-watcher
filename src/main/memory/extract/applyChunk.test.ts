@@ -299,6 +299,48 @@ describe('items', () => {
     expect(state.get('t-1')?.byteOffset).toBe(400)
   })
 
+  it('P3-C6: a fact update that only rewords the fact leaves the stored fact as it was', () => {
+    const id = addSaved({ kind: 'fact', title: 'Deploy', body: 'Deploys run from release/v2.3.' })
+    const before = store.get(id)
+    const entries = [entry(5, 'result', 'listening on 9281')]
+    const checked = checkCandidates(
+      {
+        candidates: [
+          {
+            type: 'fact',
+            action: 'update',
+            id,
+            head: 'Deploy',
+            body: 'Every deploy starts from release/v2.3.',
+            check: null,
+            leftWith: null,
+            evidence: 'listening on 9281'
+          }
+        ],
+        note: 'n'
+      },
+      {
+        entries,
+        notes: [],
+        final: false,
+        tasksOn: true,
+        items: store.scopeForExtract('w1', META.folder, 'card-1', 150),
+        tasks: [],
+        operatorWrote: () => false
+      }
+    )
+    expect(checked).toEqual({ kept: [], dropped: ['claude_only'] })
+    const out = applyChunk(
+      { ...deps, now: () => NOW + 500 },
+      write({ kept: checked.kept, entries })
+    )
+    expect([out.added, out.saved]).toEqual([NO_COUNTS, []])
+    expect(store.get(id)).toEqual(before)
+    expect(store.versions(id).map((v) => [v.body, v.by])).toEqual([
+      ['Deploys run from release/v2.3.', 'extract']
+    ])
+  })
+
   it('P3-R1: an update with inferred evidence that reaches the writer changes nothing', () => {
     const id = addSaved(specific('API port', '9280'))
     const before = store.get(id)
