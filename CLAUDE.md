@@ -120,7 +120,7 @@ model output are sensitive. claude's own auto memory: `claudeAutoMemory` (`pty/s
   `SHORTCUTS_FILE_VERSION = 3` (v2→v3: `parseShortcutsFile`). **Unmigrated bump wipes the store.**
 - `PastSession.workspaceId` required; cascade deletes records. Record naming a missing workspace is
   hidden but KEPT (`code=past_sessions_hidden_unknown_workspace`, UX-03).
-  `PAST_SESSIONS_FILE_VERSION` stays 1; new fields additive.
+  `PAST_SESSIONS_FILE_VERSION` stays 1; fields additive; `memory` has its own file (R50).
 - **Shortcuts by alias:** `settings.expanderKey` (`Ctrl+Alt+X`) opens `ExpanderBox`;
   `<alias> <values…>` expands `$1..$9`/`$*`/`$$` (`shortcuts/expand.ts`), result is TYPED, never
   submitted. Quoting: `"…"`/`'…'`, `\` escapes, unclosed quote takes the rest (never an error).

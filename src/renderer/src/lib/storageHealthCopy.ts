@@ -12,6 +12,7 @@ const STORE_LABEL: Record<StoreName, string> = {
   rules: 'rules',
   goals: 'goals',
   past_sessions: 'past sessions',
+  past_sessions_memory: 'past sessions memory',
   bridge_mod: 'Claude mod',
   file_history: 'file history',
   goals_file: 'GOALS.md',

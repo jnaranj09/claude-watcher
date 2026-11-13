@@ -2,15 +2,23 @@
 // (`claude-watcher-past-sessions.json`) so a corrupt history can never reset settings, templates
 // or workspaces. NEVER log a record value (name = operator text, cwd = filesystem layout) — codes
 // only. Claude's own files under ~/.claude are never touched by anything here (D-4).
+//
+// Memory (R50): each record's `memory` state lives in its own file
+// (`claude-watcher-past-sessions-memory.json`, by record id), never inside a record, so the
+// Past sessions file stays one an older build's `.strict()` record reads. `list` and `get` merge
+// it back; an entry goes when its record goes (Forget, the cap, a cascade, `dropLive`).
 import {
   EMPTY_PAST_SESSIONS_FILE,
   PAST_SESSIONS_FILE_VERSION,
+  PAST_SESSIONS_MEMORY_FILE_VERSION,
   PAST_SESSIONS_HIDDEN_MAX,
   PAST_SESSIONS_MAX,
   PastSessionsFileSchema,
+  PastSessionsMemoryFileSchema,
   type PastSession,
   type PastSessionMemory,
-  type PastSessionsFile
+  type PastSessionsFile,
+  type PastSessionsMemoryFile
 } from '../../shared/schemas/pastSession'
 import {
   createInMemoryBlobStore,
@@ -23,12 +31,18 @@ import {
 import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 
 export type PastSessionsBlobStore = PersistedBlobStore<PastSessionsFile>
+export type PastSessionsMemoryBlobStore = PersistedBlobStore<PastSessionsMemoryFile>
 
 export interface PastSessionsStoreOptions {
   blobStore?: PastSessionsBlobStore
   log?: (message: string) => void
   /** UX-06 / UX-07 — where a load problem or a background write failure is told (storageHealth.ts). */
   report?: StorageReporter
+  /** R50: the file each record's `memory` state lives in. In memory when not given (tests,
+   *  SMOKE). */
+  memoryBlobStore?: PastSessionsMemoryBlobStore
+  /** Where that file's load problem or refused write is told (store `past_sessions_memory`). */
+  reportMemory?: StorageReporter
   /** A record can only be LISTED while its workspace exists (the delete cascade guarantees it).
    *  One that names a missing workspace — a hand-edited file, or a workspaces file that was
    *  corrupt and reset to Default — is KEPT in the file and hidden (UX-03): restoring the
@@ -72,8 +86,8 @@ export interface PastSessionsStore {
   /** The card left WITHOUT an archive (a `/clear` rebind's old id): drop its record, but ONLY
    *  while it is still live — an archived or deleted one is not this call's to touch. */
   dropLive(id: string): void
-  /** Sets a record's `memory` (live or ended). No record: nothing. A background write
-   *  (`persistOrReport`). */
+  /** Sets a record's `memory` (live or ended), in the memory state file only. No record:
+   *  nothing. A background write (a refused one reports `past_sessions_memory` `write_failed`). */
   setMemory(sessionId: string, memory: PastSessionMemory): void
   /** Idempotent. Returns the new list. */
   remove(id: string): PastSession[]
@@ -91,7 +105,16 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   const report = options.report ?? reportNowhere
   const workspaceExists = options.workspaceExists ?? ((): boolean => true)
   const hasTranscript = options.hasTranscript ?? ((): boolean => true)
+  const memoryBlobStore =
+    options.memoryBlobStore ?? createInMemoryBlobStore<PastSessionsMemoryFile>()
+  const reportMemory = options.reportMemory ?? reportNowhere
+  /** Records WITHOUT `memory`: what the Past sessions file holds. */
   const byId = new Map<string, PastSession>()
+  /** R50: each record's `memory`, by record id. */
+  const memoryById = new Map<string, PastSessionMemory>()
+  /** The memory state file as last written: a change to the records only rewrites it when an
+   *  entry went with its record. null: not written yet this run. */
+  let memoryWritten: string | null = null
 
   const loaded = loadPersistedOrReset<PastSessionsFile>({
     blobStore,
@@ -102,10 +125,24 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
       report(storageCodeForLoad(code))
     }
   })
+  const loadedMemory = loadPersistedOrReset<PastSessionsMemoryFile>({
+    blobStore: memoryBlobStore,
+    parse: (raw) => PastSessionsMemoryFileSchema.parse(raw),
+    fallback: () => ({ version: PAST_SESSIONS_MEMORY_FILE_VERSION, records: {} }),
+    onProblem: (code) => {
+      log(`${LOG_PREFIX} code=past_sessions_memory_${code}`)
+      reportMemory(storageCodeForLoad(code))
+    }
+  })
+  for (const [id, memory] of Object.entries(loadedMemory.records)) memoryById.set(id, memory)
   let hidden = 0
   let recovered = 0
   let skipped = 0
-  for (const record of loaded.sessions) {
+  for (const loadedRecord of loaded.sessions) {
+    // A file an earlier build of memory phase 2 wrote holds `memory` inside the record: it moves
+    // to the state file (the load-time write below writes the record back without it).
+    const record = withoutMemory(loadedRecord)
+    if (loadedRecord.memory !== undefined) memoryById.set(record.id, loadedRecord.memory)
     // UX-01 — nothing is on the board yet (one instance per profile), so a record still marked
     // live was left by a run that died without archiving it: it is a normal record now, ended at
     // the last time that run saw the card — unless claude never wrote its transcript (NEW-5).
@@ -140,6 +177,31 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
     return [...byId.values()].sort(newestFirst)
   }
 
+  /** A record as callers see it: with its `memory` when it has one, else no such key. */
+  function shown(record: PastSession): PastSession {
+    const memory = memoryById.get(record.id)
+    return memory === undefined ? record : { ...record, memory: { ...memory } }
+  }
+
+  /** The memory state file follows the records: an entry whose record is gone is pruned. Written
+   *  only when it changed. A refused write keeps the state for this run and reports it. */
+  function syncMemory(): void {
+    for (const id of memoryById.keys()) if (!byId.has(id)) memoryById.delete(id)
+    const file: PastSessionsMemoryFile = {
+      version: PAST_SESSIONS_MEMORY_FILE_VERSION,
+      records: Object.fromEntries([...memoryById].sort(([a], [b]) => (a < b ? -1 : 1)))
+    }
+    const text = JSON.stringify(file)
+    if (text === memoryWritten) return
+    try {
+      memoryBlobStore.write(file)
+      memoryWritten = text
+    } catch {
+      log(`${LOG_PREFIX} code=past_sessions_memory_write_failed`)
+      reportMemory('write_failed')
+    }
+  }
+
   function persist(): boolean {
     try {
       blobStore.write({ version: PAST_SESSIONS_FILE_VERSION, sessions: all() })
@@ -153,7 +215,10 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   /** A dialog's Save / Delete (UX-06): undo the change and throw when the file write fails, so
    *  the dialog never says "saved" about a row the next start will not have. */
   function commit(undo: () => void): void {
-    if (persist()) return
+    if (persist()) {
+      syncMemory()
+      return
+    }
     undo()
     throw new Error(STORE_WRITE_FAILED)
   }
@@ -161,6 +226,7 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   /** Every other write: the change holds for this run, and storage health says it was not kept. */
   function persistOrReport(): void {
     if (!persist()) report('write_failed')
+    syncMemory()
   }
 
   /** Records that left without a Forget, told after their write (`onDropped`). */
@@ -169,13 +235,15 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   }
 
   function list(): PastSession[] {
-    return all().filter((r) => r.live !== true && workspaceExists(r.workspaceId))
+    return all()
+      .filter((r) => r.live !== true && workspaceExists(r.workspaceId))
+      .map(shown)
   }
 
   function get(id: string): PastSession | null {
     const record = byId.get(id)
     if (record === undefined || !workspaceExists(record.workspaceId)) return null
-    return record
+    return shown(record)
   }
 
   /** Keep the newest `PAST_SESSIONS_MAX` ended VISIBLE records. A live one is never evicted: it
@@ -202,14 +270,15 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
 
   /** The new record, keeping the transcript path an earlier write learned: the hook that
    *  carries it may not have reached this run yet (a resumed session writes the same file).
-   *  It keeps an earlier `memory` the same way, until the new end sets its own (`setMemory`). */
+   *  An earlier `memory` stays in its own map until the new end sets its own (`setMemory`); a
+   *  `memory` on the given record replaces it. */
   function merged(record: PastSession): PastSession {
-    const next: PastSession = { ...record, tagIds: [...record.tagIds] }
+    if (record.memory !== undefined) memoryById.set(record.id, { ...record.memory })
+    const next: PastSession = { ...withoutMemory(record), tagIds: [...record.tagIds] }
     const known = byId.get(record.id)
     if (next.transcriptPath === undefined && known?.transcriptPath !== undefined) {
       next.transcriptPath = known.transcriptPath
     }
-    if (next.memory === undefined && known?.memory !== undefined) next.memory = known.memory
     return next
   }
 
@@ -241,10 +310,9 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   }
 
   function setMemory(sessionId: string, memory: PastSessionMemory): void {
-    const record = byId.get(sessionId)
-    if (record === undefined) return
-    byId.set(sessionId, { ...record, memory: { ...memory } })
-    persistOrReport()
+    if (!byId.has(sessionId)) return
+    memoryById.set(sessionId, { ...memory })
+    syncMemory()
   }
 
   function remove(id: string): PastSession[] {
@@ -271,6 +339,13 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   }
 
   return { list, get, archive, markLive, dropLive, setMemory, remove, removeByWorkspace }
+}
+
+/** The record without its `memory`: what the Past sessions file holds (R50). */
+function withoutMemory(record: PastSession): PastSession {
+  const rest = { ...record }
+  delete rest.memory
+  return rest
 }
 
 /** The record without its `live` mark. */

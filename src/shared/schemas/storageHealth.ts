@@ -30,6 +30,8 @@ export const STORE_NAMES = [
   'rules',
   'goals',
   'past_sessions',
+  // Each Past sessions record's memory state (R50): <userData>/claude-watcher-past-sessions-memory.json.
+  'past_sessions_memory',
   // The bridge mod's install into <userData>/mods (spec 2026-10-18 §1.2): not a store the operator
   // edits, but a failed write there is a disk problem they must see.
   'bridge_mod',

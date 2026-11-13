@@ -12,7 +12,7 @@ export const PastSessionIdSchema = z.string().min(1)
 const MemoryCountSchema = z.number().int().nonnegative().default(0)
 
 /** Memory (phase 2): how saving memory from this session went. State and counts only, never
- *  memory text. Every key but `state` defaults, so the field stays additive on v1. */
+ *  memory text. Every key but `state` defaults, so a new count stays additive on v1. */
 export const PastSessionMemorySchema = z
   .object({
     state: z.enum(['saving', 'saved', 'nothing', 'failed', 'off']),
@@ -57,8 +57,11 @@ export const PastSessionSchema = z
      *  tool, goals), so a Resume after a restart brings the tool back. A flag only: no task ids or
      *  titles (the links live in the goals store). Optional like `live`: absent = off, v1. */
     tasksMarkDone: z.literal(true).optional(),
-    /** Memory (phase 2): absent = a record from before saving from sessions existed, or one no
-     *  save has touched. A later `archive` of the same id keeps it until the new end sets it. */
+    /** Memory (phase 2): absent = a record no save has touched. On the wire only: main keeps it in
+     *  its own file (`PastSessionsMemoryFileSchema`) and merges it in when records are read, so
+     *  the Past sessions file stays one an older build reads (R50). A file an earlier build of
+     *  phase 2 wrote may still hold it here: the store moves it out at load. A later `archive`
+     *  of the same id keeps it until the new end sets it. */
     memory: PastSessionMemorySchema.optional()
   })
   .strict()
@@ -110,3 +113,13 @@ export const EMPTY_PAST_SESSIONS_FILE: PastSessionsFile = {
   version: PAST_SESSIONS_FILE_VERSION,
   sessions: []
 }
+
+/** R50: `claude-watcher-past-sessions-memory.json`, each record's `memory` by record id. Its own
+ *  file, so a Past sessions record never carries a key an older build's `.strict()` record
+ *  refuses. An entry goes when its record goes. */
+export const PAST_SESSIONS_MEMORY_FILE_VERSION = 1 as const
+export const PastSessionsMemoryFileSchema = z.object({
+  version: z.literal(PAST_SESSIONS_MEMORY_FILE_VERSION),
+  records: z.record(PastSessionIdSchema, PastSessionMemorySchema)
+})
+export type PastSessionsMemoryFile = z.infer<typeof PastSessionsMemoryFileSchema>

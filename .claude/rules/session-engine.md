@@ -269,7 +269,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   moving after an upgrade).
 - **Every exit has a reason.** Archive, Ctrl+C×2, `/exit`, pty exit, `SessionEnd`, app quit, window
   close → reason `archive`: snapshot into `claude-watcher-past-sessions.json`
-  (`persistence/pastSessions.ts`, v1, cap 200, cascades on workspace delete) BEFORE the reducer
+  (`persistence/pastSessions.ts`, v1, cap 200, cascades on workspace delete; a record's memory
+  state lives in `claude-watcher-past-sessions-memory.json`, R50) BEFORE the reducer
   drops it. Quit/close fire no pty onExit, so `archiveBoundSessions` (`pty/launchRemoval.ts`) runs
   first — in `teardownAllSessions` before `destroyAll` (only memory's `quitExtractor` comes
   before it), and in `teardownWindowTerminals` before

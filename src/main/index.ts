@@ -34,10 +34,17 @@ import { createShortcutsStore, type ShortcutsStore } from './persistence/shortcu
 import { createElectronShortcutsBlobStore } from './persistence/electronShortcutsBlobStore'
 // Past sessions — the main-owned archive of ended app-launched sessions (its own file; a
 // corrupt history can never reset settings/templates/workspaces).
-import { createPastSessionsStore, type PastSessionsStore } from './persistence/pastSessions'
+import {
+  createPastSessionsStore,
+  type PastSessionsMemoryBlobStore,
+  type PastSessionsStore
+} from './persistence/pastSessions'
 import { createLivePastSessions } from './persistence/livePastSessions'
 import { pastTasksMarkDone } from './persistence/pastSessionRecord'
-import { createElectronPastSessionsBlobStore } from './persistence/electronPastSessionsBlobStore'
+import {
+  createElectronPastSessionsBlobStore,
+  createElectronPastSessionsMemoryBlobStore
+} from './persistence/electronPastSessionsBlobStore'
 import {
   archiveTranscriptCheck,
   createTranscriptLookupFromFs,
@@ -1182,14 +1189,28 @@ app
 
     // Past sessions — after the workspaces store: a record may only name a workspace that exists.
     const workspaceExists = (id: string): boolean => workspacesStore?.get(id) !== null
+    // R50: each record's memory state has its own file; one that cannot be opened is reported
+    // and kept in memory for this run, and the Past sessions themselves still load.
+    let memoryBlobStore: PastSessionsMemoryBlobStore | undefined
+    if (!SMOKE) {
+      try {
+        memoryBlobStore = createElectronPastSessionsMemoryBlobStore()
+      } catch {
+        // Code ONLY — never the error: a SyntaxError message quotes file content.
+        console.error('[claude-watcher][past-sessions] code=past_sessions_memory_init_failed')
+        storageHealth.report('past_sessions_memory', 'read_failed')
+      }
+    }
     try {
       pastSessionsStore = SMOKE
         ? createPastSessionsStore({ workspaceExists, hasTranscript: archiveHasTranscript })
         : createPastSessionsStore({
             blobStore: createElectronPastSessionsBlobStore(),
+            ...(memoryBlobStore === undefined ? {} : { memoryBlobStore }),
             workspaceExists,
             hasTranscript: archiveHasTranscript,
             report: storageHealth.reporterFor('past_sessions'),
+            reportMemory: storageHealth.reporterFor('past_sessions_memory'),
             ...pastSessionsMemory
           })
     } catch {
