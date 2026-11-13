@@ -125,7 +125,7 @@ function task(
   id: string | null = null,
   check: string | null = 'curl localhost:9281'
 ): Checked {
-  return { kind: 'task', action, id, title, check, leftWith: 'operator' }
+  return { kind: 'task', action, id, title, check, leftWith: 'operator', basis: 'observed' }
 }
 
 function episode(title: string, body: string): Checked {
@@ -309,6 +309,97 @@ describe('items', () => {
     expect([out.added, out.saved]).toEqual([NO_COUNTS, []])
     expect(store.get(id)).toMatchObject({ lastSeenAt: NOW + 500, updatedAt: NOW, source: null })
     expect(store.versions(id)).toHaveLength(1)
+  })
+})
+
+describe('last-seen dates (R48)', () => {
+  const DAY = 86_400_000
+  const later = (): ApplyDeps => ({ ...deps, now: () => NOW + 100 * DAY })
+  const none = (quote: string): ExtractCandidate => ({
+    type: 'specific',
+    action: 'none',
+    id: 'm1',
+    head: 'API port',
+    body: '9281',
+    check: null,
+    leftWith: null,
+    evidence: quote
+  })
+  const taskUpdate = (id: string, quote: string): ExtractCandidate => ({
+    type: 'task',
+    action: 'update',
+    id,
+    head: 'Add a health check',
+    body: null,
+    check: 'curl localhost:9281/health',
+    leftWith: 'session',
+    evidence: quote
+  })
+  function checkAndApply(candidates: ExtractCandidate[], entries: CleanEntry[]): void {
+    const open = goals.view().tasks.filter((t) => t.status === 'open')
+    const checked = checkCandidates(
+      { candidates, note: 'n' },
+      {
+        entries,
+        notes: [],
+        final: false,
+        tasksOn: true,
+        items: store.scopeForExtract('w1', META.folder, 'card-1', 150),
+        tasks: open.map((t) => ({ id: t.id, title: t.title })),
+        operatorWrote: () => true
+      }
+    )
+    expect(checked.dropped).toEqual([])
+    applyChunk(later(), write({ kept: checked.kept, entries }))
+  }
+  function openTask(): string {
+    return goals.addTaskFromExtraction({
+      workspaceId: 'w1',
+      goalId: null,
+      title: 'Add a health check',
+      check: null,
+      leftWith: 'operator',
+      originSessionId: 'card-0',
+      folder: null,
+      at: NOW
+    }).id
+  }
+
+  it("a none found only in claude's own text leaves the operator item's last-seen date", () => {
+    const id = addSaved(specific('API port', '9281'), 'operator')
+    const echo = 'From memory: the API port is 9281 (seen long ago).'
+    checkAndApply([none(echo)], [entry(4, 'claude', echo)])
+    expect(store.get(id)?.lastSeenAt).toBe(NOW)
+  })
+
+  it('a none found in a tool result moves the last-seen date', () => {
+    const id = addSaved(specific('API port', '9281'), 'operator')
+    checkAndApply([none('listening on 9281')], [entry(5, 'result', 'listening on 9281')])
+    expect(store.get(id)?.lastSeenAt).toBe(NOW + 100 * DAY)
+  })
+
+  it("a none found in the operator's text moves the last-seen date", () => {
+    const id = addSaved(specific('API port', '9281'), 'operator')
+    checkAndApply([none('the port is 9281')], [entry(2, 'operator', 'the port is 9281')])
+    expect(store.get(id)?.lastSeenAt).toBe(NOW + 100 * DAY)
+  })
+
+  it("a task update found only in claude's own text keeps its last-seen date and takes the check", () => {
+    const id = openTask()
+    const echo = 'Memory lists an open task: Add a health check.'
+    checkAndApply([taskUpdate(id, echo)], [entry(4, 'claude', echo)])
+    expect(goals.view().tasks).toEqual([
+      expect.objectContaining({ id, lastSeenAt: NOW, check: 'curl localhost:9281/health' })
+    ])
+  })
+
+  it('a task update found in a tool result moves its last-seen date', () => {
+    const id = openTask()
+    const quote = 'GET /health 404 Not Found'
+    checkAndApply([taskUpdate(id, quote)], [entry(5, 'result', quote)])
+    expect(goals.view().tasks).toEqual([
+      expect.objectContaining({ id, lastSeenAt: NOW + 100 * DAY })
+    ])
   })
 })
 

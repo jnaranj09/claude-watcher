@@ -437,7 +437,8 @@ describe('checkCandidates: the shape', () => {
         id: null,
         title: 'Update the README',
         check: 'grep port README.md',
-        leftWith: 'operator'
+        leftWith: 'operator',
+        basis: 'stated'
       }
     ])
   })

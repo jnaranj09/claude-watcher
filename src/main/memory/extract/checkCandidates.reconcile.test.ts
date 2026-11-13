@@ -156,7 +156,8 @@ describe('checkCandidates: reconcile', () => {
         id: 't-1',
         title: 'update the readme',
         check: null,
-        leftWith: 'operator'
+        leftWith: 'operator',
+        basis: 'stated'
       }
     ])
   })
@@ -165,7 +166,15 @@ describe('checkCandidates: reconcile', () => {
     expect(
       check([task('Other', 'Which port', { action: 'update', id: 't-404' })], { tasks: TASKS }).kept
     ).toEqual([
-      { kind: 'task', action: 'add', id: null, title: 'Other', check: null, leftWith: 'operator' }
+      {
+        kind: 'task',
+        action: 'add',
+        id: null,
+        title: 'Other',
+        check: null,
+        leftWith: 'operator',
+        basis: 'stated'
+      }
     ])
     expect(
       check([task('Other', 'Which port', { action: 'none', id: 't-1', leftWith: 'session' })], {
@@ -178,13 +187,22 @@ describe('checkCandidates: reconcile', () => {
         id: 't-1',
         title: 'Other',
         check: null,
-        leftWith: 'session'
+        leftWith: 'session',
+        basis: 'stated'
       }
     ])
     expect(
       check([task('Other', 'Which port', { action: 'none', id: 't-404' })], { tasks: TASKS }).kept
     ).toEqual([
-      { kind: 'task', action: 'add', id: null, title: 'Other', check: null, leftWith: 'operator' }
+      {
+        kind: 'task',
+        action: 'add',
+        id: null,
+        title: 'Other',
+        check: null,
+        leftWith: 'operator',
+        basis: 'stated'
+      }
     ])
   })
 
@@ -238,7 +256,15 @@ describe('checkCandidates: twins in one answer (R20)', () => {
       check([task('Do X', Q), task('do  x', Q, { leftWith: 'session' })], { entries })
     ).toEqual({
       kept: [
-        { kind: 'task', action: 'add', id: null, title: 'Do X', check: null, leftWith: 'operator' }
+        {
+          kind: 'task',
+          action: 'add',
+          id: null,
+          title: 'Do X',
+          check: null,
+          leftWith: 'operator',
+          basis: 'observed'
+        }
       ],
       dropped: ['invalid']
     })
@@ -316,7 +342,15 @@ describe('checkCandidates: twins in one answer (R20)', () => {
   it('a first copy that is dropped registers nothing: the second, valid copy of a task is kept', () => {
     expect(check([task('Do X', 'not in the slice at all'), task('do x', Q)], { entries })).toEqual({
       kept: [
-        { kind: 'task', action: 'add', id: null, title: 'do x', check: null, leftWith: 'operator' }
+        {
+          kind: 'task',
+          action: 'add',
+          id: null,
+          title: 'do x',
+          check: null,
+          leftWith: 'operator',
+          basis: 'observed'
+        }
       ],
       dropped: ['evidence_not_found']
     })
@@ -364,7 +398,8 @@ describe('checkCandidates: twins in one answer (R20)', () => {
         id: 't-1',
         title: 'Update  the README',
         check: null,
-        leftWith: 'operator'
+        leftWith: 'operator',
+        basis: 'observed'
       }
     ])
   })

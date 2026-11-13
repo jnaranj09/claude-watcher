@@ -102,12 +102,13 @@ export interface GoalsStore {
     folder: string | null
     at: number
   }): Task
-  /** An OPEN task: sets `leftWith` and `lastSeenAt = at`, and `check` when it is not null (null
-   *  keeps the task's check). Never the title or the status. false: unknown id or a done task. A
+  /** An OPEN task: sets `leftWith`, `lastSeenAt = at` only when `seen` (R48: the evidence was a
+   *  tool result or the operator's text), and `check` when it is not null (null keeps the task's
+   *  check). Never the title or the status. false: unknown id or a done task. A
    *  background write; throws on a check the schema refuses. */
   updateTaskFromExtraction(
     id: string,
-    patch: { check: string | null; leftWith: TaskLeftWith; at: number }
+    patch: { check: string | null; leftWith: TaskLeftWith; at: number; seen: boolean }
   ): boolean
   /** Sets `report`; an `open` outcome also sets `lastSeenAt = report.at`. A done task: 'ok',
    *  nothing changes. Never changes the status (only the operator closes a task). A background
@@ -351,7 +352,7 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
 
   function updateTaskFromExtraction(
     id: string,
-    patch: { check: string | null; leftWith: TaskLeftWith; at: number }
+    patch: { check: string | null; leftWith: TaskLeftWith; at: number; seen: boolean }
   ): boolean {
     const task = tasks.find((t) => t.id === id)
     if (task === undefined || task.status !== 'open') return false
@@ -359,7 +360,7 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
       ...task,
       check: patch.check ?? task.check,
       leftWith: patch.leftWith,
-      lastSeenAt: patch.at
+      lastSeenAt: patch.seen ? patch.at : task.lastSeenAt
     })
     applyTasks(tasks.map((t) => (t === task ? next : t)))
     return true

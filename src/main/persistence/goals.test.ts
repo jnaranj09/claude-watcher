@@ -493,9 +493,9 @@ describe('tasks from memory extraction', () => {
 
   it('an extraction update never closes a task and keeps its check when none is given', () => {
     const { store, id, taskOf } = extracted()
-    expect(store.updateTaskFromExtraction(id, { check: null, leftWith: 'session', at: 9 })).toBe(
-      true
-    )
+    expect(
+      store.updateTaskFromExtraction(id, { check: null, leftWith: 'session', at: 9, seen: true })
+    ).toBe(true)
     expect(taskOf(id)).toMatchObject({
       status: 'open',
       check: CHECK,
@@ -504,9 +504,20 @@ describe('tasks from memory extraction', () => {
     })
   })
 
+  it('an extraction update that is no sighting keeps the last-seen date (R48)', () => {
+    const { store, id, taskOf } = extracted()
+    store.updateTaskFromExtraction(id, { check: null, leftWith: 'session', at: 9, seen: false })
+    expect(taskOf(id)).toMatchObject({ leftWith: 'session', lastSeenAt: 5 })
+  })
+
   it('an extraction update with a check replaces the check but never the title', () => {
     const { store, id, taskOf } = extracted()
-    store.updateTaskFromExtraction(id, { check: 'npm test', leftWith: 'operator', at: 9 })
+    store.updateTaskFromExtraction(id, {
+      check: 'npm test',
+      leftWith: 'operator',
+      at: 9,
+      seen: true
+    })
     expect(taskOf(id)).toMatchObject({ title: 'Set sandbox: true', check: 'npm test' })
   })
 
@@ -515,11 +526,21 @@ describe('tasks from memory extraction', () => {
     store.setTaskStatus(id, 'done', 'operator')
     const before = taskOf(id)
     expect(
-      store.updateTaskFromExtraction(id, { check: 'npm test', leftWith: 'session', at: 9 })
+      store.updateTaskFromExtraction(id, {
+        check: 'npm test',
+        leftWith: 'session',
+        at: 9,
+        seen: true
+      })
     ).toBe(false)
     expect(taskOf(id)).toEqual(before)
     expect(
-      store.updateTaskFromExtraction('gone', { check: null, leftWith: 'session', at: 9 })
+      store.updateTaskFromExtraction('gone', {
+        check: null,
+        leftWith: 'session',
+        at: 9,
+        seen: true
+      })
     ).toBe(false)
   })
 
@@ -555,7 +576,12 @@ describe('tasks from memory extraction', () => {
     const { store, id } = extracted()
     const before = store.view().tasks
     expect(() =>
-      store.updateTaskFromExtraction(id, { check: 'one\ntwo', leftWith: 'session', at: 9 })
+      store.updateTaskFromExtraction(id, {
+        check: 'one\ntwo',
+        leftWith: 'session',
+        at: 9,
+        seen: true
+      })
     ).toThrow()
     expect(store.view().tasks).toEqual(before)
   })

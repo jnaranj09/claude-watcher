@@ -21,7 +21,7 @@ import {
 import type { GoalsStore } from '../../persistence/goals'
 import type { MemoryCommands } from '../memoryCommands'
 import type { MemoryStore, StoredSource } from '../memoryStore'
-import { findValue, type Checked } from './checkCandidates'
+import { findValue, type Basis, type Checked } from './checkCandidates'
 import type { ExtractRow, ExtractState } from './extractState'
 import type { CleanEntry } from './sliceCleaner'
 
@@ -73,6 +73,10 @@ function stored(path: string, source: { entryId: string; quote: string }): Store
   return { path, entryId: source.entryId, quote: source.quote }
 }
 
+/** R48: only evidence in a tool result (`observed`) or in the operator's text (`stated`) is a
+ *  sighting. claude repeating what memory told it (`inferred`) moves no last-seen date. */
+const isSighting = (basis: Basis): boolean => basis !== 'inferred'
+
 /** Step 1: the tasks (D23). One the goals store refuses (or no store yet) is not written and is
  *  logged as a code: the refusal is the schema's, so a re-run would refuse it again. Answers how
  *  many were written. */
@@ -96,7 +100,8 @@ function writeTask(deps: ApplyDeps, row: ExtractRow, task: TaskCandidate, at: nu
       return goals.updateTaskFromExtraction(task.id, {
         check: task.check,
         leftWith: task.leftWith,
-        at
+        at,
+        seen: isSighting(task.basis)
       })
     }
     goals.addTaskFromExtraction({
@@ -117,13 +122,14 @@ function writeTask(deps: ApplyDeps, row: ExtractRow, task: TaskCandidate, at: nu
 }
 
 /** An item candidate, inside the batch. null: no save to report. A `none` only moves the item's
- *  last-seen date. An update writes nothing when its item is gone or of another kind since the
- *  scope was read, or when the operator wrote it since the check ran (D16; a silent skip, R28). */
+ *  last-seen date, and only when its evidence is a sighting (R48). An update writes nothing when
+ *  its item is gone or of another kind since the scope was read, or when the operator wrote it
+ *  since the check ran (D16; a silent skip, R28). */
 function writeItem(deps: ApplyDeps, write: ChunkWrite, c: ItemCandidate, at: number): Saved | null {
   const { store } = deps
   const source = stored(write.transcriptPath, c.source)
   if (c.action === 'none') {
-    if (c.id !== null) store.touchSeen(c.id, at)
+    if (c.id !== null && isSighting(c.basis)) store.touchSeen(c.id, at)
     return null
   }
   if (c.action === 'update' && c.id !== null) {

@@ -141,6 +141,9 @@ export type Checked =
       title: string
       check: string | null
       leftWith: TaskLeftWith
+      /** Where the quote was found (D14); only `observed` / `stated` moves an update's last-seen
+       *  date (R48). */
+      basis: Basis
     }
   | {
       kind: 'episode'
@@ -278,7 +281,8 @@ function checkOne(c: ExtractCandidate, s: Shaped, ctx: Ctx): Checked | DropReaso
       ...reconcileTask(c, s.title, ctx.tasks),
       title: s.title,
       check: s.check,
-      leftWith: s.leftWith
+      leftWith: s.leftWith,
+      basis: found.basis
     }
   }
   if (s.text.kind === 'specific' && valueAt(quote, normalise(s.text.value)) === -1)
