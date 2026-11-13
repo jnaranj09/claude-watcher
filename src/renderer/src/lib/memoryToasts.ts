@@ -2,26 +2,22 @@
 // pushed (an end always, except a session under 2 prompts; a checkpoint or catch-up only when it
 // failed; `claude_version` once per run); this file only draws what arrives. A toast holds the
 // session's name and counts only, never memory text. The counts are what the saves WROTE (an
-// update counts too), in the addendum's words.
+// update counts too), in the compact form of ruling R44 so the line always fits.
 import { MemoryExtractResultSchema, type MemoryCounts } from '../../../shared/schemas/memory'
 import { formatVersion, MIN_EXTRACT_CLAUDE_VERSION } from '../../../shared/launch/claudeVersion'
 import { boardStore } from '../stores/boardStore'
 import { toast } from '../stores/toastStore'
 import { isModalOpen } from './modals'
 
-/** Each kind's words, singular then plural, in the order the line names them. */
-const PARTS: readonly [keyof MemoryCounts, string, string][] = [
-  ['specifics', 'specific', 'specifics'],
-  ['facts', 'fact', 'facts'],
-  ['tasks', 'task', 'tasks'],
-  ['episodes', 'episode', 'episodes']
-]
-
-/** `4 specifics, 1 fact, 2 tasks, 1 episode`: parts with 0 left out, singular for 1. */
+/** `12 saved to memory, 3 tasks` (ruling R44): the specifics, facts and episodes written, then the
+ *  tasks; a part that is 0 is left out, `1 task` in the singular. '' when nothing was written. */
 export function countsCopy(counts: MemoryCounts): string {
-  return PARTS.filter(([kind]) => counts[kind] > 0)
-    .map(([kind, one, many]) => `${counts[kind]} ${counts[kind] === 1 ? one : many}`)
-    .join(', ')
+  const saved = counts.specifics + counts.facts + counts.episodes
+  const parts = [
+    ...(saved > 0 ? [`${saved} saved to memory`] : []),
+    ...(counts.tasks > 0 ? [`${counts.tasks} ${counts.tasks === 1 ? 'task' : 'tasks'}`] : [])
+  ]
+  return parts.join(', ')
 }
 
 /** `Show`: opens the Memory dialog filtered on that session; nothing while a modal is open
@@ -47,10 +43,16 @@ export function showExtractResult(raw: unknown, show: (sessionName: string) => v
   }
   const result = parsed.data
   const name = result.sessionName
+  const counts = countsCopy(result.counts)
   switch (result.outcome) {
     case 'saved':
+      // A save that wrote nothing is the `nothing` toast: a saved toast never has an empty line.
+      if (counts === '') {
+        toast.info(`Nothing new to remember from "${name}".`)
+        return
+      }
       toast.success(`Memory saved from "${name}".`, {
-        detail: countsCopy(result.counts),
+        detail: counts,
         action: { label: 'Show', icon: 'open', run: () => show(name) }
       })
       return

@@ -46,12 +46,16 @@ function onlyToast(): Toast {
   return t
 }
 
-describe('countsCopy', () => {
+describe('countsCopy (ruling R44)', () => {
   it.each<[MemoryCounts, string]>([
-    [{ specifics: 4, facts: 1, tasks: 2, episodes: 1 }, '4 specifics, 1 fact, 2 tasks, 1 episode'],
-    [{ specifics: 1, facts: 0, tasks: 0, episodes: 1 }, '1 specific, 1 episode'],
-    [{ specifics: 0, facts: 2, tasks: 1, episodes: 0 }, '2 facts, 1 task']
-  ])('counts %j read %s', (c, text) => {
+    [{ specifics: 4, facts: 1, tasks: 2, episodes: 1 }, '6 saved to memory, 2 tasks'],
+    [{ specifics: 1, facts: 0, tasks: 1, episodes: 0 }, '1 saved to memory, 1 task'],
+    [{ specifics: 0, facts: 2, tasks: 0, episodes: 1 }, '3 saved to memory'],
+    [{ specifics: 0, facts: 0, tasks: 3, episodes: 0 }, '3 tasks'],
+    [{ specifics: 0, facts: 0, tasks: 1, episodes: 0 }, '1 task'],
+    [{ specifics: 999, facts: 0, tasks: 999, episodes: 0 }, '999 saved to memory, 999 tasks'],
+    [{ specifics: 0, facts: 0, tasks: 0, episodes: 0 }, '']
+  ])('counts %j read %j', (c, text) => {
     expect(countsCopy(c)).toBe(text)
   })
 })
@@ -64,13 +68,13 @@ describe('showExtractResult', () => {
     const t = onlyToast()
     expect(t.kind).toBe('success')
     expect(t.title).toBe('Memory saved from "fix api port".')
-    expect(t.detail).toBe('4 specifics, 1 fact, 2 tasks, 1 episode')
+    expect(t.detail).toBe('6 saved to memory, 2 tasks')
     expect(t.action?.label).toBe('Show')
     expect(t.action?.icon).toBe('open')
 
     const card = screen.getByTestId('toast')
     expect(within(card).getByText('Memory saved from "fix api port".')).toBeVisible()
-    expect(within(card).getByText('4 specifics, 1 fact, 2 tasks, 1 episode')).toBeVisible()
+    expect(within(card).getByText('6 saved to memory, 2 tasks')).toBeVisible()
     await user.click(within(card).getByRole('button', { name: 'Show' }))
     expect(boardStore.getState().memoryDialogOpen).toBe(true)
     expect(boardStore.getState().memoryDialogTarget).toEqual({ sessionName: 'fix api port' })
@@ -112,9 +116,18 @@ describe('showExtractResult', () => {
     showExtractResult(result({ sessionName: 'a' }), openMemoryForSession)
     showExtractResult(result({ sessionName: 'b', outcome: 'nothing' }), openMemoryForSession)
     expect(toastStore.getState().toasts.map((t) => [t.title, t.detail])).toEqual([
-      ['Memory saved from "a".', '4 specifics, 1 fact, 2 tasks, 1 episode'],
+      ['Memory saved from "a".', '6 saved to memory, 2 tasks'],
       ['Nothing new to remember from "b".', undefined]
     ])
+  })
+
+  it('a saved result that wrote nothing is the nothing toast, never an empty line', () => {
+    showExtractResult(result({ counts: NO_COUNTS }), openMemoryForSession)
+    const t = onlyToast()
+    expect(t.kind).toBe('info')
+    expect(t.title).toBe('Nothing new to remember from "fix api port".')
+    expect(t.detail).toBeUndefined()
+    expect(t.action).toBeUndefined()
   })
 
   it.each<[string, unknown, string]>([
