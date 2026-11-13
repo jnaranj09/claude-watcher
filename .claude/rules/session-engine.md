@@ -95,7 +95,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `timingSafeEqual`, one per session, fresh on every spawn; the file
   (`<userData>/mcp/<random>.json`, folder 0700, file 0600) holds the token in `headers`, so argv
   holds only its path. The token is resolved again when the body ends (a revoke meanwhile: 401).
-  `/clear` moves the task links, the token and the file (`window/cardState.ts`); a removed card
+  `/clear` moves the task links, a task's `originSessionId` and its report's `sessionId`
+  (`GoalsStore.rebindSession`), the token and the file (`window/cardState.ts`); a removed card
   revokes the token and deletes the file (links stay); a start (not SMOKE: it shares the default
   userData) deletes files a previous run left. Authority is the task's CURRENT `sessionIds`
   holding the caller, in the grant's workspace (`task_not_linked`, `task_not_found`; already done = ok).

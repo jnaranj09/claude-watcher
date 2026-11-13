@@ -551,6 +551,23 @@ describe('tasks from memory extraction', () => {
     expect(taskOf(id)).toEqual(before)
   })
 
+  it('an extraction update with a check the schema refuses throws and changes nothing', () => {
+    const { store, id } = extracted()
+    const before = store.view().tasks
+    expect(() =>
+      store.updateTaskFromExtraction(id, { check: 'one\ntwo', leftWith: 'session', at: 9 })
+    ).toThrow()
+    expect(store.view().tasks).toEqual(before)
+  })
+
+  it('a report the schema refuses throws and changes nothing', () => {
+    const { store, id, taskOf } = extracted()
+    const before = store.view().tasks
+    expect(() => store.reportTask(id, { ...report('done'), evidence: 'a\tb' })).toThrow()
+    expect(store.view().tasks).toEqual(before)
+    expect(taskOf(id)).toMatchObject({ report: null })
+  })
+
   it('a report on an unknown task answers not_found', () => {
     const { store } = extracted()
     expect(store.reportTask('gone', report('done'))).toBe('not_found')

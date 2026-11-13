@@ -7,7 +7,8 @@ describe('foldersRelated', () => {
     ['/a/b', '/a/b/c', true],
     ['/a/b/c', '/a/b', true],
     ['/a/b', '/a/bc', false],
-    ['/a/b/', '/a/b', true]
+    ['/a/b/', '/a/b', true],
+    ['/a/b/', '/a/b/c', true]
   ])('%s and %s → %s', (a, b, out) => {
     expect(foldersRelated(a, b)).toBe(out)
   })

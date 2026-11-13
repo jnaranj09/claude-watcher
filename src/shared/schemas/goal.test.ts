@@ -187,4 +187,12 @@ describe('goal schemas', () => {
       TaskReportSchema.safeParse({ ...report, evidence: 'seen', outcome: 'maybe' }).success
     ).toBe(false)
   })
+
+  it('a task refuses an empty folder and an empty origin session id', () => {
+    const task = { id: 't1', workspaceId: 'w1', title: 'a', status: 'open', createdAt: 1 }
+    expect(TaskSchema.safeParse({ ...task, folder: '/work/acme/shop' }).success).toBe(true)
+    expect(TaskSchema.safeParse({ ...task, folder: '' }).success).toBe(false)
+    expect(TaskSchema.safeParse({ ...task, originSessionId: 's1' }).success).toBe(true)
+    expect(TaskSchema.safeParse({ ...task, originSessionId: '' }).success).toBe(false)
+  })
 })
