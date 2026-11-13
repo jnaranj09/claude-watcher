@@ -45,7 +45,7 @@ export interface ExtractState {
     phase: 'live' | 'ending'
     at: number
   }): ExtractRow
-  /** One chunk written: new offsets, `attempts = 0`, `added` summed into `counts`, `note` appended
+  /** One chunk written (a session with no row throws `extract_state_not_found`): new offsets, `attempts = 0`, `added` summed into `counts`, `note` appended
    *  (newest EXTRACT_LIMITS.notesKept kept), `episodeId` kept when the step gives null. */
   advance(
     sessionId: string,
@@ -61,6 +61,8 @@ export interface ExtractState {
   ): void
   /** attempts + 1; returns the new value. */
   failed(sessionId: string, at: number): number
+  /** A session with no row (one that ran with Memory off was never tracked): nothing, no throw,
+   *  no row made. `advance` and `failed` on such a session throw `extract_state_not_found`. */
   setPhase(sessionId: string, phase: ExtractPhase, at: number): void
   /** Rows in phase 'live' or 'ending', oldest `updated_at` first. */
   pending(): ExtractRow[]
@@ -70,8 +72,8 @@ export interface ExtractState {
   rebindOrigin(oldId: string, newId: string): void
 }
 
-/** `advance`, `failed` and `setPhase` on a session with no row: a bug in the caller (it tracks
- *  first), thrown so the batch around it rolls back. */
+/** `advance` and `failed` on a session with no row: a bug in the caller (it tracks first),
+ *  thrown so the batch around it rolls back. `setPhase` there does nothing. */
 const NO_ROW = 'extract_state_not_found'
 
 const COLUMNS = `session_id, origin_session_id, workspace_id, meta, byte_offset, entry_count,
@@ -200,7 +202,7 @@ export function createExtractState(deps: { db: MemoryDb }): ExtractState {
     },
 
     setPhase: (sessionId, phase, at) => {
-      mustRow(sessionId)
+      // No row: nothing to mark (R8). The UPDATE matches no row and makes none.
       db.run('UPDATE extract_state SET phase = ?, updated_at = ? WHERE session_id = ?', [
         phase,
         at,

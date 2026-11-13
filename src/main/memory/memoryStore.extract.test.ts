@@ -331,7 +331,7 @@ describe('batch', () => {
     expect(lines).toEqual(['[claude-watcher][memory] code=memory_write_failed'])
   })
 
-  it('a store write that fails inside a batch rolls back the whole batch, reported once', () => {
+  it('a refusal inside a batch rolls back the whole batch and is not reported', () => {
     const { id } = store.add(a)
     expect(() =>
       store.batch(() => {

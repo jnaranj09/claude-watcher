@@ -1,6 +1,7 @@
 // How far each session's transcript was read for memory (memory phase 2): one row per transcript,
 // keyed by its own id, that follows the card's id across `/clear`. Real `:memory:` db.
 import { beforeEach, describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import { NO_COUNTS, type MemoryItem } from '../../../shared/schemas/memory'
 import { EXTRACT_LIMITS } from '../../../shared/schemas/memoryExtract'
 import { openMemoryDb, type MemoryDb } from '../memoryDb'
@@ -166,8 +167,18 @@ describe('advance and failed', () => {
   it('advance and failed on an unknown session throw and write nothing', () => {
     expect(() => state.advance('nope', STEP)).toThrow('extract_state_not_found')
     expect(() => state.failed('nope', NOW)).toThrow('extract_state_not_found')
-    expect(() => state.setPhase('nope', 'done', NOW)).toThrow('extract_state_not_found')
     expect(state.pending()).toEqual([])
+  })
+
+  it('setPhase on an unknown session does nothing and makes no row', () => {
+    track('s1')
+    const before = state.pending()
+    expect(() => state.setPhase('nope', 'done', NOW + 9)).not.toThrow()
+    expect(state.get('nope')).toBeNull()
+    expect(state.pending()).toEqual(before)
+    expect(db.get('SELECT COUNT(*) AS n FROM extract_state', z.object({ n: z.number() }))).toEqual({
+      n: 1
+    })
   })
 })
 

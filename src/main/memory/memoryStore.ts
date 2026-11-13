@@ -125,8 +125,10 @@ export interface MemoryStore {
   ): { id: string; kind: MemoryItemKind; head: string; body: string }[]
   /** One transaction around `work`: the store's own methods called inside write into it.
    *  Listeners hear once, after the commit (always: `work` may write rows the store does not see,
-   *  such as commands); a throw rolls everything back, reports `write_failed` and throws
-   *  `STORE_WRITE_FAILED` (a refusal code passes through). */
+   *  such as commands). A throw that leaves `work` rolls everything back, reports `write_failed`
+   *  and throws `STORE_WRITE_FAILED` (a refusal code passes through). There is no savepoint:
+   *  `work` must not catch a store throw and carry on, since a caught throw keeps what that call
+   *  already wrote. */
   batch<T>(work: () => T): T
   removeByWorkspace(workspaceId: string): number
   /** How many items `sessionId` saved (its origin), global ones included. */
