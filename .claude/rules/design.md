@@ -105,7 +105,9 @@ var(--space-6))`, `.columns` `grid-template-rows: minmax(0, 1fr)` and its own `m
   it), the form's or pane's body (`.scrollBody`) the one `overflow-y: auto` (pinned by
   `ManageDialog.styles.test.ts`), with `[Delete] [Save]` under it. A too-tall form gets shortened.
   Any scroll region clips every side, so it needs `padding-left/right: var(--space-2)` +
-  `scroll-padding-block` or focus rings get cut.
+  `scroll-padding-block` or focus rings get cut. Every line in it keeps its height
+  (`.scrollBody > * { flex-shrink: 0 }`): a read-only value (`overflow: hidden`) otherwise
+  collapsed to nothing before the body began to scroll.
 - **A dialog's result is ONE toast** (spec 2026-10-26 dialog toasts), keyed `dialog:<testIdPrefix>`
   so a new result replaces the last: `setError(copy)` pushes the error toast,
   `showSuccess('Template saved.')` the success toast (called AFTER the `select` that follows the
@@ -155,6 +157,13 @@ variant="toolbar"` + magnifier, 32px like the board's) + the same `Filter` butto
   2026-11-11): its types come from `MEMORY_FILTER_FIELDS` (`MemoryDialog/memoryFilterMap.ts`:
   Folder, Session, Tag, Updated, Goal, Session deleted), folder / session / goal pick ONE value
   (`single`, radio rows that close: main filters by one), filters per page, never persisted.
+- Memory's pages: `Specifics` and `Facts` edit; an item a save kept with its quote has
+  `Open source` in its action row (the quote opens under the read-only lines). `Episodes` is written
+  by saves only: no `+ New`, no pin, a read-only form (`EpisodeForm`: `Title`, `Body`,
+  `[Mark stale]`, `[Past sessions]` while the session's record is listed, `Ended`; no `History`,
+  no `Save`; the footer is `Delete` only). `Commands` lists one workspace's commands that worked
+  (scope only: no `Include global`, no `Show stale`; the search alone in the rail; no `+ New`):
+  the right column shows the command in History's frame, `Folder`, `Last run` and `Delete`.
 - Three empty states, three sentences: nothing at all / nothing in this scope / no search matches.
 - `+ New` at rail bottom (`ManageDialog.ListBottom`, `margin-top: auto`).
 - Options pass a `WorkspaceLabel` as `display`: the OPEN list shows each name in its tint; the closed
@@ -405,6 +414,10 @@ yet, Needs you first, each `StatusDot` + name; the same link as the rail's `Link
 its title each live linked session is a ghost button (`StatusDot` + name, `title` `Open <name>`):
 a click closes the sheet, then opens the session (`openFromNotification`). A session that ended
 drops off the row; the task panel draws no such line.
+`TaskRow` (sheet and task panel) draws under its first line, the full row wide, `Check: <recipe>`
+when the task has a check and, while it is open, `Reported done by "<session>" <date>` with the
+evidence line under it. A report only FLAGS the task: the row is not drawn done and `Done` stays
+the operator's. A long session name is cut with `…`, never the date.
 
 - Rows: `Settings` (sliders), `Shortcuts` (keyboard), `Tags ›` (`Manage tags` /
   `Manage rules`), `Memory` (bookmark), `Sessions ›` (clock; `Active sessions` / `Past sessions` /
@@ -432,6 +445,9 @@ drops off the row; the task panel draws no such line.
 memory.` / `Kept in Memory, marked Session deleted.`) and a `Checkbox` `Also delete from memory`,
   unticked (owner, 2026-11-12); ticked, the detail reads `Deleted with the session. This cannot be
 undone.` The Sessions dialog's armed Delete does not offer the box.
+- A Past record's form shows how saving memory from it went (`Memory: <counts>`,
+  `Memory: nothing new`, `Memory: failed`, `Memory: saving…`, `Memory: off`) and, under it, the
+  title and body of the episode the session left (read from memory by id; nothing when it is gone).
 - **Sessions → Active** (spec 2026-10-03 D): the live sessions of a scope, Needs you → Working →
   Idle, oldest first; a `RowCheck` per row + `Select all` (indeterminate) for the bulk bar
   (`ListBottomDivided`: `N selected [Archive] [Delete]`), the row itself for the details
@@ -524,6 +540,15 @@ feedbackShown={copied !== null}`. `busy` = disabled + `aria-busy`; busy `Delete`
   never takes the view (success → registry only + toast with `Open`; failure → error toast).
 - **Archive/Delete wait for main:** view goes to board at once, registry only after main answers.
   Archive toasts `Archived "<name>"` with `Resume` (only once the record exists and with a bound id).
+- **A save from a session is a BOARD toast** (`lib/memoryToasts.ts`, on `memory:extract-result`):
+  `Memory saved from "<name>".` with the counts on its detail line
+  (`<n> saved to memory, <m> tasks`, a 0 part left out) and `Show` only when n > 0 (opens Memory
+  on that session; nothing while a modal is open); `Nothing new to remember from "<name>".`
+  (info); `Could not save memory from "<name>".` (error; `claude_version` adds
+  `Needs claude <version> or newer.`). The title stays short so only a long name is cut.
+- Settings → Memory: the `Memory` Switch; while it is on, `Memory checkpoint` (Select `Off` /
+  `10 turns` / `15 turns` / `25 turns`), `Save open work as tasks` (Switch) and `Memory model`
+  (Select `Haiku` / `Sonnet`), each with its hint; off, the three are not rendered.
 - Startup load failure = ONE toast naming every store (`Could not load templates, tags and rules.
 Reopen the app to try again.`); each dialog says `Could not load <x>.`
 

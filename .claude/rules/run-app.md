@@ -52,5 +52,8 @@ Helpers (`page` first, except hooks): `launchSession`, `needsYou(pickDir, id)`,
 - Escape doesn't close the workspace menu while focus is on its button — use
   `openSwitcher`/`closeSwitcher`.
 - `locator.boundingBox()` waits 30 s for a missing element — `count()` first.
-- Never `app.close()` (hangs ~120 s). `run` kills claudes + the Electron group, even on throw.
+- Never `app.close()` (hangs ~120 s). `run` kills claudes + the Electron group (SIGKILL), even on
+  throw and even after the scenario quit the app itself. A SIGKILL runs none of the app's quit
+  code (no archive, no memory quit), so a scenario that tests the quit calls
+  `app.evaluate(({ app }) => app.quit())` first.
 - CDP `deviceScaleFactor` doesn't reach screenshots — crop and upscale.

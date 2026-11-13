@@ -141,42 +141,91 @@ and offers **Resume conversation**, which replaces the dead pane with the resume
 
 ## Memory
 
-Sessions the app starts can keep things across sessions, in the app's own memory. It holds two
-kinds of item:
+Sessions the app starts can keep things across sessions, in the app's own memory. It holds:
 
 - **Specifics** — an exact value under a key: a port, a flag, an id, a command.
 - **Facts** — a title and a short text about how something works.
+- **Episodes** — what one session did, written when it ends.
+- **Commands** — the shell commands that worked in a session (one line, no secret).
 
 Claude saves and finds items with its own memory tools (search, read, browse, save, update, mark
 stale). It can never delete or pin an item; only you can. Every item keeps its date, where it
 came from (session, folder, tags) and its earlier versions, and a new session starts with a short
-index: your pinned items, then the specifics saved for its folder. Memory is a record of what was
-seen and when, so Claude gives the date with what it takes from it.
+index: your pinned items, then the open tasks, specifics and recent sessions of its folder.
+Memory is a record of what was seen and when, so Claude gives the date with what it takes from
+it.
 
-**☰ → Memory** lists the items of the workspace you are in (and the global ones): search, filter
-by folder, session, tag, date or goal, edit, pin, mark stale, see **History** and restore a
-version, or delete. An item is global or belongs to one workspace. The **Context** button of a
-session has a **Memory** page: what the session got at launch, what it read and what it saved.
+**Saving by itself.** The app also saves from a session on its own: every few turns while it runs
+(the checkpoint), when it ends (Archive, `/exit`, `/clear`), and at the next start for anything
+a quit or crash left owed. A session with fewer than two prompts is not saved. A model reads
+what is new in the session's transcript and proposes what to keep; the app keeps a value only
+when the quote it gives is found in the transcript, and drops the rest (Context → **Memory**
+lists what was dropped and why, while the session is on the board). Each end leaves a toast:
+**Memory saved from "…"** with what went to memory and how many tasks (**Show** opens Memory on
+that session), **Nothing new to remember**, or **Could not save memory**.
 
-Everything stays on your machine, in `claude-watcher-memory.db` in the app's data folder. Memory
-text is never written to a log, a notification or the local API.
+**Open work becomes tasks.** Work a session leaves open becomes a task in **Goals**, with how to
+check it (`Check:`). A later session sees the folder's open tasks and can report what it found;
+a task it reports done shows **Reported done by "…"** and stays open: only you close a task
+(**Done**).
+
+**☰ → Memory** lists the items of the workspace you are in (and the global ones) on four pages,
+**Specifics**, **Facts**, **Episodes** and **Commands**: search, filter by folder, session, tag,
+date or goal, edit, pin, mark stale, see **History** and restore a version, or delete. An item
+saved from a session has **Open source**, which shows the words it was taken from. An item is
+global or belongs to one workspace. Each record in **Past sessions** has a **Memory:** line (what
+was saved, `nothing new`, `failed`, `saving…` or `off`) and the session's episode under it. The
+**Context** button of a session has a **Memory** page: what the session got at launch, what it
+read, what it saved and what was dropped.
+
+What it costs: each save is a headless `claude -p` call (a long session can take a few) on your
+own Claude account and login, with the model you choose (**Sonnet** by default), each call capped
+at 1 USD by claude's `--max-budget-usd`. It sends parts of the
+session's transcript to Claude, as the session itself did; nothing else leaves the machine.
+Memory lives in `claude-watcher-memory.db` in the app's data folder. Memory text, transcript text
+and the model's answers are never written to a log, a notification or the local API.
 
 **Settings → Memory**:
 
-- **Memory** (on by default) — off means sessions start with no memory tools and no index.
-  Items already saved are kept. While it is on, three more choices show:
+- **Memory** (on by default) — off means sessions start with no memory tools and no index, and
+  nothing is saved from them. Items already saved are kept. While it is on, three more choices
+  show:
   - **Memory checkpoint** — saves from a running session every 10, 15 (the default) or 25
     turns, or **Off**: only when a session ends.
   - **Save open work as tasks** (on by default) — work a session leaves open becomes a task in
     Goals.
   - **Memory model** — **Haiku** or **Sonnet** (the default): the model that reads a session to
-    save from it, on your own Claude account.
+    save from it, on your own Claude account. Haiku uses less.
 - **Claude's auto memory** — Claude Code's own memory, in the sessions this app starts: **Off**,
   **On**, or **Claude decides** (the default: the app changes nothing, so your Claude settings
   apply). The two memories work side by side. A change applies to sessions started after it.
 
 Deleting a workspace deletes its memory items. Deleting a session keeps what it saved (see
 above).
+
+Known limits:
+
+- Saving needs claude 2.1.323 or newer; with an older claude nothing is lost, the save waits
+  until claude is updated.
+- Removing secrets before a save is best effort. It takes out secrets with a known shape or a
+  name in front of them: private key blocks (PEM, PGP), JWTs, `Bearer` and `Authorization`
+  values, known token prefixes (`sk-`, `sk_live_` / `sk_test_`, `ghp_`-style GitHub tokens,
+  `glpat-`, Slack `xox…-`, `npm_`, AWS `AKIA` / `ASIA` key ids, Google `AIza`), a value after a
+  name such as `password`, `secret`, `token` or `api_key` / `apiKey`, a password in a URL,
+  `curl -u user:pass`, and flags such as `--password V` / `--api-key V`. It misses a secret with
+  no name and no known shape (a bare long hex or base64 string, an AWS secret key on its own), a
+  short value, a token split over two lines, a password after a prefixed flag and a space
+  (`--db-password V`), a password quoted on its own after `-u user:`, `mysql -pPASS`, and token
+  kinds it has no pattern for. It also replaces some harmless text that looks like a secret.
+- A value written right before a dotted or hyphenated continuation (`1.2` in `1.2.34`) is
+  dropped on purpose: a cut version or address is worse than none.
+- A value inside the cut middle of a very long tool result is not saved.
+- A resumed turn you stop with Esc sends no turn end, so its text is saved only after a later
+  resume.
+- A conversation switched with `/resume` inside claude is saved at the next start.
+- A session larger than one read (32 MiB) is finished at the next start.
+- Switching Memory off while a session's save runs leaves `saving…` on its Past sessions record
+  until the next start.
 
 ## Session templates
 

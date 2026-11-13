@@ -64,7 +64,7 @@ exists) or **planned** (_to write_, lands with its migration step).
    `code=` where it was caught. A yes/no or match check whose throw is its answer (`statSync` on a
    folder that may not exist → `false`) has not failed. A drop with no log is allowed only on a
    list that only shrinks (`catchBlocks.guard.test.ts`, the quiet rows of `zod-boundaries.md` and
-   its transcript tail). A guard, or a test written for a fix, that stays green when the code it
+   its two transcript readers). A guard, or a test written for a fix, that stays green when the code it
    protects is broken is not a guard.
 7. **A leaving overlay is not there.** An overlay is a dialog, a popover (menus included) or a
    toast; in this rule, a dialog is any element with `role="dialog"` or `role="alertdialog"` (so the
@@ -479,10 +479,11 @@ Landed walks today:
   holds an empty arm, and `audio/attentionSound.ts` and `terminal/EmbeddedTerminal.tsx` each hold
   a comment-only one; its migration step gives the empty arm a `code=` log (or a comment and a
   list entry) and logs or lists the comment-only arms.
-  Quiet drops are also listed elsewhere: the quiet rows of `zod-boundaries.md` and the
-  transcript tail: `hooks/transcriptSignal.ts` drops a
-  line that fails `TranscriptEntrySchema` with no log, because the line holds the operator's
-  conversation. Each list only shrinks. Today nothing stops the `catchBlocks` list from growing,
+  Quiet drops are also listed elsewhere: the quiet rows of `zod-boundaries.md` and the two
+  transcript readers: the tail, `hooks/transcriptSignal.ts`, drops a line that fails
+  `TranscriptEntrySchema` with no log, and memory's reader, `memory/extract/transcriptReader.ts`,
+  drops a line that is not JSON or fails `TranscriptEntrySchema` with no log, both because the
+  line holds the operator's conversation. Each list only shrinks. Today nothing stops the `catchBlocks` list from growing,
   so the reviewer rejects a new entry. Planned: the guard pins its entry count. The pin sits in
   the same file as the list, so it is a review tripwire, not a block: a new entry must also raise
   the pin, and the reviewer rejects that.

@@ -67,6 +67,11 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   goal's folder only (`pickLaunchFolder`); a goal with none (made before folders were required)
   refuses with `goal_folder_missing` and never opens the picker. Daily tasks: the workspace's
   folder, else the picker.
+  Memory's saves add and update tasks too (`addTaskFromExtraction`, `updateTaskFromExtraction`;
+  under the session's goal when it has one in that workspace, else Daily tasks, with `check`, `leftWith`, `lastSeenAt`, `originSessionId` and `folder`, none of
+  them written to `GOALS.md`); a session's `task_report` sets `report` (`reportTask`), a flag the
+  Goals sheet shows. Neither ever closes a task: `Done` stays the operator's (or a linked
+  session's `mark_task_done`).
 - **A goal's folder and `GOALS.md` (spec 2026-10-29):** a new goal needs a folder (`goals:save-goal`
   without an id opens main's picker first; cancel → `folder_cancelled`, nothing created); a folder
   is never cleared. `Save to GOALS.md` (`goals:set-save-to-file`; on always rewrites): the exporter
@@ -126,8 +131,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   checks, launches one hidden session per row, then clears it (a refusal keeps it). A planner
   resumed (Past sessions, or the dead pane's Resume) has no goal launch and comes back without its
   tools (known limit); a dead-pane Reopen keeps it.
-- **Memory (spec 2026-11-11, phase 1):** every actual spawn (new, resume, Reopen) calls
-  `memorySpawnExtras` (`memory/memoryLaunch.ts`), all or nothing: with `settings.memoryEnabled`
+- **Memory (spec 2026-11-11 and its phase 2 addendum):** every actual spawn (new, resume,
+  Reopen) calls `memorySpawnExtras` (`memory/memoryLaunch.ts`), all or nothing: with `settings.memoryEnabled`
   (read at each spawn), the hook port ours (SEC-6) and the database open, the session gets its
   own bearer token, a `--mcp-config` file for `claude-watcher-memory`, the seven tools in
   `--allowedTools` (search, get, browse, save, update, mark stale, `task_report`: no delete, no
@@ -171,15 +176,63 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   a store change and an activity change both push: `memoryStartup.ts`) and the origin of the items the session
   saved, the commands it ran and its save state (`window/cardState.ts`; the items last, guarded:
   `code=memory_rebind_failed`); a removed card drops token, file and activity, never the items.
-  Saving from sessions (phase 2, `memory/extract/`, built by `appExtractor.ts`): the hooks add
-  save points, never a status transition (`window/memorySavePoints.ts`: `routeHookEnd`,
-  `runRemoval`): a launched session's `Stop` counts toward a checkpoint after its status is
-  shipped; its end runs once per card exit (archive, a pty exit after `/exit` included) and once
-  per `/clear` (the kept `SessionEnd` ends the OLD id before a hook of the new id adopts the card),
-  each while the card still holds the id; a delete forgets its save. `teardownAllSessions` stops
-  the extractor first, before the archive (a running call gets SIGKILL at once); the start catches
-  up what the last run owed, after the goals and past-sessions stores exist. A save's version
-  check reuses the launch path's `--version` answer (`createVersionReads`). A
+  Saving from sessions (`memory/extract/`, built by `appExtractor.ts`, wired in
+  `extractWiring.ts`): the hooks add save points, never a status transition
+  (`window/memorySavePoints.ts`: `routeHookEnd`, `runRemoval`). Checkpoint: a launched session's
+  Nth `Stop` since its last save point (`settings.memoryCheckpoint`, 0 = never), counted after its
+  status is shipped. End: once per card exit (archive, a pty exit after `/exit` included) and once
+  per `/clear`, each while the card still holds the id: the kept `SessionEnd` calls `ended(old)`
+  BEFORE the rebind moves the card (R34; a rebind that finds the old row still owed keeps it owed
+  for the next start and logs `memory_extract_end_missing`); a second end with nothing new makes
+  no job (`memory_extract_skipped reason=nothing_new`). Catch-up: the start saves every row the
+  last run owed, after the goals and past-sessions stores exist (`memory_catchup_not_ready`
+  otherwise). A checkpoint or an end needs Memory on, the database open and a live app-launched
+  card; an end or a catch-up with Memory off writes `off` on the record and closes the row (R2).
+  The transcript is found by its id (`locateTranscript`, D1), never by a hook's `transcript_path`,
+  read once per job from the row's byte offset (`transcriptReader.ts`, at most
+  `EXTRACT_LIMITS.readBytesPerJob`), cleaned (`sliceCleaner.ts`: no thinking, web, MCP and
+  subagent results without their text, secrets replaced, `secretScan.ts`) and cut into chunks; a job of fewer than
+  `EXTRACT_LIMITS.minPrompts` typed prompts makes no call (`reason=guard`). One call at a time for
+  the whole app, one job per session in a queue of `EXTRACT_LIMITS.queue` (a full queue refuses a
+  checkpoint, never an end: `memory_extract_queue_full`), at most `chunksPerJob` calls per job
+  (the rest waits for a later save point or the next start). The call (`headlessClaude.ts`,
+  `composeExtractCommand`; each flag probed on claude 2.1.323): `$SHELL -l -c` running
+  `claude -p` with `--model`, `--output-format json`, `--json-schema`, `--system-prompt`,
+  `--no-session-persistence`, `--setting-sources ''`, `--tools ''`, `--strict-mcp-config`,
+  `--disable-slash-commands` and `--max-budget-usd 1` (with these it fired no hook, wrote no
+  transcript and made no auto-memory folder), the slice on stdin (never argv), its own process group, cwd
+  `<userData>/memory-extract` (0700, made by `createExtractCall`), env = the sessions' base env
+  without every `CLAUDE_WATCHER_*` and `CLAUDECODE` (R18), plus `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`;
+  `timeoutMs` 120 s, then SIGTERM to the group and SIGKILL 5 s later; stdout capped at 1 MiB. Its
+  result passes `ClaudeResultSchema` then `ExtractOutputSchema`, else the call failed. A candidate
+  is kept only when its quote stands as whole words in the cleaned slice (a value next to a dotted
+  or hyphenated continuation is not whole, R15), holds no secret and is not an item the operator
+  wrote (D16); its basis is where the quote was found. A save never closes, pins or deletes: open
+  work becomes a task (`settings.memorySaveTasks`) and a session only flags one (`task_report`).
+  Three failed calls in a row give a chunk up (`memory_extract_gave_up`; the job ends `failed`).
+  Version: `MIN_EXTRACT_CLAUDE_VERSION` (2.1.323; an unreadable version runs). The gate reuses the
+  launch path's `--version` answer (`createVersionReads`, R37) and keeps an OK answer for the run;
+  a too-old claude never closes a session (its row stays owed, R30), its `failed` push goes out
+  once per run, and the extractor asks again only after 10 minutes (R31).
+  A result is pushed to every window on `memory:extract-result` (an end always, unless the guard
+  skipped it or the session has no name; a checkpoint or catch-up only when it failed), held in
+  main until the first window loaded (`ipc/extractResultPush.ts`, R38) and buffered by the
+  preload until the renderer listens (R39). Quit: `teardownAllSessions` calls `quitExtractor`
+  first, before the archive: the call in flight gets `killNow()` (SIGKILL to its group at once,
+  R17, never the 5 s grace) and nothing more starts; the next start catches up. Delete,
+  `Forget` and a dropped record cancel that session's job (`cancel()`) and delete its save row.
+  Logs (`[claude-watcher][memory]`, codes only): `memory_extract_started trigger=`,
+  `memory_extract_done trigger= saved= dropped=`, `memory_extract_failed reason=` (the call's
+  `spawn`/`timeout`/`exit`/`envelope`/`output`/`cancelled`, `claude_version`, `write` R21,
+  `internal` R32), `memory_extract_invalid path= issue=`, `memory_extract_gave_up`,
+  `memory_extract_no_transcript`, `memory_extract_skipped reason=off|guard|not_launched|nothing_new`,
+  `memory_extract_queue_full`, `memory_extract_end_missing`, `memory_extract_state_invalid count=`
+  (a bad save row is skipped, R33), `memory_candidates_dropped reason= count=`,
+  `memory_extract_cancelled`, `memory_extract_result_invalid` (the push), `memory_task_write_failed`,
+  `memory_extract_kill_failed signal=` (`headlessClaude.ts`). Known limits: a resumed turn
+  interrupted with Esc sends no `Stop`, so its text waits for a later resume's save; a `/resume`
+  inside claude is saved at the next start; when Memory is switched off during an end, the record
+  shows `saving…` until the next start; there is no job watchdog beyond the call's own time limit. A
   deleted session (Past sessions `Forget`, or a card's `Delete`) has its save forgotten and keeps
   its items and commands, marked
   `Session deleted` (`pastSessions.ts` `onRemove` → `markSessionsDeletedInMemory`), and so does a

@@ -1,7 +1,7 @@
 ---
 title: 'Ideas board'
 description: 'This file lists new Feature ideas, fixes and changes for the project. They are here because they havent been implemented yet. It also tracks their status. When an feature is implemented or rejected it is simply removed from the file. If an idea needs expanding or additional info, the item below should point to an external file to keep this one just a list'
-last_modified: 2026-11-12
+last_modified: 2026-11-13
 allowed_statuses: [pending_review, approved, in_progress]
 allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 ---
@@ -30,8 +30,11 @@ allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 - **Goals: a global setting for `mark_task_done`**: The operator chooses whether sessions may close their tasks on every launch. A global default (Settings) could preset that choice. Decide whether a per-launch choice still overrides it. `pending_review` `low_effort`
 - **A resumed planner keeps its tools**: A planner resumed from Past sessions or the dead pane comes back without its goal tools (it has no goal launch). Record the goal on the past-session record so a resume re-mints the token and config like a fresh planner. `pending_review` `medium_effort`
 - **Proposal version so Accept never checks a newer proposal**: Accept sends the task ids the operator saw; if the planner replaces its proposal meanwhile, Accept checks against the newer one. A proposal version or nonce on the view and on `goals:decide-proposal` would refuse the stale Accept. `pending_review` `low_effort`
-- **Memory phase 2 (extraction, open work as Goals tasks)**: Main extracts specifics, facts, episodes and commands from a session's transcript at set moments (checkpoints and the end, headless `claude -p`), with a quote check; open work becomes Goals tasks (`task_report`, the Goals sheet lines); feedback and catch-up; the settings `Memory checkpoint`, `Save open work as tasks` and `Memory model`. Spec: `docs/superpowers/specs/2026-11-11-memory-design.md` (Phases, §4, §6, §7). `pending_review` `large_effort`
 - **Memory phase 3 (recall through the bridge mod)**: A live system-prompt section, per-prompt recall, recall at use, and a `/remember` command, through the bridge mod. This ends the mod's "it never changes claude" rule. Spec: `docs/superpowers/specs/2026-11-11-memory-design.md` (Phases, §5). `pending_review` `large_effort`
+- **Default Memory model (Haiku or Sonnet)**: The default stays `Sonnet` (`DEFAULT_MEMORY_MODEL`). The build-time probe (claude 2.1.323, synthetic slices) measured Haiku at one twelfth to one eighteenth of Sonnet's cost (10 turns: $0.0026 vs $0.031; a 209,695-character slice: $0.021 vs $0.38) with 24 of 24 Haiku candidates passing the quote check (Sonnet 25 of 27), but slower (Haiku 11 to 20 s, Sonnet 6 to 8 s). Decide the default. `pending_review` `low_effort`
+- **Drops of an end-of-session save are not on Context**: Context → `Memory` lists what a save dropped only while the session's card is on the board (the record lives in RAM); an end's drops have nowhere to show once the card is gone. Decide where they show (Past sessions, Memory). `pending_review` `medium_effort`
+- **A value inside a cut part of a long tool result is not saved**: A tool result is cut to its first and last part before a save reads it, so a value in the cut middle is never saved. Decide whether a long result is read in more parts. `pending_review` `medium_effort`
+- **Tell the checkpoint count apart from turns a background task woke**: The `Memory checkpoint` counts every `Stop` of a session, including turns a background task's notification woke, so a checkpoint can come sooner than the operator's own turns suggest. Count only the operator's turns. `pending_review` `low_effort`
 - **Memory: export to a vault**: Write memory items out to a notes vault. Parked in the memory spec (`docs/superpowers/specs/2026-11-11-memory-design.md`, Out of scope). `pending_review` `medium_effort`
 - **Memory: consolidation ("dreaming")**: Merge and tidy items in the background, shown as a diff the operator accepts. Spec: `docs/superpowers/specs/2026-11-11-memory-design.md` (Out of scope). `pending_review` `high_effort`
 - **Memory: "may be done" flags from commits or file changes**: Flag an item or task as possibly done when the folder's commits or files change. Spec: `docs/superpowers/specs/2026-11-11-memory-design.md` (Out of scope). `pending_review` `medium_effort`
@@ -46,5 +49,11 @@ allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 ---
 
 ## Bugs
+
+- **An open Goals task row squeezes its title**: On the Goals sheet, a task row opened with `▾` squeezes its title to about one letter per line. `pending_review` `low_effort`
+- **Escape on an open Select in Settings closes Settings**: `Select.tsx` handles Escape only in the list's keydown; focus stays on the trigger, so Escape bubbles to the dialog frame and closes the whole Settings dialog instead of the list. `pending_review` `low_effort`
+- **A refused Delete stays armed, and the store-write toast's title is cut**: When the disk refuses a dialog Delete, its button stays armed (`Confirm delete`) until it loses focus, and the `store_write_failed` toast's title is cut with `…`. `pending_review` `low_effort`
+- **A `|` in a saved title shifts `memory_search` columns**: `memory_search` prints its rows as `|`-separated columns, so a `|` in a saved key or title shifts the columns of that row. `pending_review` `low_effort`
+- **No bidi isolation for stored text**: Names and saved text are drawn with no bidi isolation, so an RTL override character in a name can flip how the date beside it reads. `pending_review` `low_effort`
 
 ---

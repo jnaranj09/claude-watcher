@@ -1,8 +1,7 @@
 # CLAUDE.md
 
 claude-watcher: KDE-first Electron app that watches local `claude` sessions and embeds live
-terminals for them. v1 (Epics 0–5) done; Epic 6 replaced the external `c9watch` CLI with a native
-session engine (several dir/channel names keep the historical `c9watch` prefix).
+terminals. v1 (Epics 0–5) done; Epic 6 replaced the `c9watch` CLI with a native session engine.
 
 `IdeasBoard.md` tracks new work. Remove an item when done or discarded. Never implement an item
 right away: validate it systematically (bmad / superpowers), then implement it the same way.
@@ -88,10 +87,9 @@ Hooks own every status transition; identity is minted at launch (`--session-id`)
 every exit is archived or deleted with a reason; min claude version is checked at launch. Read
 `.claude/rules/session-engine.md` before touching hooks, pty, lifecycle, past sessions, `/clear`.
 
-- **Naming:** NEW code uses `claude-watcher` (files, stores, log prefixes like
-  `[claude-watcher][templates]`). Existing `c9watch` dirs/`CH.watch*`/`[c9watch]` logs/
-  `c9watch-settings.json` are a PENDING rename (needs a migration) — don't rename in passing.
-  `rg -w c9watch src/` must never show a CLI spawn.
+- **Naming:** NEW code uses `claude-watcher` (files, stores, `[claude-watcher][memory]` logs).
+  Existing `c9watch` dirs/`CH.watch*`/`[c9watch]` logs/`c9watch-settings.json` are a PENDING rename
+  (needs a migration) — don't rename in passing. `rg -w c9watch src/` must never show a CLI spawn.
 
 ## Goals (`src/main/goals/`; rules: `.claude/rules/session-engine.md`)
 
@@ -99,9 +97,11 @@ every exit is archived or deleted with a reason; min claude version is checked a
 
 ## Memory (`src/main/memory/`; rules: `.claude/rules/session-engine.md`)
 
-`claude-watcher-memory.db` (`node:sqlite`, imported by `memory/memoryDb.ts` only); items global
-or per workspace; MCP `/mcp/memory` (own tokens); the agent never deletes or pins; memory text
-is sensitive. claude's own auto memory: its own setting (`claudeAutoMemory`, `pty/spawnExtras.ts`).
+`claude-watcher-memory.db` (`node:sqlite`, imported by `memory/memoryDb.ts` only); items global or
+per workspace; MCP `/mcp/memory` (own tokens); the agent never deletes or pins. Saves from sessions
+(`memory/extract/`): a headless `claude -p` main starts (never in a hook, never node-pty); a value
+needs its quote in the transcript; a save never closes a task. Memory text, transcript text and
+model output are sensitive. claude's own auto memory: `claudeAutoMemory` (`pty/spawnExtras.ts`).
 
 ## Workspaces
 

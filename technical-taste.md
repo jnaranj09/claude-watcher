@@ -235,7 +235,9 @@ them:
 - **Supported interfaces over scraping.** Read hook payloads. Never parse terminal output, never
   type into the PTY for the operator, never write claude's own files. claude is the authority on
   its own state ("push once, then believe `session_title`"); what a session loaded comes from the
-  app's bridge mod inside it, not from a copy of claude's lookup rules.
+  app's bridge mod inside it, not from a copy of claude's lookup rules. Memory's saves read
+  claude's transcript file (found by session id; the same supported file the transcript tail
+  reads), never write it, and never decide a status from it.
 - **Zero footprint.** Never write into the operator's projects or global config. Never delete
   their entries without being asked. Hooks go through `--settings` and the bridge mod through
   `--plugin-dir`, both in the app's own data folder. One exception, started by the operator:
