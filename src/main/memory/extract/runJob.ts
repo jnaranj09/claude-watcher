@@ -1,8 +1,9 @@
 // One extraction job (addendum "Save points and the job"): find the transcript (D1), read it ONCE
 // from the row's offset, clean it, check the substance guard (D22), split it into chunks, and for
-// each chunk: the version gate (asked once per job, R7), the input, the call, the check and the
-// write. After the last chunk of an end or a catch-up: the row is `done`, the Past sessions record
-// says what the whole session saved, and an end pushes its result.
+// each chunk: the version gate (asked once per job, R7; a not-OK answer is kept 10 minutes, R31),
+// the input, the call, the check and the write. After the last chunk of an end or a catch-up: the
+// row is `done`, the Past sessions record says what the whole session saved (or `failed` when a
+// chunk was given up, R30), and an end pushes its result.
 //
 // The check and the write run in ONE synchronous step, with no await between them (R19): no
 // operator edit can land between them. Nothing throws out of `runJob`: one bad session never stops
@@ -42,16 +43,20 @@ export interface Job {
 export interface JobRun {
   deps: ExtractorDeps
   job: Job
-  /** A `claude_version` failure is pushed once per extractor. */
-  shared: { versionPushed: boolean }
+  /** Per extractor: a `claude_version` failure is pushed once; a not-OK version answer is kept
+   *  for EXTRACT_LIMITS.versionRecheckMs from `versionBadAt` (R31). */
+  shared: { versionPushed: boolean; versionBadAt: number | null }
 }
 
 type Mem = NonNullable<ReturnType<ExtractorDeps['memory']>>
-type FailReason = ExtractCallFailure | 'claude_version' | 'write'
+/** Every `memory_extract_failed reason=`: the call's own failures, a too-old claude, a write that
+ *  failed (R21) and any other step that threw or a transcript that could not be read (R32). */
+type FailReason = ExtractCallFailure | 'claude_version' | 'write' | 'internal'
 type Plan = { entries: CleanEntry[]; final: boolean; commands: string[]; end: number }
 type Scope = { items: ScopeItem[]; tasks: ScopeTask[]; tasksOn: boolean }
-/** `stop`: the job ends here (a failure under the limit, a cancel, a forgotten session). */
-type Step = { saved: number; dropped: number } | 'stop'
+/** `stop`: the job ends here (a failure under the limit, a cancel, a forgotten session).
+ *  `gaveUp`: the chunk was given up on its last failed call (D20). */
+type Step = { saved: number; dropped: number; gaveUp: boolean } | 'stop'
 
 const total = (c: MemoryCounts): number => c.specifics + c.facts + c.tasks + c.episodes
 
@@ -93,18 +98,49 @@ function finishDone(r: JobRun, mem: Mem): void {
   if (r.job.trigger === 'end') push(r, row, outcome, null)
 }
 
-/** The job stopped on a failure: an end or a catch-up sets the record `failed`, every trigger
- *  pushes it. A catch-up whose row has now failed `EXTRACT_LIMITS.attempts` times in a row is
- *  closed. An end's row stays `ending`: the next start catches it up. */
-function finishFailed(r: JobRun, mem: Mem, reason: 'claude_version' | null): void {
+/** The job failed: an end or a catch-up sets the record `failed`, every trigger pushes it. The
+ *  row stays as it is (an end's `ending`), so the next start catches it up; `close` (a chunk or a
+ *  session given up) sets it `done` first. */
+function finishFailed(r: JobRun, mem: Mem, reason: 'claude_version' | null, close = false): void {
+  if (close) mem.state.setPhase(r.job.id, 'done', r.deps.now())
   const row = mem.state.get(r.job.id)
   if (row === null) return
-  if (r.job.trigger !== 'checkpoint') {
-    if (r.job.trigger === 'catchup' && row.attempts >= EXTRACT_LIMITS.attempts)
-      mem.state.setPhase(row.sessionId, 'done', r.deps.now())
-    setRecord(r, row, 'failed')
-  }
+  if (r.job.trigger !== 'checkpoint') setRecord(r, row, 'failed')
   push(r, row, 'failed', reason)
+}
+
+/** R32: a step other than the write threw, or the transcript could not be read: a failed call
+ *  with reason `internal`. It counts an attempt; at `attempts` an end or a catch-up gives the
+ *  session up (row `done`), so it never repeats at every start. */
+function failInternal(r: JobRun): void {
+  const mem = r.deps.memory()
+  if (mem === null || mem.state.get(r.job.id) === null) return
+  const giveUp =
+    mem.state.failed(r.job.id, r.deps.now()) >= EXTRACT_LIMITS.attempts &&
+    r.job.trigger !== 'checkpoint'
+  if (giveUp) log(r, 'memory_extract_gave_up')
+  finishFailed(r, mem, null, giveUp)
+}
+
+/** R31: a too-old claude. Not an attempt, and the row stays owed (R30): once claude is updated,
+ *  the next catch-up saves it. */
+function failVersion(r: JobRun, mem: Mem): void {
+  log(r, 'memory_extract_failed reason=claude_version')
+  finishFailed(r, mem, 'claude_version')
+}
+
+/** R31: the version answer for this job. A not-OK answer is kept by the extractor for
+ *  EXTRACT_LIMITS.versionRecheckMs; meanwhile no job asks again. */
+function versionKnownBad(r: JobRun): boolean {
+  const at = r.shared.versionBadAt
+  return at !== null && r.deps.now() - at < EXTRACT_LIMITS.versionRecheckMs
+}
+
+function versionOk(r: JobRun): boolean {
+  if (versionKnownBad(r)) return false
+  const ok = r.deps.versionOk()
+  r.shared.versionBadAt = ok ? null : r.deps.now()
+  return ok
 }
 
 function noTranscript(r: JobRun, mem: Mem): void {
@@ -146,7 +182,7 @@ function failedCall(r: JobRun, mem: Mem, row: ExtractRow, plan: Plan, reason: Fa
     episodeId: null,
     at
   })
-  return { saved: 0, dropped: 0 }
+  return { saved: 0, dropped: 0, gaveUp: true }
 }
 
 /** Activity under the card's id, only while the card is on the board: an end's card is gone, and
@@ -227,7 +263,7 @@ function write(
   }
   logDrops(r, checked.dropped)
   recordActivity(r, row, out.saved, checked.dropped)
-  return { saved: total(out.added), dropped: checked.dropped.length }
+  return { saved: total(out.added), dropped: checked.dropped.length, gaveUp: false }
 }
 
 function scopeOf(r: JobRun, mem: Mem, row: ExtractRow): Scope {
@@ -326,9 +362,16 @@ async function run(r: JobRun): Promise<void> {
   const start = mem?.state.get(job.id) ?? null
   if (mem === null || start === null) return
   log(r, `memory_extract_started trigger=${job.trigger}`)
+  if (versionKnownBad(r)) {
+    failVersion(r, mem)
+    return
+  }
   const path = deps.locate(start.sessionId)
-  const slice =
-    path === null ? null : await deps.read(path, start.byteOffset, EXTRACT_LIMITS.readBytesPerJob)
+  if (path === null) {
+    noTranscript(r, mem)
+    return
+  }
+  const slice = await deps.read(path, start.byteOffset, EXTRACT_LIMITS.readBytesPerJob)
   if (job.cancelled) {
     cancelled(r)
     return
@@ -336,8 +379,11 @@ async function run(r: JobRun): Promise<void> {
   const live = deps.memory()
   const row = live?.state.get(job.id) ?? null
   if (live === null || row === null) return
-  if (path === null || slice === null) {
-    noTranscript(r, live)
+  if (slice === null) {
+    // The file is there but could not be read (or is shorter than the offset): an attempt, so a
+    // passing fs error costs one try and a file that stays unreadable is given up at 3 (R32).
+    log(r, 'memory_extract_failed reason=internal')
+    failInternal(r)
     return
   }
   const { entries, prompts } = cleanSlice(slice.lines, row.entryCount)
@@ -365,43 +411,52 @@ async function run(r: JobRun): Promise<void> {
   const final = ending && !slice.more
   const plans = plansOf(row, slice.lines, entries, { nextOffset: slice.nextOffset, final })
   let calls = 0
-  let versionOk: boolean | null = null
-  let saved = 0
-  let dropped = 0
+  let asked: boolean | null = null
+  const sum = { saved: 0, dropped: 0, gaveUp: false }
   for (const plan of plans) {
     if (!deps.enabled()) {
       log(r, 'memory_extract_skipped reason=off')
       return
     }
     if (calls >= EXTRACT_LIMITS.chunksPerJob) break
-    versionOk ??= deps.versionOk()
-    if (!versionOk) {
-      log(r, 'memory_extract_failed reason=claude_version')
-      live.state.failed(job.id, deps.now())
-      finishFailed(r, live, 'claude_version')
+    asked ??= versionOk(r)
+    if (!asked) {
+      failVersion(r, live)
       return
     }
     calls += 1
     const step = await runChunk(r, plan, path)
     if (step === 'stop') return
-    saved += step.saved
-    dropped += step.dropped
+    sum.saved += step.saved
+    sum.dropped += step.dropped
+    sum.gaveUp ||= step.gaveUp
   }
-  // R22 and the 12-call stop: what was written stays, the row stays as it is, nothing is pushed.
+  // R22 and the 12-call stop: what was written stays and the row stays owed.
   const stopped = slice.more || calls < plans.length
   const done = deps.memory()
-  if (ending && !stopped && done !== null) finishDone(r, done)
-  log(r, `memory_extract_done trigger=${job.trigger} saved=${saved} dropped=${dropped}`)
+  if (done !== null && sum.gaveUp) {
+    // R30: text was given up, so the save failed; never `nothing` / `saved`.
+    finishFailed(r, done, null, ending && !stopped)
+  } else if (done !== null && ending && !stopped) {
+    finishDone(r, done)
+  }
+  log(r, `memory_extract_done trigger=${job.trigger} saved=${sum.saved} dropped=${sum.dropped}`)
 }
 
-/** Runs one job to its end. Never throws, never rejects: a throw from any step (the database, a
- *  seam) is logged as a failed save and the extractor goes on with the next job. */
+/** Runs one job to its end. Never throws, never rejects: a throw from any step other than the
+ *  write (the database, a seam) is a failed call with reason `internal` (R32), and the extractor
+ *  goes on with the next job. */
 export async function runJob(r: JobRun): Promise<void> {
   try {
     await run(r)
   } catch {
-    // A step threw (most likely the memory database): the row is left as it was, so the next
-    // save point or start tries again. Logged as a code; the error's text is never read.
-    log(r, 'memory_extract_failed reason=write')
+    // The error's text is never read: it may quote the store's or a seam's input.
+    log(r, 'memory_extract_failed reason=internal')
+    try {
+      failInternal(r)
+    } catch {
+      // Counting the failure threw too (the database is gone): the row is left as it was.
+      log(r, 'memory_extract_failed reason=internal')
+    }
   }
 }

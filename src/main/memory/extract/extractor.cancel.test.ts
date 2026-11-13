@@ -291,7 +291,7 @@ describe('the queue', () => {
 })
 
 describe('never crash', () => {
-  it('a throw from one session never stops the extractor for the others', async () => {
+  it('a throw from one session is a failed call with reason internal, and the others still save', async () => {
     h.meta.set('s2', META)
     conversation('s1')
     conversation('s2', 'the db listens on port 5433')
@@ -304,13 +304,43 @@ describe('never crash', () => {
     h.ex.ended('s1')
     h.ex.ended('s2')
     await h.ex.idle()
-    expect(h.logs).toContain('[claude-watcher][memory] code=memory_extract_failed reason=write')
+    expect(h.logs).toContain('[claude-watcher][memory] code=memory_extract_failed reason=internal')
     expect(h.state.get('s1')?.phase).toBe('ending')
+    expect(h.state.get('s1')?.attempts).toBe(1)
+    expect(h.setMemory).toHaveBeenCalledWith('s1', {
+      state: 'failed',
+      ...NO_COUNTS,
+      episodeId: null
+    })
+    expect(h.pushed.map((p) => p.outcome)).toEqual(['failed', 'saved'])
     expect(h.state.get('s2')?.phase).toBe('done')
     expect(h.state.get('s2')?.counts.specifics).toBe(1)
   })
 
-  it('an unreadable transcript closes the end as failed and the next session still saves', async () => {
+  it('a step that always throws is given up at the third failure, not repeated at every start', async () => {
+    conversation('s1')
+    h.deps.locate = () => {
+      throw new Error('unreadable')
+    }
+    h.ex.ended('s1')
+    await h.ex.idle()
+    for (let i = 0; i < 3; i += 1) {
+      const start = h.restart()
+      start.catchUp()
+      await start.idle()
+    }
+    expect(h.state.get('s1')?.attempts).toBe(3)
+    expect(h.state.get('s1')?.phase).toBe('done')
+    expect(h.logs.filter((l) => l.endsWith('reason=internal'))).toHaveLength(3)
+    expect(h.logs).toContain('[claude-watcher][memory] code=memory_extract_gave_up')
+    expect(h.pushed.map((p) => [p.trigger, p.outcome])).toEqual([
+      ['end', 'failed'],
+      ['catchup', 'failed'],
+      ['catchup', 'failed']
+    ])
+  })
+
+  it('an unreadable transcript is a failed attempt, and the next session still saves', async () => {
     h.meta.set('s2', META)
     conversation('s1')
     conversation('s2', 'the db listens on port 5433')
@@ -320,12 +350,73 @@ describe('never crash', () => {
     h.ex.ended('s1')
     h.ex.ended('s2')
     await h.ex.idle()
-    expect(h.state.get('s1')?.phase).toBe('done')
+    expect(h.state.get('s1')?.phase).toBe('ending')
+    expect(h.state.get('s1')?.attempts).toBe(1)
     expect(h.setMemory).toHaveBeenCalledWith('s1', {
       state: 'failed',
       ...NO_COUNTS,
       episodeId: null
     })
     expect(h.state.get('s2')?.phase).toBe('done')
+  })
+
+  const METHODS: [string, (ex: Harness['ex']) => void][] = [
+    ['stop', (ex) => ex.stop('s1')],
+    ['ended', (ex) => ex.ended('s1')],
+    ['forget', (ex) => ex.forget('s1')],
+    ['forgetWorkspace', (ex) => ex.forgetWorkspace('w1')],
+    ['rebind', (ex) => ex.rebind('s1', 's9')],
+    ['catchUp', (ex) => ex.catchUp()]
+  ]
+
+  it.each(METHODS)(
+    '%s never throws when the database throws, and the queue still serves others',
+    async (_name, method) => {
+      conversation('s1')
+      stops(h, 's1', 3)
+      const memory = h.deps.memory
+      h.deps.memory = () => {
+        throw new Error('database gone')
+      }
+      expect(() => method(h.ex)).not.toThrow()
+      expect(h.logs).toContain(
+        '[claude-watcher][memory] code=memory_extract_failed reason=internal'
+      )
+      h.deps.memory = memory
+      h.meta.set('s2', META)
+      conversation('s2', 'the db listens on port 5433')
+      h.ex.ended('s2')
+      await h.ex.idle()
+      expect(h.state.get('s2')?.phase).toBe('done')
+    }
+  )
+
+  it.each([
+    [
+      'a session stamp',
+      (): void => {
+        h.deps.sessionMeta = () => {
+          throw new Error('board gone')
+        }
+      }
+    ],
+    [
+      'the record',
+      (): void => {
+        h.deps.pastSessions = () => ({
+          setMemory: () => {
+            throw new Error('record refused')
+          }
+        })
+      }
+    ]
+  ])('stop and ended never throw when %s throws', (_name, breakIt) => {
+    conversation('s1')
+    breakIt()
+    expect(() => {
+      h.ex.stop('s1')
+      h.ex.ended('s1')
+    }).not.toThrow()
+    expect(h.logs).toContain('[claude-watcher][memory] code=memory_extract_failed reason=internal')
   })
 })

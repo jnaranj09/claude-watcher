@@ -26,7 +26,7 @@ import type { MemoryStore } from '../memoryStore'
 import type { MemorySessionMeta } from '../memoryTools'
 import type { ExtractRow, ExtractState } from './extractState'
 import type { ExtractCall } from './headlessClaude'
-import { runJob, type Job } from './runJob'
+import { runJob, type Job, type JobRun } from './runJob'
 import type { TranscriptSlice } from './transcriptReader'
 
 export type ExtractTrigger = (typeof MEMORY_EXTRACT_TRIGGERS)[number]
@@ -64,12 +64,16 @@ export interface Extractor {
   /** A `Stop` of a launched session: counts it; at the Nth since its last save point, a checkpoint. */
   stop(sessionId: string): void
   /** The card left with reason `archive`, or `/clear` ended this id: an end. Called while the
-   *  card still holds this id (before `rebind`), since it reads the card's stamp. */
+   *  card still holds this id (before `rebind`), since it reads the card's stamp. An end with
+   *  nothing new since the last one of this id (its row `done`, no `Stop` since), or with an end
+   *  already queued or running, makes no job (R34). */
   ended(sessionId: string): void
   /** Card Delete, `Forget`, a dropped record: cancel its job, delete its rows. */
   forget(sessionId: string): void
   forgetWorkspace(workspaceId: string): void
-  /** `/clear`: the card's id changed. Rows, queued jobs and a running job follow. */
+  /** `/clear`: the card's id changed. Rows, queued jobs and a running job follow. Call it after
+   *  `ended(oldId)`; called first, the old transcript's row is kept owed for the next start
+   *  (`code=memory_extract_end_missing`). */
   rebind(oldId: string, newId: string): void
   /** App start: a catch-up for every pending row; with Memory off, each is closed as `off` (D24). */
   catchUp(): void
@@ -111,7 +115,7 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
   let quitting = false
   /** `Stop`s since the last save point, by card id. */
   const stops = new Map<string, number>()
-  const shared = { versionPushed: false }
+  const shared: JobRun['shared'] = { versionPushed: false, versionBadAt: null }
   let waiters: (() => void)[] = []
 
   const log = (code: string): void => deps.log(`${LOG_PREFIX} code=${code}`)
@@ -121,9 +125,16 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
     try {
       work()
     } catch {
-      // Most likely the memory database refused a read or a write; logged as a code only.
-      log('memory_extract_failed reason=write')
+      // Most likely the memory database refused a read or a write (R32); the error's text is
+      // never read.
+      log('memory_extract_failed reason=internal')
     }
+  }
+
+  /** An end of this transcript is queued or running. */
+  function endOwed(id: string): boolean {
+    const job = running?.id === id ? running : queue.find((j) => j.id === id)
+    return job !== undefined && job.trigger === 'end'
   }
 
   function settleIdle(): void {
@@ -228,6 +239,12 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
           mem?.state.setPhase(sessionId, 'done', deps.now())
           return
         }
+        // R34: a row closed by the last end, with no `Stop` since (a `Stop` makes it `live`
+        // again), has nothing new to read; an end already owed needs no second one.
+        if (deps.memory()?.state.get(sessionId)?.phase === 'done' || endOwed(sessionId)) {
+          log('memory_extract_skipped reason=nothing_new')
+          return
+        }
         const row = tracked(sessionId, 'ending')
         if (row === null) return
         // Before the job is queued: a job that ends at once (no transcript) sets its own record.
@@ -258,7 +275,16 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
         const count = stops.get(oldId)
         stops.delete(oldId)
         if (count !== undefined) stops.set(newId, count)
-        deps.memory()?.state.rebindOrigin(oldId, newId)
+        const mem = deps.memory()
+        if (mem === null) return
+        mem.state.rebindOrigin(oldId, newId)
+        // `ended(old)` must come first. When it did not, the old transcript's row is still `live`:
+        // it is kept owed (`ending`, under the card's new id) for the next start's catch-up, and
+        // the wrong order is logged.
+        if (mem.state.get(oldId)?.phase === 'live' && !endOwed(oldId)) {
+          log('memory_extract_end_missing')
+          mem.state.setPhase(oldId, 'ending', deps.now())
+        }
       }),
 
     catchUp: () =>

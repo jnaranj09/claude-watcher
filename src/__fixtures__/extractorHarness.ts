@@ -133,7 +133,7 @@ export function createHarness(): Harness {
     log: (line) => logs.push(line)
   })
   const commands = createMemoryCommands({ db, newId: () => `c${++ids}` })
-  const state = createExtractState({ db })
+  const state = createExtractState({ db, log: (line) => logs.push(line) })
   const goals = createGoalsStore({ newId: () => `g${++ids}`, now, log: () => undefined })
   const activity = createMemoryActivity(() => undefined)
   const set: Harness['set'] = {

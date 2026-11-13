@@ -32,6 +32,8 @@ export const EXTRACT_LIMITS = {
   budgetUsd: 1,
   /** Failed calls in a row that give a chunk up. */
   attempts: 3,
+  /** How long the extractor keeps a "claude too old" answer before it asks again (R31). */
+  versionRecheckMs: 600_000,
   queue: 50,
   commandsPerWorkspace: 2000,
   tasksInIndex: 20,

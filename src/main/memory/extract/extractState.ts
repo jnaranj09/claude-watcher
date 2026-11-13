@@ -3,7 +3,8 @@
 // card's id now (`origin_session_id`, follows `/clear`), the offsets read so far, the progress
 // notes, the phase and what was saved. No method opens its own transaction: a save calls them
 // inside `store.batch`, so the row and the items it wrote commit together. Notes are SENSITIVE
-// like memory text: nothing here logs. Every row goes through Zod, its JSON columns included.
+// like memory text: the one log line (`pending`) carries a code and a count only. Every row goes
+// through Zod, its JSON columns included.
 import { z } from 'zod'
 import {
   MemoryCountsSchema,
@@ -64,7 +65,9 @@ export interface ExtractState {
   /** A session with no row (one that ran with Memory off was never tracked): nothing, no throw,
    *  no row made. `advance` and `failed` on such a session throw `extract_state_not_found`. */
   setPhase(sessionId: string, phase: ExtractPhase, at: number): void
-  /** Rows in phase 'live' or 'ending', oldest `updated_at` first. */
+  /** Rows in phase 'live' or 'ending', oldest `updated_at` first. A row that fails its schema is
+   *  skipped (R33: one bad row must not stop every save), with one
+   *  `code=memory_extract_state_invalid count=<n>` line; it stays on disk. */
   pending(): ExtractRow[]
   /** Rows whose `session_id` OR `origin_session_id` is `sessionId`; returns their `session_id`s. */
   remove(sessionId: string): string[]
@@ -124,8 +127,12 @@ function sum(a: MemoryCounts, b: MemoryCounts): MemoryCounts {
   }
 }
 
-export function createExtractState(deps: { db: MemoryDb }): ExtractState {
+export function createExtractState(deps: {
+  db: MemoryDb
+  log?: (line: string) => void
+}): ExtractState {
   const { db } = deps
+  const log = deps.log ?? ((line: string): void => console.warn(line))
 
   function find(sessionId: string): ExtractRow | null {
     return db.get(`SELECT ${COLUMNS} FROM extract_state WHERE session_id = ?`, StateRow, [
@@ -210,12 +217,23 @@ export function createExtractState(deps: { db: MemoryDb }): ExtractState {
       ])
     },
 
-    pending: () =>
-      db.all(
+    pending: () => {
+      const rows: ExtractRow[] = []
+      let invalid = 0
+      for (const raw of db.all(
         `SELECT ${COLUMNS} FROM extract_state WHERE phase IN ('live', 'ending')
          ORDER BY updated_at, session_id`,
-        StateRow
-      ),
+        z.unknown()
+      )) {
+        const parsed = StateRow.safeParse(raw)
+        if (parsed.success) rows.push(parsed.data)
+        else invalid += 1
+      }
+      // Never the row's text (its notes are sensitive), only how many were skipped.
+      if (invalid > 0)
+        log(`[claude-watcher][memory] code=memory_extract_state_invalid count=${invalid}`)
+      return rows
+    },
 
     remove: (sessionId) =>
       removeWhere('session_id = ? OR origin_session_id = ?', [sessionId, sessionId]),

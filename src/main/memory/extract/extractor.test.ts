@@ -440,20 +440,33 @@ describe('the queue and failures', () => {
     expect(h.versionOk).toHaveBeenCalledTimes(1)
   })
 
-  it('a catch-up that failed on a too-old claude three times is closed', async () => {
+  it('a too-old claude keeps the sessions owed, and once claude is updated the next start saves them', async () => {
     h.set.version = false
-    firstPart()
-    stops(h, 's1', 3)
-    for (let i = 0; i < 3; i += 1) {
+    h.meta.set('s2', META)
+    firstPart('s1')
+    firstPart('s2')
+    h.ex.ended('s1')
+    h.ex.ended('s2')
+    await h.ex.idle()
+    for (let i = 0; i < 2; i += 1) {
       const start = h.restart()
       start.catchUp()
       await start.idle()
     }
-    expect(h.state.get('s1')?.attempts).toBe(3)
-    expect(h.state.get('s1')?.phase).toBe('done')
-    expect(h.setMemory).toHaveBeenLastCalledWith('s1', {
-      state: 'failed',
+    expect(h.calls).toHaveLength(0)
+    expect(h.state.get('s1')?.attempts).toBe(0)
+    expect(h.state.pending().map((r) => r.sessionId)).toEqual(['s1', 's2'])
+    h.set.version = true
+    h.answers.push(answer([API]), answer([]))
+    const updated = h.restart()
+    updated.catchUp()
+    await updated.idle()
+    expect(h.calls).toHaveLength(2)
+    expect(h.state.pending()).toEqual([])
+    expect(h.setMemory).toHaveBeenCalledWith('s1', {
+      state: 'saved',
       ...NO_COUNTS,
+      specifics: 1,
       episodeId: null
     })
   })
@@ -528,6 +541,7 @@ describe('catch-up and resume', () => {
     await h.ex.idle()
     const episodeId = h.state.get('s1')?.episodeId ?? ''
     h.write('s1', prompt('one more change to the api'), said('changed the api again'))
+    h.ex.stop('s1')
     h.answers.push(
       answer([episode('api changed twice', 'The api changed again.', 'changed the api again')])
     )

@@ -191,6 +191,19 @@ describe('phases', () => {
     expect(state.get('s3')).toMatchObject({ phase: 'done', updatedAt: NOW + 4 })
     expect(state.pending().map((r) => r.sessionId)).toEqual(['s2', 's1'])
   })
+
+  it('pending skips a row that fails its schema and logs a count, never its text', () => {
+    const lines: string[] = []
+    state = createExtractState({ db, log: (line) => lines.push(line) })
+    track('s1', { at: NOW + 1 })
+    track('s2', { at: NOW + 2 })
+    track('s3', { at: NOW + 3 })
+    db.run(`UPDATE extract_state SET notes = '["secret note", 7]' WHERE session_id = 's1'`)
+    db.run(`UPDATE extract_state SET counts = '{"specifics":-1}' WHERE session_id = 's3'`)
+    expect(state.pending().map((r) => r.sessionId)).toEqual(['s2'])
+    expect(lines).toEqual(['[claude-watcher][memory] code=memory_extract_state_invalid count=2'])
+    expect(() => state.get('s1')).toThrow('memory_db_row_invalid')
+  })
 })
 
 describe('remove and rebind', () => {
