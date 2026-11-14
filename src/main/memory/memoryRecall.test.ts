@@ -15,6 +15,7 @@ import {
   type MemoryStore
 } from './memoryStore'
 import type { MemorySessionMeta } from './memoryTools'
+import { WINDOW_MAX, nextWindow } from '../../mod/watcher-memory/hooks/protocol'
 
 const NOW = 1_762_800_000_000
 const DAY = formatDay(NOW)
@@ -221,6 +222,18 @@ describe('a resumed conversation', () => {
       ok: true,
       text: ''
     })
+  })
+
+  it('once another window came, a window 0 again (the mod’s count wrapped) records its index', () => {
+    const here = add(specific('api base', 'https://api.acme.test'), { folder: '/work/app' })
+    recall.launched('s1', { excludeTaskIds: [], resume: true })
+    recall.index(grant, { version: 1, window: 0 })
+    recall.index(grant, { version: 1, window: WINDOW_MAX })
+    recall.index(grant, { version: 1, window: nextWindow(WINDOW_MAX) })
+    expect(injected).toEqual([
+      ['s1', { chars: expect.any(Number), itemIds: [here.id] }],
+      ['s1', { chars: expect.any(Number), itemIds: [here.id] }]
+    ])
   })
 
   it('a launch that is not a resume records its index', () => {

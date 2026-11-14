@@ -171,6 +171,12 @@ function replace(bridge: MemoryBridge, next: MemoryItem): MemoryItem {
   return next
 }
 
+/** Main's rule for "the items this session saved" (`memoryStore.ts`, P3-C29): an item the
+ *  operator wrote keeps its session id but is not the session's. */
+function savedBy(item: MemoryItem, sessionId: string): boolean {
+  return item.origin.sessionId === sessionId && item.origin.by !== 'operator'
+}
+
 /** Installs the stand-in as `window.memory` and returns it. */
 export function installMemoryBridge(
   items: MemoryItem[],
@@ -240,10 +246,10 @@ export function installMemoryBridge(
     restore: vi.fn((id: string) => withItem(bridge, id, (item) => item)),
     activity: vi.fn(() => Promise.reject(new Error('not used'))),
     sessionCount: vi.fn((sessionId: string) =>
-      Promise.resolve(bridge.items.filter((i) => i.origin.sessionId === sessionId).length)
+      Promise.resolve(bridge.items.filter((i) => savedBy(i, sessionId)).length)
     ),
     removeSession: vi.fn((sessionId: string) => {
-      const kept = bridge.items.filter((i) => i.origin.sessionId !== sessionId)
+      const kept = bridge.items.filter((i) => !savedBy(i, sessionId))
       const removed = bridge.items.length - kept.length
       bridge.items = kept
       return Promise.resolve(removed)

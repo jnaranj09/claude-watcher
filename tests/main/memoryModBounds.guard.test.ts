@@ -6,9 +6,10 @@
 // `nodeModFs.listFiles`, and its own rule, `ships`: the whole folder, every depth, but `*.test.ts`;
 // `electron-builder.yml` ships the same set, `modPackaging.guard.test.ts`). Every shipped `.ts`
 // file is read through the TypeScript AST (a comment is never counted). The only other shipped
-// files allowed are the two data files `.claude-plugin/plugin.json` and `hooks/hooks.json`; any
-// other shipped file (`.js`, `.mjs`, another `.json`, a file with no extension) fails the guard,
-// since it would ship unread. In every `.ts` file:
+// files allowed are the two data files `.claude-plugin/plugin.json` and `hooks/hooks.json`, each
+// parsed and pinned to its exact content (so no command hook, `mcpServers` or `hooks` key comes in
+// unseen); any other shipped file (`.js`, `.mjs`, another `.json`, a file with no extension) fails
+// the guard, since it would ship unread. In every `.ts` file:
 // every hook handed to `on(…)` or its `.catch(…)` is written inline there; the engine object is
 // `$` (or an unread `_$`) as such a hook's first parameter, used only through the allow-listed
 // calls below, never aliased, indexed, destructured, renamed, stored or returned; it is handed
@@ -35,8 +36,22 @@ import { CONFIG_ENV, REMEMBER_COMMAND } from '../../src/mod/watcher-memory/hooks
 import { SRC, parseSource } from './sourceScan'
 
 const MOD_ROOT = join(SRC, 'mod/watcher-memory')
-/** The shipped files that hold no code: allowed unscanned, by path. */
+/** The shipped files that hold no code: not scanned as code, but each pinned to its exact
+ *  content below (`DATA_CONTENT`). */
 const DATA_FILES = ['.claude-plugin/plugin.json', 'hooks/hooks.json']
+
+/** Each data file's whole content, parsed: the engine loads `register.ts` and nothing else (no
+ *  command hook, no other hook type), and the manifest declares no MCP server, hook or command. */
+const DATA_CONTENT: Record<string, unknown> = {
+  '.claude-plugin/plugin.json': {
+    name: 'watcher-memory',
+    version: '1.0.0',
+    description:
+      "Gives a session Claude Watcher's memory while it runs: an index, items that match a prompt, keys saved for a folder, and /remember.",
+    author: { name: 'Claude Watcher' }
+  },
+  'hooks/hooks.json': { modules: ['./register.ts'] }
+}
 
 /** The engine calls the mod may make: nothing else on `$`. */
 const ALLOWED_CALLS = new Set([
@@ -338,7 +353,8 @@ async function readMod(root: string): Promise<ModRead> {
 const real = readMod(MOD_ROOT)
 const realBounds = async (): Promise<Bounds> => (await real).bounds
 
-/** A clean mod: the real data files and one registration that passes every rule. */
+/** A clean mod: the two data files (the real `hooks.json`, a stub manifest) and one registration
+ *  that passes every rule. */
 const CLEAN_MOD: Record<string, string> = {
   '.claude-plugin/plugin.json': '{ "name": "probe" }',
   'hooks/hooks.json': '{ "modules": ["./register.ts"] }',
@@ -628,7 +644,7 @@ describe('the memory mod’s bounds', () => {
     })
   })
 
-  it('every file the installer ships from the memory mod folder is read, and holds no violation', async () => {
+  it('every file the installer ships from the memory mod folder is read (its code scanned, its two data files pinned), and holds no violation', async () => {
     const { files, unread, bounds } = await real
     expect({ files, unread, violations: bounds.violations }).toEqual({
       files: [
@@ -640,6 +656,11 @@ describe('the memory mod’s bounds', () => {
       unread: [],
       violations: []
     })
+  })
+
+  it.each(DATA_FILES)('the shipped data file %s holds exactly its pinned content', (rel) => {
+    const parsed: unknown = JSON.parse(readFileSync(join(MOD_ROOT, rel), 'utf8'))
+    expect(parsed).toStrictEqual(DATA_CONTENT[rel])
   })
 
   it('the memory mod hooks only its seven events', async () => {
