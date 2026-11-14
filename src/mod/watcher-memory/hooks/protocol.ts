@@ -41,8 +41,10 @@ export const REMEMBER_COMMAND = {
 
 /** main's longest origin (its schema's max); a longer one is cut, so it is never an operator's. */
 const ORIGIN_CHARS = 64
-/** main's longest folder in an at-use body. */
-const FOLDER_CHARS = 4096
+/** main's longest folder in an at-use body (`ModMemoryAtUseSchema`). */
+export const FOLDER_CHARS = 4096
+/** The only host main listens on (main's HOST). */
+const LOOPBACK = 'http://127.0.0.1:'
 
 export interface Link {
   base: string
@@ -74,7 +76,28 @@ function cut(text: string, max: number): string {
   return text.slice(0, code >= 0xd800 && code <= 0xdbff ? max - 1 : max)
 }
 
-/** The session's `--mcp-config` file → where to POST and the header; undefined for any other text. */
+/** The base of `url` when it is exactly `http://127.0.0.1:<port>` + MCP_PATH, port 1–65535 with
+ *  no leading zero; undefined for anything else (another scheme or host, user-info, a query, a
+ *  fragment, another path). Parsed by hand: the engine's globals are not declared to the mod. */
+function loopbackBase(url: string): string | undefined {
+  if (!url.startsWith(LOOPBACK) || !url.endsWith(MCP_PATH)) return undefined
+  const port = url.slice(LOOPBACK.length, url.length - MCP_PATH.length)
+  if (!/^[1-9][0-9]{0,4}$/.test(port) || Number(port) > 65535) return undefined
+  return `${LOOPBACK}${port}`
+}
+
+/** A C0 or C1 control character, or DEL: a header that holds one could forge another header. */
+function hasControl(text: string): boolean {
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i)
+    if (code < 0x20 || (code >= 0x7f && code <= 0x9f)) return true
+  }
+  return false
+}
+
+/** The session's `--mcp-config` file → where to POST and the header; undefined for any other
+ *  text. Only main's own loopback link and a token with no control character pass (P3-C21): the
+ *  mod never sends prompt text to another host. */
 export function parseConfig(text: string): Link | undefined {
   const file = json(text)
   if (!isRecord(file) || !isRecord(file.mcpServers)) return undefined
@@ -85,10 +108,9 @@ export function parseConfig(text: string): Link | undefined {
   if (typeof url !== 'string' || typeof authorization !== 'string' || authorization === '') {
     return undefined
   }
-  if (!url.endsWith(MCP_PATH)) return undefined
-  const base = url.slice(0, -MCP_PATH.length)
-  if (!/^https?:\/\/[^/]+$/.test(base)) return undefined
-  return { base, authorization }
+  if (hasControl(authorization)) return undefined
+  const base = loopbackBase(url)
+  return base === undefined ? undefined : { base, authorization }
 }
 
 /** main's largest window (its WindowSchema max). */

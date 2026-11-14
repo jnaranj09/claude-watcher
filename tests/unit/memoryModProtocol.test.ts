@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest'
 import {
   CONFIG_ENV,
   FILE_TOOLS,
+  FOLDER_CHARS,
   PAUSE_MS,
   REMEMBER_COMMAND,
   SECTION_ID,
@@ -89,6 +90,81 @@ describe('the memory mod protocol', () => {
     ])
   })
 
+  it('parseConfig takes only main’s own loopback link, never another host, scheme, port or path (P3-C21)', () => {
+    const at = (url: string): string =>
+      JSON.stringify({
+        mcpServers: {
+          'claude-watcher-memory': { url, headers: { Authorization: 'Bearer abc' } }
+        }
+      })
+    expect(
+      [
+        'http://127.0.0.1@evil.example/mcp/memory',
+        'https://127.0.0.1:9279/mcp/memory',
+        'http://localhost:9279/mcp/memory',
+        'http://[::1]:9279/mcp/memory',
+        'http://127.0.0.1.evil.example:9279/mcp/memory',
+        'http://127.0.0.1:99999/mcp/memory',
+        'http://127.0.0.1:65536/mcp/memory',
+        'http://127.0.0.1:0/mcp/memory',
+        'http://127.0.0.1:09279/mcp/memory',
+        'http://127.0.0.1/mcp/memory',
+        'http://127.0.0.1:/mcp/memory',
+        'http://127.0.0.1:9279?x/mcp/memory',
+        'http://127.0.0.1:9279#x/mcp/memory',
+        'http://user@127.0.0.1:9279/mcp/memory',
+        'http://127.0.0.1:9279/mcp/goals',
+        'http://127.0.0.1:9279/x/mcp/memory',
+        'http://127.0.0.1:9279/mcp/memory?x',
+        'HTTP://127.0.0.1:9279/mcp/memory',
+        ' http://127.0.0.1:9279/mcp/memory'
+      ]
+        .map(at)
+        .map(parseConfig)
+    ).toEqual(Array.from({ length: 19 }, () => undefined))
+  })
+
+  it('parseConfig takes the lowest and the highest port', () => {
+    const at = (url: string): string =>
+      JSON.stringify({
+        mcpServers: {
+          'claude-watcher-memory': { url, headers: { Authorization: 'Bearer abc' } }
+        }
+      })
+    expect(
+      ['http://127.0.0.1:1/mcp/memory', 'http://127.0.0.1:65535/mcp/memory']
+        .map(at)
+        .map(parseConfig)
+    ).toEqual([
+      { base: 'http://127.0.0.1:1', authorization: 'Bearer abc' },
+      { base: 'http://127.0.0.1:65535', authorization: 'Bearer abc' }
+    ])
+  })
+
+  it('parseConfig refuses a token that holds a control character (P3-C21)', () => {
+    const token = (authorization: string): string =>
+      JSON.stringify({
+        mcpServers: {
+          'claude-watcher-memory': {
+            url: 'http://127.0.0.1:9279/mcp/memory',
+            headers: { Authorization: authorization }
+          }
+        }
+      })
+    expect(
+      [
+        'Bearer a\r\nX-Evil: 1',
+        'Bearer a\u0000',
+        'Bearer a\n',
+        'Bearer\ta',
+        'Bearer a\u007f',
+        'Bearer a\u0085'
+      ]
+        .map(token)
+        .map(parseConfig)
+    ).toEqual([undefined, undefined, undefined, undefined, undefined, undefined])
+  })
+
   it('recallBody cuts the prompt to 2,000 characters and sends nothing for a blank one', () => {
     expect(JSON.parse(recallBody(2, 'composer', 'x'.repeat(100_000)) ?? '{}')).toEqual({
       version: 1,
@@ -168,6 +244,30 @@ describe('the memory mod protocol', () => {
     expect(
       foldersFor('/work/app/x.ts', ['', 'work/app', '/work/app', '/work/app'], new Set())
     ).toEqual(['/work/app'])
+  })
+
+  it('foldersFor matches nothing for a path that is not absolute, even under /', () => {
+    expect([foldersFor('', ['/'], new Set()), foldersFor('/work/x.ts', ['/'], new Set())]).toEqual([
+      [],
+      ['/']
+    ])
+  })
+
+  it('foldersFor never names a folder longer than main takes', () => {
+    const tooLong = `/w/${'a'.repeat(FOLDER_CHARS - 2)}`
+    expect([tooLong.length, foldersFor(`${tooLong}/x.ts`, [tooLong, '/w'], new Set())]).toEqual([
+      4097,
+      ['/w']
+    ])
+  })
+
+  it('the readers refuse an answer that is not ok, whatever else it holds', () => {
+    expect([
+      readTextAnswer('{"ok":false,"text":"B"}'),
+      readIndexAnswer('{"ok":false,"text":"I","folders":["/work/app"]}'),
+      readRememberAnswer('{"ok":"false","code":"remember_secret"}'),
+      readRememberAnswer('{"ok":"true","kind":"fact","id":"m1"}')
+    ]).toEqual([undefined, undefined, undefined, undefined])
   })
 
   it('the text reader gives a block only for an ok answer with text', () => {

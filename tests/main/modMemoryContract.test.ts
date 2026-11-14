@@ -10,16 +10,19 @@ import { join } from 'node:path'
 import { OPERATOR_ORIGINS } from '../../src/main/c9watch/reducer'
 import { writeMcpConfig } from '../../src/main/goals/mcp/mcpConfigFile'
 import {
+  HOST,
   MEMORY_MCP_PATH,
   MEMORY_MCP_URL,
   MOD_MEMORY_PATHS
 } from '../../src/main/hooks/hookContract'
+import { formatDay } from '../../src/main/memory/formatDay'
 import { openMemoryDb } from '../../src/main/memory/memoryDb'
 import { createMemoryGate } from '../../src/main/memory/memoryGate'
-import { createMemoryRecall } from '../../src/main/memory/memoryRecall'
+import { createMemoryRecall, type MemoryRecall } from '../../src/main/memory/memoryRecall'
 import { createMemoryStore, type MemoryStore } from '../../src/main/memory/memoryStore'
 import { MEMORY_MCP_SERVER_NAME, type MemorySessionMeta } from '../../src/main/memory/memoryTools'
 import { MEMORY_BLOCK_MARKER } from '../../src/main/memory/promptText'
+import { DEFAULT_PROFILE, DEV_PROFILE, DRIVE_PROFILE, E2E_PROFILE } from '../../src/main/profile'
 import { MEMORY_LIMITS } from '../../src/shared/schemas/memory'
 import {
   ModMemoryAtUseSchema,
@@ -29,6 +32,7 @@ import {
   REMEMBER_REFUSALS
 } from '../../src/shared/schemas/modMemory'
 import {
+  FOLDER_CHARS,
   FOLDERS_PER_CALL,
   MCP_PATH,
   MOD_PATHS,
@@ -37,6 +41,7 @@ import {
   SERVER_NAME,
   WINDOW_MAX,
   atUseBody,
+  foldersFor,
   indexBody,
   nextWindow,
   parseConfig,
@@ -94,6 +99,29 @@ describe('the memory mod’s contract with main', () => {
         authorization: 'Bearer tok'
       })
     })
+
+    it('the mod reads the config file main writes on every profile’s hook port', () => {
+      const ports = [DEFAULT_PROFILE, DEV_PROFILE, DRIVE_PROFILE, E2E_PROFILE].map(
+        (profile) => profile.hookPort
+      )
+      expect(
+        ports.map((port) =>
+          parseConfig(
+            readFileSync(
+              writeMcpConfig(
+                dir,
+                MEMORY_MCP_SERVER_NAME,
+                'tok',
+                `http://${HOST}:${port}${MEMORY_MCP_PATH}`
+              ),
+              'utf8'
+            )
+          )
+        )
+      ).toEqual(
+        ports.map((port) => ({ base: `http://${HOST}:${port}`, authorization: 'Bearer tok' }))
+      )
+    })
   })
 
   it('every body the mod builds passes main’s schema', () => {
@@ -125,6 +153,19 @@ describe('the memory mod’s contract with main', () => {
     ]).toEqual([true, true])
   })
 
+  it('the mod’s longest folder is main’s longest', () => {
+    const longest = `/w/${'a'.repeat(FOLDER_CHARS - 3)}`
+    const tooLong = `${longest}a`
+    const body = (folder: string): unknown => JSON.parse(atUseBody(0, [folder]))
+    expect([
+      longest.length,
+      ModMemoryAtUseSchema.safeParse(body(longest)).success,
+      ModMemoryAtUseSchema.safeParse(body(tooLong)).success,
+      foldersFor(`${longest}/x.ts`, [longest], new Set()),
+      foldersFor(`${tooLong}/x.ts`, [tooLong, '/w'], new Set())
+    ]).toEqual([4096, true, false, [longest], ['/w']])
+  })
+
   it('an at-use body never names more folders than main takes', () => {
     const folders = ['/a', '/a/b', '/a/b/c', '/a/b/c/d', '/a/b/c/d/e', '/a/b/c/d/e/f']
     expect(ModMemoryAtUseSchema.safeParse(JSON.parse(atUseBody(0, folders))).success).toBe(true)
@@ -145,15 +186,15 @@ describe('the memory mod’s contract with main', () => {
       })
     })
 
-    it('every answer main builds passes the mod’s readers', () => {
+    function addSpecific(key: string, value: string, folder: string): void {
       store.add({
-        text: { kind: 'specific', key: 'staging port', value: '9281' },
+        text: { kind: 'specific', key, value },
         workspaceId: 'w1',
         check: null,
         basis: 'inferred',
         origin: { by: 'agent', sessionId: 's0' },
         meta: {
-          folder: '/work/app',
+          folder,
           sessionName: null,
           tagIds: [],
           templateId: null,
@@ -162,7 +203,10 @@ describe('the memory mod’s contract with main', () => {
         },
         source: null
       })
-      const recall = createMemoryRecall({
+    }
+
+    function liveRecall(): MemoryRecall {
+      return createMemoryRecall({
         gate: createMemoryGate({
           enabled: () => true,
           store: () => store,
@@ -174,6 +218,11 @@ describe('the memory mod’s contract with main', () => {
         now: () => NOW,
         log: () => undefined
       })
+    }
+
+    it('every answer main builds passes the mod’s readers', () => {
+      addSpecific('staging port', '9281', '/work/app')
+      const recall = liveRecall()
       const grant = { sessionId: 's1' }
       const index = recall.index(grant, ModMemoryIndexSchema.parse(JSON.parse(indexBody(0))))
       const prompt = recall.recall(
@@ -201,6 +250,24 @@ describe('the memory mod’s contract with main', () => {
         { ok: true, kind: 'specific', id: stored.rows[0]?.id }
       ])
       expect(stored.rows.map((row) => row.id)).toEqual(['m2'])
+    })
+
+    it('the at-use answer for a folder the index named passes the mod’s text reader', () => {
+      addSpecific('db port', '5433', '/work/other')
+      const recall = liveRecall()
+      const grant = { sessionId: 's1' }
+      const index = readIndexAnswer(
+        JSON.stringify(recall.index(grant, ModMemoryIndexSchema.parse(JSON.parse(indexBody(0)))))
+      )
+      const folders = foldersFor('/work/other/x.ts', index?.folders ?? [], new Set())
+      const answer = recall.atUse(
+        grant,
+        ModMemoryAtUseSchema.parse(JSON.parse(atUseBody(0, folders)))
+      )
+      expect([folders, readTextAnswer(JSON.stringify(answer))]).toEqual([
+        ['/work/other'],
+        `${MEMORY_BLOCK_MARKER} saved for /work/other\n- db port (${formatDay(NOW)}) id=m1`
+      ])
     })
 
     it('a refusal main sends passes the mod’s remember reader', () => {
