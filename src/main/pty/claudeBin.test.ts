@@ -324,6 +324,12 @@ describe('composeClaudeCommand', () => {
       )
     })
 
+    it('an empty folder in pluginDirs gets no --plugin-dir flag', () => {
+      expect(
+        composeClaudeCommand(spec({ hookSettingsPath: '/s.json', pluginDirs: ['', '/m/b', ''] }))
+      ).toBe(`'${BIN}' --session-id '${SID}' -n 'x' --settings '/s.json' --plugin-dir '/m/b'`)
+    })
+
     it('composes one --plugin-dir flag per folder, in order, on both forms', () => {
       const two = {
         hookSettingsPath: '/s.json',

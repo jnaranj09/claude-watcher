@@ -118,6 +118,7 @@ import { createThemeScanner, type ThemeScanner } from './themes/themeScanner'
 import { BUNDLED_THEME_IDS, bundledThemesDir } from './themes/bundledThemes'
 import { modSourceDir, nodeModFs } from './mods/modInstall'
 import { installAppMods } from './mods/startMods'
+import { createModDirs } from './mods/modDirs'
 import { createSessionSetup } from './mods/sessionSetup'
 import { createContextHandlers, nodeContextFs } from './mods/contextHandlers'
 import { pushSessionSetupChanged, registerContextIpc } from './ipc/registerContextIpc'
@@ -849,10 +850,8 @@ const claudeVersionGate = createClaudeVersionGate({
   now: Date.now,
   log: (m) => console.warn(m)
 })
-/** The installed bridge mod folder; null until the install at start succeeds (or when it failed). */
-let bridgeModDir: string | null = null
-/** The installed memory mod folder; null until the install at start succeeds (or when it failed). */
-let memoryModDir: string | null = null
+/** The installed mod folders; each null until the install at start succeeds (or when it failed). */
+const modDirs = createModDirs()
 function claudeVersionAllowsLaunch(): boolean {
   return claudeVersionGate.allowsInteractiveLaunch()
 }
@@ -957,10 +956,7 @@ app
       fs: nodeModFs,
       report: storageHealth.reporterFor('bridge_mod'),
       log: (line) => console.warn(line)
-    }).then((dirs) => {
-      bridgeModDir = dirs.bridge
-      memoryModDir = dirs.memory
-    })
+    }).then((dirs) => modDirs.set(dirs))
     fileHistory = createFileHistory({
       dir: join(app.getPath('userData'), FILE_HISTORY_DIR),
       fs: nodeFileHistoryFs,
@@ -1005,8 +1001,8 @@ app
       ptys,
       getApiLifecycle: () => apiLifecycle,
       bundledThemes,
-      bridgeModDir: () => bridgeModDir,
-      memoryModDir: () => memoryModDir
+      bridgeModDir: modDirs.bridge,
+      memoryModDir: modDirs.memory
     })
 
     // Story 2.4 — build the ONE app-global settings store AFTER app-ready (electron-store
@@ -1299,7 +1295,7 @@ app
       readTranscriptInfo,
       claudeVersionAllowsLaunch,
       bridgeMod: {
-        installedDir: () => bridgeModDir,
+        installedDir: modDirs.bridge,
         claudeVersion: () => claudeVersionGate.lastVersion(),
         hookPort: PROFILE.hookPort,
         onSkip: (sessionId, reason) => sessionSetup.markUnavailable(sessionId, reason)

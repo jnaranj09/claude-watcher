@@ -1,0 +1,136 @@
+// The command and env of ONE claude spawn, after the registrar resolved claude and built the base
+// env (`rawClaudeSpawn`, ipc/registerLaunchIpc.ts). It lives here, not inline in the registrar,
+// because the registrar is only reachable through Electron's ipc: a test can reach this, so the
+// mod folders, the goals and memory parts and the order they are asked in each have a test.
+// Order: the bridge mod (its env var goes into `env`), then goals (links the tasks to the minted
+// id), then memory (inside `spawnExtras`), then the hook settings file.
+import type { ClaudeVersion } from '../../shared/launch/claudeVersion'
+import type { ModSkipReason } from '../../shared/schemas/contextIpc'
+import type { ClaudeAutoMemory } from '../../shared/schemas/settings'
+import type { GoalLaunch, GoalSpawnExtras } from '../goals/goalLaunch'
+import type { MemorySpawnExtras } from '../memory/memoryLaunch'
+import { applyBridgeMod } from '../mods/bridgeModSpawn'
+import { composeClaudeCommand } from './claudeBin'
+import type { ClaudeLaunchFlags } from './launchSession'
+import { spawnExtras } from './spawnExtras'
+
+export interface ClaudeSpawnDeps {
+  /** The login shell every spawn runs claude under (`$SHELL -l -c`). */
+  shell: string
+  /** SEC-6: THIS process holds the hook port. */
+  hookListening: () => boolean
+  /** The bridge mod (spec 2026-10-18 §1.1): read at spawn time. */
+  bridgeMod: {
+    installedDir: () => string | null
+    claudeVersion: () => ClaudeVersion | null
+    hookPort: number
+    onSkip: (sessionId: string, reason: ModSkipReason) => void
+  }
+  goalSpawnExtras: (
+    sessionId: string,
+    goalLaunch: GoalLaunch | null,
+    resume: boolean,
+    previousSessionId: string | null
+  ) => GoalSpawnExtras
+  memorySpawnExtras: (
+    sessionId: string,
+    launch: { cwd: string; workspaceId: string; excludeTaskIds: readonly string[] },
+    previousSessionId: string | null
+  ) => MemorySpawnExtras
+  activeWorkspaceId: () => string
+  claudeAutoMemory: () => ClaudeAutoMemory
+  /** The `--settings` file, or null (SEC-6, a refused write). */
+  hookSettingsPath: () => string | null
+  log: (line: string) => void
+}
+
+export interface ClaudeSpawnRequest {
+  sessionId: string
+  displayName: string
+  flags: ClaudeLaunchFlags
+  initialPrompt: string | null
+  resume: boolean
+  goalLaunch: GoalLaunch | null
+  previousSessionId: string | null
+  launch: { cwd: string; workspaceId: string | null }
+  /** The resolved claude (`resolveClaudeOnDisk`). */
+  claudeCommand: string
+  /** The base child env (`buildPtyEnv`, claude's folder first in PATH). The bridge mod's var is
+   *  written into it. */
+  env: Record<string, string>
+}
+
+export function claudeSpawnCommand(
+  deps: ClaudeSpawnDeps,
+  request: ClaudeSpawnRequest
+): { file: string; args: string[]; env: Record<string, string> } {
+  const { sessionId, previousSessionId, env } = request
+
+  // The bridge mod: its folder (handed to spawnExtras, which lists it for `--plugin-dir`) plus
+  // the report URL in the env, or a reason Context shows.
+  // FAIL OPEN: a skip launches the session exactly as before the mod existed.
+  const bridgePluginDir = applyBridgeMod({
+    sessionId,
+    env,
+    listening: deps.hookListening,
+    installedDir: deps.bridgeMod.installedDir,
+    version: deps.bridgeMod.claudeVersion,
+    hookPort: deps.bridgeMod.hookPort,
+    onSkip: deps.bridgeMod.onSkip,
+    log: deps.log
+  })
+
+  // Goals: a session started from tasks gets them as context (its tasks are linked to THIS
+  // minted id first), and `mark_task_done` when the operator chose it. Nothing for any other
+  // launch.
+  const goal = deps.goalSpawnExtras(
+    sessionId,
+    request.goalLaunch,
+    request.resume,
+    previousSessionId
+  )
+  // Memory: the folder's index and the memory tools for this launch, or nothing at all (memory
+  // off, hook port not ours, database closed, a failure). Joined with goals, with the child env
+  // and the operator's choice for claude's own auto memory, in pty/spawnExtras.ts.
+  const extras = spawnExtras({
+    goal,
+    memory: (target) => deps.memorySpawnExtras(sessionId, target, previousSessionId),
+    launch: request.launch,
+    activeWorkspaceId: deps.activeWorkspaceId,
+    autoMemory: deps.claudeAutoMemory(),
+    env,
+    bridgePluginDir
+  })
+
+  return {
+    file: deps.shell,
+    // Composed in claudeBin.ts. Name-sync adds `-n <name>` so claude runs under the operator's
+    // name instead of generating its own title, `--settings <file>` carries the hook block
+    // WITHOUT touching the operator's project, and `--append-system-prompt` injects the
+    // deterministic-attention question-format nudge (DA-4; probe-verified GO), plus the task
+    // block of a session started from goal tasks and the memory index, with each server's
+    // `--mcp-config` file and tools.
+    args: [
+      '-l',
+      '-c',
+      composeClaudeCommand({
+        claudeCommand: request.claudeCommand,
+        sessionId,
+        displayName: request.displayName,
+        hookSettingsPath: deps.hookSettingsPath(),
+        ...extras.fields,
+        model: request.flags.model,
+        permissionMode: request.flags.permissionMode,
+        effort: request.flags.effort,
+        // The programmatic API threads the template's filled-in prompt through here (it rode
+        // the durable launch recipe from `launchService.launch`); the in-app launch flows carry
+        // none, so for them the composed command stays byte-identical to before.
+        initialPrompt: request.initialPrompt,
+        // Past sessions (D-1) — a resume composes `claude --resume <id>` instead (claudeBin.ts
+        // keeps `-n` (R3) and drops the template flags and the positional prompt for that form).
+        resume: request.resume
+      })
+    ],
+    env: extras.env
+  }
+}

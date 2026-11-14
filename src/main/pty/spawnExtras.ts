@@ -7,7 +7,8 @@
 // first, one `--plugin-dir` each. The child env is the base env plus
 // memory's (`CLAUDE_WATCHER_MEMORY`, only while memory is on) plus what the `Claude's auto
 // memory` setting asks for (`AUTO_MEMORY_ENV`), which does not depend on memory being on.
-// `rawClaudeSpawn` (`ipc/registerLaunchIpc.ts`) spawns with exactly what this returns.
+// The launch path (`claudeSpawnCommand`, `pty/claudeSpawnCommand.ts`, called by `rawClaudeSpawn`)
+// spawns with exactly what this returns.
 import type { ClaudeAutoMemory } from '../../shared/schemas/settings'
 import { QUESTION_FORMAT_PROMPT, type ClaudeCommandSpec } from './claudeBin'
 import { joinSystemPrompt } from '../goals/goalPrompt'
