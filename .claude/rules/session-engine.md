@@ -68,9 +68,12 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   events (index section, recall per prompt, keys at use, `/remember`, window count on `/clear` and
   compaction), each call to main raced by its own timer, and talks only to
   `http://127.0.0.1:<port>/mcp/memory`'s listener (`parseConfig` refuses any other link, P3-C21).
-  `tests/main/memoryModBounds.guard.test.ts` bounds what it may hook and call (each hook inline,
-  each `on(…)` a statement of its own, one fetch); it is a tripwire for honest mistakes, not a
-  sandbox (P3-C25, P3-C27): review of the two mod files is the control.
+  `tests/main/memoryModBounds.guard.test.ts` reads every file the installer ships from the mod
+  folder (its `ships` rule) and bounds what it may hook and call (each hook inline, each `on(…)`
+  but `command.run` ending in `.catch(…)`, `ask`'s path a `MOD_PATHS` member, one fetch); a
+  shipped file that is neither scanned `.ts` nor `plugin.json` / `hooks.json` fails it; it is a
+  tripwire for honest mistakes, not a sandbox (P3-C25, P3-C27): review of the mod's files is the
+  control.
   `src/mod/engine.d.ts` is the one ambient engine type file for both mods (not shipped).
   The bridge mod's hooks module and manifest stay byte for byte (`tests/main/bridgeModPinned.test.ts`, P3-C2).
   `npm run test:mod` = `claude plugin validate` + `claude plugin test` for both mods (local only).

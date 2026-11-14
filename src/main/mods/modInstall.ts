@@ -40,8 +40,9 @@ export function modSourceDir(opts: {
     : join(opts.mainDir, '..', '..', 'src', 'mod', opts.name)
 }
 
-/** Shipped files: everything in the mod folder but its engine tests. */
-const ships = (rel: string): boolean => !rel.endsWith('.test.ts')
+/** Shipped files: everything in the mod folder but its engine tests (the memory mod's bounds
+ *  guard reads the same set). */
+export const ships = (rel: string): boolean => !rel.endsWith('.test.ts')
 
 export async function installMod(deps: {
   name: ModName
