@@ -216,6 +216,16 @@ describe('hookServer — a token route (the memory mod)', () => {
     expect(r.routeLog).toEqual(['route=mod_memory code=mod_memory_handler_error'])
   })
 
+  it('an answer that cannot become JSON is 500 with a code, and the server keeps serving', async () => {
+    const r = await start(() => ({ status: 200, body: { ok: true, text: 10n } }))
+    const auth = { authorization: 'Bearer good' }
+    const failed = await post(RECALL, '{"text":"SECRET-PROMPT"}', auth)
+    const hook = await post('/', '{"session_id":"s","hook_event_name":"Stop"}')
+    expect([failed.status, failed.body, hook.status]).toEqual([500, '', 200])
+    expect(r.routeLog).toEqual(['route=mod_memory code=mod_memory_handler_error'])
+    expect(JSON.stringify([r.boundaryLog, r.routeLog])).not.toContain('SECRET-PROMPT')
+  })
+
   it('a hook POST and an MCP route still work beside a token route', async () => {
     const r = await start()
     const hook = await post('/', '{"session_id":"s","hook_event_name":"Stop"}')

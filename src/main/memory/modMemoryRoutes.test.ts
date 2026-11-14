@@ -124,6 +124,29 @@ describe('modMemoryRoutes', () => {
     expect(calls).toEqual([['recall', { sessionId: 's1' }, body]])
   })
 
+  it('every route refuses a body that names a session, so no route lets one through', () => {
+    const keys = ['index', 'recall', 'atUse', 'remember'] as const
+    const answers = keys.map((k) =>
+      route(MOD_MEMORY_PATHS[k]).open('Bearer t1')?.({ ...BODIES[k], sessionId: 's2' })
+    )
+    expect(answers).toEqual(
+      keys.map(() => ({ status: 400, path: '(root)', code: 'unrecognized_keys' }))
+    )
+    expect(calls).toEqual([])
+  })
+
+  it('a bad body logs nothing at all, so no prompt text reaches a log', () => {
+    const answer = route(MOD_MEMORY_PATHS.recall).open('Bearer t1')?.({
+      version: 1,
+      window: 0,
+      origin: 'composer',
+      text: 'SECRET-PROMPT',
+      extra: 'SECRET-PROMPT'
+    })
+    expect(answer).toEqual({ status: 400, path: '(root)', code: 'unrecognized_keys' })
+    expect(log).toEqual([])
+  })
+
   it("a bad body is a 400 with the issue's path and code, and the method is not called", () => {
     expect(
       route(MOD_MEMORY_PATHS.atUse).open('Bearer t1')?.({ version: 1, window: 0, folders: [] })

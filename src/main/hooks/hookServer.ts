@@ -57,7 +57,8 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' } as const
 
 /** An MCP route or a token route, as the request handler drives it: `area` names its log lines
  *  (`route=<area> code=unauthorized`, `code=<area>_handler_error`); a handler's result writes the
- *  response. */
+ *  response. The handler turns its answer into JSON before it returns, so an answer that cannot
+ *  be serialised throws inside the request's `try` (500), never while the response is written. */
 interface BearerRoute {
   area: 'mcp' | 'mod_memory'
   open(authorization: string | undefined): ((body: unknown) => (res: ServerResponse) => void) | null
@@ -73,9 +74,10 @@ function fromMcpRoute(route: McpRoute): BearerRoute {
       return (body) => {
         const response = handle(body)
         // A notification gets 202 and no body.
+        const json = response === null ? null : JSON.stringify(response)
         return (res) => {
-          if (response === null) res.writeHead(202).end()
-          else res.writeHead(200, JSON_HEADERS).end(JSON.stringify(response))
+          if (json === null) res.writeHead(202).end()
+          else res.writeHead(200, JSON_HEADERS).end(json)
         }
       }
     },
@@ -91,11 +93,11 @@ function fromTokenRoute(route: TokenRoute, log: (err: BoundaryErrorRecord) => vo
       if (handle === null) return null
       return (body) => {
         const answer = handle(body)
+        if (answer.status === 200) {
+          const json = JSON.stringify(answer.body)
+          return (res) => res.writeHead(200, JSON_HEADERS).end(json)
+        }
         return (res) => {
-          if (answer.status === 200) {
-            res.writeHead(200, JSON_HEADERS).end(JSON.stringify(answer.body))
-            return
-          }
           log({ path: answer.path, code: answer.code })
           res.writeHead(400).end()
         }
