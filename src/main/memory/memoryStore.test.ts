@@ -44,6 +44,9 @@ beforeEach(() => {
   store = makeStore(db)
 })
 
+/** An item a session saved (the agent's origin): a session's queries act on these (P3-C29). */
+const SAVED = { basis: 'inferred', origin: { by: 'agent', sessionId: 's1' } } as const
+
 function input(text: MemoryText, over: Partial<MemoryAdd> = {}): MemoryAdd {
   return {
     text,
@@ -389,8 +392,8 @@ describe('remove and cascades', () => {
   })
 
   it('counts the items a session saved and removes them with their history, others kept', () => {
-    const { id } = store.add(input(PORT))
-    store.add(input(PORT, { workspaceId: null }))
+    const { id } = store.add(input(PORT, SAVED))
+    store.add(input(PORT, { ...SAVED, workspaceId: null }))
     const other = store.add(input(PORT, { origin: { by: 'agent', sessionId: 's2' } }))
     const byHand = store.add(input(PORT, { origin: { by: 'operator', sessionId: null } }))
     expect(store.countBySession('s1')).toBe(2)
@@ -401,8 +404,35 @@ describe('remove and cascades', () => {
     expect([store.get(other.id)?.id, store.get(byHand.id)?.id]).toEqual([other.id, byHand.id])
   })
 
+  it("a session's count leaves out a /remember line it carries (P3-C29)", () => {
+    store.add(input(PORT, SAVED))
+    store.add(input(PORT, { origin: { by: 'operator', sessionId: 's1' } }))
+    expect(store.countBySession('s1')).toBe(1)
+  })
+
+  it('deleting with the session removes its agent item and keeps its /remember line', () => {
+    const agent = store.add(input(PORT, SAVED))
+    const remembered = store.add(input(PORT, { origin: { by: 'operator', sessionId: 's1' } }))
+    expect(store.removeBySession('s1')).toBe(1)
+    expect([store.get(agent.id), store.get(remembered.id)?.origin]).toEqual([
+      null,
+      { by: 'operator', sessionId: 's1' }
+    ])
+  })
+
+  it('a forgotten session marks its agent item Session deleted and not its /remember line', () => {
+    const agent = store.add(input(PORT, SAVED))
+    const remembered = store.add(input(PORT, { origin: { by: 'operator', sessionId: 's1' } }))
+    clock += 1000
+    expect(store.markSessionDeleted('s1')).toBe(1)
+    expect([
+      store.get(agent.id)?.originDeletedAt,
+      store.get(remembered.id)?.originDeletedAt
+    ]).toEqual([NOW + 1000, null])
+  })
+
   it('a removed session no longer matches a search for its items', () => {
-    store.add(input(PORT))
+    store.add(input(PORT, SAVED))
     store.removeBySession('s1')
     const found = store.search(
       { workspaceId: 'w1', includeGlobal: true },
@@ -413,8 +443,8 @@ describe('remove and cascades', () => {
   })
 
   it('marks every item of a deleted session and keeps it', () => {
-    const { id } = store.add(input(PORT))
-    store.add(input(PORT))
+    const { id } = store.add(input(PORT, SAVED))
+    store.add(input(PORT, SAVED))
     store.add(input(PORT, { origin: { by: 'agent', sessionId: 's2' } }))
     clock += 1000
     expect(store.markSessionDeleted('s1')).toBe(2)
@@ -423,7 +453,7 @@ describe('remove and cascades', () => {
   })
 
   it('a session deleted again keeps its first date', () => {
-    const { id } = store.add(input(PORT))
+    const { id } = store.add(input(PORT, SAVED))
     store.markSessionDeleted('s1')
     clock += 1000
     expect(store.markSessionDeleted('s1')).toBe(0)
@@ -441,7 +471,7 @@ describe('onChange', () => {
   it('fires once after every committed write', () => {
     const listener = vi.fn()
     store.onChange(listener)
-    const { id } = store.add(input(PORT))
+    const { id } = store.add(input(PORT, SAVED))
     store.edit(id, { text: PORT, check: null }, 'agent', null)
     store.setState(id, 'stale', 'agent', null)
     store.setPinned(id, true)
@@ -455,8 +485,8 @@ describe('onChange', () => {
   })
 
   it('removeBySession fires once, and countBySession never does', () => {
-    store.add(input(PORT))
-    store.add(input(PORT))
+    store.add(input(PORT, SAVED))
+    store.add(input(PORT, SAVED))
     const listener = vi.fn()
     store.onChange(listener)
     store.countBySession('s1')

@@ -125,8 +125,9 @@ Every card, and the bar above a focused session, carries two buttons:
   reversible.
 - **Delete** — asks first, then stops the session and keeps nothing, except what it saved to
   memory, which stays marked `Session deleted`. When the session saved memory items, the confirm
-  says how many and offers **Also delete from memory** (off unless you tick it). Claude's own
-  files are never touched.
+  says how many and offers **Also delete from memory** (off unless you tick it). A line you
+  saved with `/remember` in that session is yours, not the session's: it is not counted, deleted
+  or marked. Claude's own files are never touched.
 
 A session that ends any other way — `/exit`, `Ctrl+C` twice, claude exiting, quitting the app,
 closing the window — is archived too. A session is also on record while it runs, so even a crash

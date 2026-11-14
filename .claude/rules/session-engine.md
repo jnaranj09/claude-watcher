@@ -346,7 +346,10 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   (`memory:session-count`, by the renderer's session id) and, only when the operator ticks its
   box, deletes them (`memory:delete-session`) AFTER main confirmed the session delete
   (`lib/sessionExit.ts`): a refused session delete never costs memory, and a refused memory
-  delete is an error toast with the items still marked. Memory text (key, value, title, body, check, reason, query)
+  delete is an error toast with the items still marked. "The items the session saved" (the
+  count, the delete, the `Session deleted` mark) leave out an item whose origin is the operator
+  (`origin.by = 'operator'`: a `/remember` line), which keeps the session id as provenance
+  (`SAVED_BY_SESSION` in `memoryStore.ts`, P3-C29). Memory text (key, value, title, body, check, reason, query)
   never reaches a log, a notification, the API or an attention event (logs carry `code=` only).
   SMOKE opens no database (memory is off); its memory check writes into a temporary folder, never
   userData.

@@ -157,17 +157,23 @@ export interface MemoryStore {
    *  already wrote. */
   batch<T>(work: () => T): T
   removeByWorkspace(workspaceId: string): number
-  /** How many items `sessionId` saved (its origin), global ones included. */
+  /** How many items `sessionId` saved (its origin), global ones included. "Saved" leaves out an
+   *  item the operator wrote in that session (`/remember`, origin `operator`): it is the
+   *  operator's own, and keeps the session id only as provenance (P3-C29). The same holds for the
+   *  next two. */
   countBySession(sessionId: string): number
   /** Deletes every item `sessionId` saved, with its history: the operator asked for it in the
    *  session Delete confirm. Answers how many. */
   removeBySession(sessionId: string): number
+  /** Marks every item `sessionId` saved `Session deleted` (a first date is kept). */
   markSessionDeleted(sessionId: string): number
   rebindSession(oldSessionId: string, newSessionId: string): void
   onChange(listener: () => void): () => void
 }
 
 const LOG_PREFIX = '[claude-watcher][memory]'
+/** The items a session saved: its origin, but not what the operator wrote there (P3-C29). */
+const SAVED_BY_SESSION = "origin_session_id = ? AND origin_by <> 'operator'"
 /** Thrown untouched by `write` and `batch`; `readFailed` is not one (inside a write it is a failed
  *  write). `commandNotFound` comes from `memoryCommands.ts` run inside a `batch`. */
 const REFUSALS: ReadonlySet<string> = new Set([
@@ -493,20 +499,19 @@ export function createMemoryStore(deps: {
     countBySession: (sessionId) =>
       read(
         () =>
-          db.get('SELECT COUNT(*) AS n FROM item WHERE origin_session_id = ?', CountRow, [
-            sessionId
-          ])?.n ?? 0
+          db.get(`SELECT COUNT(*) AS n FROM item WHERE ${SAVED_BY_SESSION}`, CountRow, [sessionId])
+            ?.n ?? 0
       ),
 
     removeBySession: (sessionId) =>
-      write(() => deleteItems('origin_session_id = ?', [sessionId]), changedRows),
+      write(() => deleteItems(SAVED_BY_SESSION, [sessionId]), changedRows),
 
     markSessionDeleted: (sessionId) =>
       write(() => {
         // A session deleted again keeps its first date.
         db.run(
           `UPDATE item SET origin_deleted_at = ?
-           WHERE origin_session_id = ? AND origin_deleted_at IS NULL`,
+           WHERE ${SAVED_BY_SESSION} AND origin_deleted_at IS NULL`,
           [now(), sessionId]
         )
         return changes()
