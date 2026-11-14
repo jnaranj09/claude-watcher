@@ -87,18 +87,18 @@ describe('twins', () => {
     const b = add(specific('port of the api', '9281'))
     const d = add(specific('the api port', '9281'))
     const note = add(fact('9281', '9281'))
-    expect(store.twinsOf(a.id).map((t) => [t.id, t.key])).toEqual([
+    expect(store.twinsOf(a.id, 5).twins.map((t) => [t.id, t.key])).toEqual([
       [d.id, 'the api port'],
       [b.id, 'port of the api']
     ])
-    expect(store.twinsOf(a.id)[0]?.updatedAt).toBe(d.updatedAt)
+    expect(store.twinsOf(a.id, 5).twins[0]?.updatedAt).toBe(d.updatedAt)
     store.setState(d.id, 'stale', 'operator', null)
-    expect([store.twinsOf('nope'), store.twinsOf(note.id), store.twinsOf(d.id)]).toEqual([
-      [],
-      [],
-      []
-    ])
-    expect(store.twinsOf(a.id).map((t) => t.id)).toEqual([b.id])
+    expect([
+      store.twinsOf('nope', 5).twins,
+      store.twinsOf(note.id, 5).twins,
+      store.twinsOf(d.id, 5).twins
+    ]).toEqual([[], [], []])
+    expect(store.twinsOf(a.id, 5).twins.map((t) => t.id)).toEqual([b.id])
   })
   // 4 (Review Focus 4)
   it('an edit to another value, a stale mark or a delete clears the flag on both', () => {
@@ -108,23 +108,23 @@ describe('twins', () => {
     ]
     const [a1, b1] = pair()
     store.edit(b1, { text: specific('port of the api', '9282'), check: null }, 'operator', null)
-    expect([store.twinIds(scope), store.twinsOf(a1)]).toEqual([[], []])
+    expect([store.twinIds(scope), store.twinsOf(a1, 5).twins]).toEqual([[], []])
     store.remove(a1)
     store.remove(b1)
     const [a2, b2] = pair()
     store.setState(b2, 'stale', 'operator', null)
-    expect([store.twinIds(scope), store.twinsOf(a2)]).toEqual([[], []])
+    expect([store.twinIds(scope), store.twinsOf(a2, 5).twins]).toEqual([[], []])
     store.remove(a2)
     store.remove(b2)
     const [a3, b3] = pair()
     store.remove(b3)
-    expect([store.twinIds(scope), store.twinsOf(a3)]).toEqual([[], []])
+    expect([store.twinIds(scope), store.twinsOf(a3, 5).twins]).toEqual([[], []])
   })
   // 5
   it('a failed twin read throws memory_read_failed, never an empty answer', () => {
     add(specific('API port', '9281'))
     db.close()
     expect(() => store.twinIds(scope)).toThrow(MEMORY_ERROR.readFailed)
-    expect(() => store.twinsOf('m1')).toThrow(MEMORY_ERROR.readFailed)
+    expect(() => store.twinsOf('m1', 5).twins).toThrow(MEMORY_ERROR.readFailed)
   })
 })

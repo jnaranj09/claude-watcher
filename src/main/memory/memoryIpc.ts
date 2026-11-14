@@ -137,13 +137,9 @@ export function createMemoryIpcHandlers(deps: {
       const item = s.get(id)
       if (item === null) throw new Error(MEMORY_ERROR.notFound)
       // Past sessions reads episodes through this handler too: only a specific has twins.
-      const twins = item.kind === 'specific' ? s.twinsOf(id) : []
-      return {
-        item,
-        versions: s.versions(id),
-        twins: twins.slice(0, MEMORY_LIMITS.twinsShown),
-        twinsMore: Math.max(0, twins.length - MEMORY_LIMITS.twinsShown)
-      }
+      const twins =
+        item.kind === 'specific' ? s.twinsOf(id, MEMORY_LIMITS.twinsShown) : { twins: [], more: 0 }
+      return { item, versions: s.versions(id), twins: twins.twins, twinsMore: twins.more }
     },
     create(raw) {
       const req = MemoryCreateSchema.parse(raw)

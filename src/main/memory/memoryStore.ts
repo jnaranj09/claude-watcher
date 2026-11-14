@@ -143,8 +143,9 @@ export interface MemoryStore {
   /** The ids of the active specifics in scope that hold the same exact value as another one in
    *  their workspace and folder (`memoryTwins.ts`, the dialog's `Same value` flag). */
   twinIds(scope: MemoryScope): string[]
-  /** The twins of `id`, newest first; none for an unknown id, a fact, an episode or a stale item. */
-  twinsOf(id: string): MemoryTwin[]
+  /** The twins of `id`, newest first: the first `shown`, and how many more. None for an unknown
+   *  id, a fact, an episode or a stale item. */
+  twinsOf(id: string, shown: number): { twins: MemoryTwin[]; more: number }
   /** Active specifics `originSessionId` saved with the tool that have no source yet. */
   agentSpecificsWithoutSource(originSessionId: string): { id: string; value: string }[]
   /** Who wrote the newest version; null for an unknown id. */
@@ -487,7 +488,7 @@ export function createMemoryStore(deps: {
 
     twinIds: (scope) => read(() => twinIdsInScope(db, scope)),
 
-    twinsOf: (id) => read(() => twinsOfItem(db, id)),
+    twinsOf: (id, shown) => read(() => twinsOfItem(db, id, shown)),
 
     agentSpecificsWithoutSource: (originSessionId) =>
       read(() => agentSpecificsNoSource(db, originSessionId)),

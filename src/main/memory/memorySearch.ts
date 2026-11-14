@@ -38,7 +38,7 @@ import {
   selectItems,
   type EpisodeRow
 } from './memoryRows'
-import { twinsById, type TwinCandidate } from './memoryTwins'
+import { twinIds, twinsOf, type TwinCandidate } from './memoryTwins'
 import type { RecallTerm } from './recallTerms'
 
 export type MemoryScope = { workspaceId: string; includeGlobal: boolean }
@@ -455,18 +455,23 @@ function twinCandidates(db: MemoryDb, where: SqlClause): TwinCandidate[] {
 
 /** The ids of the active specifics in scope that have a twin (`memoryTwins.ts`). */
 export function twinIdsInScope(db: MemoryDb, scope: MemoryScope): string[] {
-  return [...twinsById(twinCandidates(db, scopeClause(scope))).keys()]
+  return twinIds(twinCandidates(db, scopeClause(scope)))
 }
 
-/** The twins of `id`, newest first: read among the active specifics of its workspace and folder.
- *  None for an unknown id, a fact, an episode or a stale item. */
-export function twinsOfItem(db: MemoryDb, id: string): MemoryTwin[] {
+/** The twins of `id`, newest first, read among the active specifics of its workspace and folder:
+ *  the first `shown`, and how many more. None for an unknown id, a fact, an episode or a stale
+ *  item. */
+export function twinsOfItem(
+  db: MemoryDb,
+  id: string,
+  shown: number
+): { twins: MemoryTwin[]; more: number } {
   const place = db.get('SELECT workspace_id, folder FROM item WHERE id = ?', PlaceRow, [id])
-  if (place === null) return []
+  if (place === null) return { twins: [], more: 0 }
   // `IS` matches two NULLs, which `=` does not.
   const here: SqlClause = {
     sql: 'item.workspace_id IS ? AND item.folder IS ?',
     params: [place.workspace_id, place.folder]
   }
-  return twinsById(twinCandidates(db, here)).get(id) ?? []
+  return twinsOf(twinCandidates(db, here), id, shown)
 }
