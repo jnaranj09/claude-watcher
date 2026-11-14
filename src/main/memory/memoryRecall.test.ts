@@ -114,6 +114,16 @@ function specific(key: string, value: string): MemoryText {
   return { kind: 'specific', key, value }
 }
 
+/** The recall block one specific makes, as main writes it. */
+function recallBlock(item: MemoryItem): string {
+  return `Memory (Claude Watcher): items that may match this prompt\n- ${item.key}: ${item.value} (seen ${DAY}, inferred) id=${item.id}`
+}
+
+/** The at-use block one specific of `folder` makes, as main writes it. */
+function atUseBlock(item: MemoryItem, folder: string): string {
+  return `Memory (Claude Watcher): saved for ${folder}\n- ${item.key} (${DAY}) id=${item.id}`
+}
+
 function fact(title: string, body: string): MemoryText {
   return { kind: 'fact', title, body }
 }
@@ -325,16 +335,34 @@ describe('recall', () => {
   })
 
   it('past the window budget a prompt gets nothing more', () => {
-    recall = build({ windowChars: 100 })
-    add(specific('staging port', '9281'))
+    const first = add(specific('staging port', '9281'))
     add(specific('db host', 'db.acme.test'))
+    recall = build({ windowChars: recallBlock(first).length })
     const ask = (text: string): ReturnType<MemoryRecall['recall']> =>
       recall.recall(grant, { version: 1, window: 0, origin: 'composer', text })
-    expect(ask('staging port 9281')).toMatchObject({
-      text: expect.stringContaining('staging port: 9281')
-    }) // over 100 characters
+    expect(ask('staging port 9281')).toEqual({ ok: true, text: recallBlock(first) })
     expect(ask('db host db.acme.test')).toEqual({ ok: true, text: '' })
     expect(recorded).toHaveLength(1)
+  })
+
+  // M13: the per-window ceiling is never passed: a block that would take the window past it is not
+  // added (the addendum: "≤ 20,000 characters … past it nothing more is added").
+  it.each([
+    ['one under the ceiling', 1, true],
+    ['exactly at the ceiling', 0, true],
+    ['one past the ceiling', -1, false]
+  ])('a prompt block that leaves the window %s (room %i) is given: %s', (_, room, given) => {
+    const item = add(specific('staging port', '9281'))
+    recall = build({ windowChars: recallBlock(item).length + room })
+    expect([
+      recall.recall(grant, {
+        version: 1,
+        window: 0,
+        origin: 'composer',
+        text: 'staging port 9281'
+      }),
+      recorded.length
+    ]).toEqual([{ ok: true, text: given ? recallBlock(item) : '' }, given ? 1 : 0])
   })
 
   it('a long line is never cut inside a surrogate pair', () => {
@@ -378,12 +406,13 @@ describe('recall', () => {
   })
 
   it('a window gets 20,000 characters of blocks by default', () => {
-    // Each block is 657 characters (one line cut to 600): 31 blocks pass 20,000, 30 do not.
+    // Each block is 657 characters (one line cut to 600): 30 blocks fit in 20,000 (19,710); the
+    // 31st would pass it, so it is not given (M13), and neither is the 32nd.
     for (let i = 0; i < 32; i++) add(fact(`zeta${i}q`, 'word '.repeat(150).trim()))
     const texts = Array.from({ length: 32 }, (_, i) =>
       recall.recall(grant, { version: 1, window: 0, origin: 'composer', text: `zeta${i}q` })
     ).map((out) => JSON.stringify(out).length > 100)
-    expect(texts).toEqual([...Array<boolean>(31).fill(true), false])
+    expect(texts).toEqual([...Array<boolean>(30).fill(true), false, false])
   })
 
   it('a late request from an older window starts that window again, so an indexed key can go out a second time (P3-C16)', () => {
@@ -510,10 +539,15 @@ describe('at use', () => {
   })
 
   it('at-use blocks count toward the window budget', () => {
-    recall = build({ windowChars: 100 })
-    add(specific('database port of the staging cluster', '5433'), { folder: '/work/other' })
+    const first = add(specific('database port of the staging cluster', '5433'), {
+      folder: '/work/other'
+    })
     add(specific('api base', 'https://api.acme.test'), { folder: '/work/third' })
-    recall.atUse(grant, { version: 1, window: 0, folders: ['/work/other'] }) // over 100 characters
+    recall = build({ windowChars: atUseBlock(first, '/work/other').length })
+    expect(recall.atUse(grant, { version: 1, window: 0, folders: ['/work/other'] })).toEqual({
+      ok: true,
+      text: atUseBlock(first, '/work/other')
+    })
     expect(recall.atUse(grant, { version: 1, window: 0, folders: ['/work/third'] })).toEqual({
       ok: true,
       text: ''
@@ -522,15 +556,30 @@ describe('at use', () => {
   })
 
   it('past the window budget at use gives nothing more', () => {
-    recall = build({ windowChars: 100 })
-    add(specific('staging port', '9281'))
+    const first = add(specific('staging port', '9281'))
     add(specific('db port', '5433'), { folder: '/work/other' })
+    recall = build({ windowChars: recallBlock(first).length })
     recall.recall(grant, { version: 1, window: 0, origin: 'composer', text: 'staging port 9281' })
     expect(recall.atUse(grant, { version: 1, window: 0, folders: ['/work/other'] })).toEqual({
       ok: true,
       text: ''
     })
     expect(recorded).toHaveLength(1)
+  })
+})
+
+describe('the per-window ceiling at use (M13)', () => {
+  it.each([
+    ['one under the ceiling', 1, true],
+    ['exactly at the ceiling', 0, true],
+    ['one past the ceiling', -1, false]
+  ])('an at-use block that leaves the window %s (room %i) is given: %s', (_, room, given) => {
+    const item = add(specific('db port', '5433'), { folder: '/work/other' })
+    recall = build({ windowChars: atUseBlock(item, '/work/other').length + room })
+    expect([
+      recall.atUse(grant, { version: 1, window: 0, folders: ['/work/other'] }),
+      recorded.length
+    ]).toEqual([{ ok: true, text: given ? atUseBlock(item, '/work/other') : '' }, given ? 1 : 0])
   })
 })
 

@@ -142,13 +142,13 @@ export function createMemoryRecall(deps: {
     }
   }
 
+  /** The at-use block and the ids it gives (not yet delivered: the window's ceiling decides). */
   function atUseText(
-    state: WindowState,
-    sessionId: string,
     folders: readonly string[],
     found: { rows: MemoryRow[]; more: number }
-  ): string {
+  ): { text: string; ids: string[] } {
     const lines: string[] = []
+    const ids: string[] = []
     let length = -1
     let given = 0
     const fits = (add: number, after: number): boolean => {
@@ -171,13 +171,28 @@ export function createMemoryRecall(deps: {
         header = null
         length += add
         given += 1
-        deliver(state, sessionId, row.id, 'file')
+        ids.push(row.id)
       }
     }
-    if (given === 0) return ''
+    if (given === 0) return { text: '', ids }
     const left = found.more + found.rows.length - given
     if (left > 0) lines.push(moreLine(left))
-    return lines.join('\n')
+    return { text: lines.join('\n'), ids }
+  }
+
+  /** Adds a composed block to the window and delivers its ids, or nothing when it would take the
+   *  window past its ceiling (M13: the ceiling is never passed; the addendum's "past it nothing
+   *  more is added"). Answers the text given. */
+  function give(
+    state: WindowState,
+    sessionId: string,
+    block: { text: string; ids: readonly string[] },
+    tool: string
+  ): string {
+    if (block.ids.length === 0 || state.chars + block.text.length > windowChars) return ''
+    state.chars += block.text.length
+    for (const id of block.ids) deliver(state, sessionId, id, tool)
+    return block.text
   }
 
   return {
@@ -221,7 +236,7 @@ export function createMemoryRecall(deps: {
           MEMORY_LIMITS.recallRows
         )
         let text = RECALL_HEADER
-        let given = 0
+        const ids: string[] = []
         for (const item of items) {
           const line = capLine(
             `${pinnedLine(item)} id=${item.id}`,
@@ -230,12 +245,9 @@ export function createMemoryRecall(deps: {
           )
           if (text.length + 1 + line.length > recallChars) break
           text += `\n${line}`
-          given += 1
-          deliver(state, call.sessionId, item.id, 'prompt')
+          ids.push(item.id)
         }
-        if (given === 0) return NOTHING
-        state.chars += text.length
-        return { ok: true, text }
+        return { ok: true, text: give(state, call.sessionId, { text, ids }, 'prompt') }
       })
     },
 
@@ -253,9 +265,10 @@ export function createMemoryRecall(deps: {
           [...state.indexed, ...state.delivered],
           MEMORY_LIMITS.atUseRows
         )
-        const text = atUseText(state, call.sessionId, folders, found)
-        state.chars += text.length
-        return { ok: true, text }
+        return {
+          ok: true,
+          text: give(state, call.sessionId, atUseText(folders, found), 'file')
+        }
       })
     },
 

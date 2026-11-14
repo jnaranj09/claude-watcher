@@ -211,7 +211,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   index of an earlier window, else none) holds until the next window (P3-C28). Budgets: at most
   3 items and 2,000 characters a prompt (each line ≤ 600), at use at most 5 folders a call, 10
   keys and 1,500 characters, and 20,000 characters of recall and at-use
-  blocks a window; an item is given once per window. Matching cuts the prompt's first 2,000
+  blocks a window, never passed (a block that would pass it is not given, and its items stay
+  ungiven: M13); an item is given once per window. Matching cuts the prompt's first 2,000
   characters into 12 terms (`recallTerms.ts`); each term keeps its 200 newest rows (P3-C12); an
   item needs 2 terms or 1 exact one. The prompt text is used for the match and dropped. claude
   fixes a `session` section per conversation window, and a resumed conversation keeps its
