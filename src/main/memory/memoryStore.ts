@@ -117,7 +117,8 @@ export interface MemoryStore {
     more: number
   }
   /** Recall (phase 3 addendum §6): the active, unpinned specifics and facts in scope, not in
-   *  `excludeIds`, that two distinct terms or one exact term match (one FTS5 phrase per term),
+   *  `excludeIds`, that two distinct terms or one exact term match (one FTS5 phrase per term, its
+   *  newest 200 rows),
    *  by exact terms matched, terms matched, newest, id; the first `limit`. */
   recall(
     scope: MemoryScope,
@@ -126,7 +127,7 @@ export interface MemoryStore {
     limit: number
   ): MemoryItem[]
   /** The folders of active specifics in scope not in `excludeIds`, by each folder's newest
-   *  change, at most `limit`. */
+   *  change, at most `limit`. A pinned specific counts on purpose (`recall` never returns one). */
   foldersWithSpecifics(scope: MemoryScope, excludeIds: readonly string[], limit: number): string[]
   /** Active specifics in scope whose folder is exactly one of `folders`, not in `excludeIds`,
    *  newest first, at most `limit`; `more` counts the rest. */

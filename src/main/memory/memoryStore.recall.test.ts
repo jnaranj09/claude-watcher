@@ -121,6 +121,40 @@ describe('recall', () => {
     ])
   })
 
+  it('more terms matched rank before newest when exact matches are equal', () => {
+    const older = add(specific('staging port', '9281')) // 1 exact + staging
+    const newer = add(specific('other key', '9281')) // 1 exact
+    expect(store.recall(scope, recallTerms('staging 9281'), [], 3).map((i) => i.id)).toEqual([
+      older.id,
+      newer.id
+    ])
+  })
+
+  it('between equal matches and the same change time the lower id comes first', () => {
+    const first = port()
+    clock -= 1000
+    const second = port()
+    expect(store.recall(scope, recallTerms('staging port'), [], 3).map((i) => i.id)).toEqual([
+      first.id,
+      second.id
+    ])
+  })
+
+  it('an item that matches two common terms is found when it is the newest', () => {
+    for (let i = 0; i < 250; i++) add(fact(`staging note ${i}`, 'x'))
+    for (let i = 0; i < 250; i++) add(fact(`port note ${i}`, 'x'))
+    const a = add(specific('staging port', 'blue'))
+    expect(store.recall(scope, recallTerms('staging port'), [], 3).map((i) => i.id)).toEqual([a.id])
+  })
+
+  it('a term brings its 200 newest rows: an item behind 200 newer ones loses that term', () => {
+    const a = add(specific('staging port', 'blue'))
+    for (let i = 0; i < 199; i++) add(fact(`staging note ${i}`, 'x'))
+    expect(store.recall(scope, recallTerms('staging port'), [], 3).map((i) => i.id)).toEqual([a.id])
+    add(fact('staging note last', 'x'))
+    expect(store.recall(scope, recallTerms('staging port'), [], 3)).toEqual([])
+  })
+
   it('a prompt of operator characters returns the item its plain terms match', () => {
     const a = add(specific('deploy near', 'b:c'))
     expect(
@@ -144,6 +178,18 @@ describe('folders', () => {
     add(specific('k2', 'v'), { folder: '/work/w2', workspaceId: 'w2' })
     const global = add(specific('k3', 'v'), { folder: '/work/global', workspaceId: null })
     expect(store.foldersWithSpecifics(scope, [], 200)).toEqual([global.meta.folder])
+  })
+
+  it('foldersWithSpecifics skips a specific with no folder', () => {
+    add(specific('k1', 'v'))
+    add(specific('k2', 'v'), { folder: '/work/app' })
+    expect(store.foldersWithSpecifics(scope, [], 200)).toEqual(['/work/app'])
+  })
+
+  it('foldersWithSpecifics counts a pinned specific on purpose: the index may have cut it', () => {
+    const a = add(specific('k1', 'v'), { folder: '/work/app' })
+    store.setPinned(a.id, true)
+    expect(store.foldersWithSpecifics(scope, [], 200)).toEqual(['/work/app'])
   })
 
   it('foldersWithSpecifics stops at the limit', () => {

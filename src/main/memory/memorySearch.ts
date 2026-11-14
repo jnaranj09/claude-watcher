@@ -52,7 +52,8 @@ const SPECIFICS_HERE_MAX = 50
 /** The trigram index cannot match fewer characters than this. */
 const TRIGRAM_MIN = 3
 const ACTIVE: SqlClause = { sql: "item.state = 'active'", params: [] }
-/** Row ids one recall term may bring. */
+/** Row ids one recall term may bring: its newest, so a new item behind many old ones on a common
+ *  term still counts that term. */
 const RECALL_HITS_PER_TERM = 200
 const RECALLABLE: SqlClause = {
   sql: "item.pinned = 0 AND item.kind IN ('specific', 'fact')",
@@ -335,7 +336,7 @@ function byRecallRank([aId, a]: [string, RecallTally], [bId, b]: [string, Recall
 }
 
 /** The active, unpinned specifics and facts in scope the terms name: one FTS5 phrase per term
- *  (at most `RECALL_HITS_PER_TERM` rows each). An item qualifies with two distinct terms matched,
+ *  (its newest `RECALL_HITS_PER_TERM` rows). An item qualifies with two distinct terms matched,
  *  or one exact term. The first `limit` by rank, as whole items. */
 export function recallItems(
   db: MemoryDb,
@@ -351,7 +352,7 @@ export function recallItems(
   for (const [term, exact] of exactOf) {
     const hits = db.all(
       `SELECT item.id, item.updated_at FROM item_words JOIN item ON item.rid = item_words.rowid
-       WHERE item_words MATCH ? AND ${where.sql} LIMIT ?`,
+       WHERE item_words MATCH ? AND ${where.sql} ORDER BY item.updated_at DESC, item.id LIMIT ?`,
       RecallHitRow,
       [ftsQuery([term]), ...where.params, RECALL_HITS_PER_TERM]
     )
@@ -373,7 +374,8 @@ export function recallItems(
 const FolderRow = z.object({ folder: z.string() })
 
 /** The folders of active specifics in scope not in `excludeIds`, by each folder's newest
- *  `updated_at`, at most `limit`. */
+ *  `updated_at`, at most `limit`. A pinned specific counts on purpose: one the index cut at its
+ *  ceiling is not in `excludeIds`, and its folder is the only way back to it. */
 export function specificFolders(
   db: MemoryDb,
   scope: MemoryScope,
