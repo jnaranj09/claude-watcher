@@ -180,11 +180,12 @@ export interface ClaudeCommandSpec {
    *  2.1.284): `--resume <id> -n <name>` is accepted, keeps the id, and applies the name
    *  (sessions/<pid>.json, the transcript's custom-title, the terminal title). */
   resume: boolean
-  /** The bridge mod's folder (`mods/bridgeModSpawn.ts`): `--plugin-dir <dir>` right after
-   *  `--settings`, on both forms. REQUIRED-and-nullable so every caller decides; `null` composes
-   *  byte-identically to before. Probe 2026-10-19 (claude 2.1.304): loads with no consent screen,
-   *  new and `--resume`. */
-  pluginDir: string | null
+  /** The mod folders (`pty/spawnExtras.ts`: the bridge mod's, `mods/bridgeModSpawn.ts`, first):
+   *  one `--plugin-dir <dir>` per folder, in order, right after `--settings`, on both forms.
+   *  REQUIRED so every caller decides; an empty list composes byte-identically to before. Probe
+   *  2026-10-19 (claude 2.1.304): the bridge mod loads with no consent screen, new and
+   *  `--resume`. */
+  pluginDirs: readonly string[]
   /** A session given the app's own MCP servers (spec 2026-10-19 goals): `--mcp-config <file>…`,
    *  ONE flag followed by one config file per server, and `--allowedTools <tools>` so their tools
    *  need no permission prompt. Both right after `--append-system-prompt`, on both forms.
@@ -196,6 +197,11 @@ export interface ClaudeCommandSpec {
 
 function flagArg(flag: string, value: string | null): string {
   return value !== null && value.length > 0 ? ` ${flag} ${shellQuote(value)}` : ''
+}
+
+/** The flag repeated before each non-empty value, each shell-quoted; nothing for none. */
+function repeatedFlagArg(flag: string, values: readonly string[]): string {
+  return values.map((v) => flagArg(flag, v)).join('')
 }
 
 /** One flag followed by every non-empty value, each shell-quoted; nothing for none. */
@@ -280,7 +286,7 @@ export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
       `${shellQuote(spec.claudeCommand)} --resume ${shellQuote(spec.sessionId)}` +
       flagArg('-n', spec.displayName) +
       flagArg('--settings', spec.hookSettingsPath) +
-      flagArg('--plugin-dir', spec.pluginDir) +
+      repeatedFlagArg('--plugin-dir', spec.pluginDirs) +
       flagArg('--append-system-prompt', spec.appendSystemPrompt) +
       flagArgs('--mcp-config', spec.mcpConfigPaths) +
       flagArg('--allowedTools', spec.allowedTools)
@@ -294,7 +300,7 @@ export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
     `${shellQuote(spec.claudeCommand)} --session-id ${shellQuote(spec.sessionId)}` +
     flagArg('-n', spec.displayName) +
     flagArg('--settings', spec.hookSettingsPath) +
-    flagArg('--plugin-dir', spec.pluginDir) +
+    repeatedFlagArg('--plugin-dir', spec.pluginDirs) +
     flagArg('--append-system-prompt', spec.appendSystemPrompt) +
     flagArgs('--mcp-config', spec.mcpConfigPaths) +
     flagArg('--allowedTools', spec.allowedTools) +

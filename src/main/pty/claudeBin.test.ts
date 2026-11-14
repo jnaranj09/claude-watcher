@@ -211,7 +211,7 @@ describe('composeClaudeCommand', () => {
       effort: null,
       initialPrompt: null,
       resume: false,
-      pluginDir: null,
+      pluginDirs: [],
       mcpConfigPaths: [],
       allowedTools: null,
       ...overrides
@@ -304,7 +304,7 @@ describe('composeClaudeCommand', () => {
   describe('the bridge mod (--plugin-dir)', () => {
     it('puts a quoted --plugin-dir right after --settings on a new session', () => {
       expect(
-        composeClaudeCommand(spec({ hookSettingsPath: '/h/hooks.json', pluginDir: '/m/a b' }))
+        composeClaudeCommand(spec({ hookSettingsPath: '/h/hooks.json', pluginDirs: ['/m/a b'] }))
       ).toBe(
         `'${BIN}' --session-id '${SID}' -n 'x' --settings '/h/hooks.json' --plugin-dir '/m/a b'`
       )
@@ -313,14 +313,28 @@ describe('composeClaudeCommand', () => {
     it('puts a quoted --plugin-dir right after --settings on the --resume form', () => {
       expect(
         composeClaudeCommand(
-          spec({ resume: true, hookSettingsPath: '/h/hooks.json', pluginDir: '/m/a b' })
+          spec({ resume: true, hookSettingsPath: '/h/hooks.json', pluginDirs: ['/m/a b'] })
         )
       ).toBe(`'${BIN}' --resume '${SID}' -n 'x' --settings '/h/hooks.json' --plugin-dir '/m/a b'`)
     })
 
-    it('composes byte-identically to before when pluginDir is null', () => {
+    it('composes byte-identically to before when pluginDirs is empty', () => {
       expect(composeClaudeCommand(spec({ hookSettingsPath: '/h/hooks.json' }))).toBe(
         `'${BIN}' --session-id '${SID}' -n 'x' --settings '/h/hooks.json'`
+      )
+    })
+
+    it('composes one --plugin-dir flag per folder, in order, on both forms', () => {
+      const two = {
+        hookSettingsPath: '/s.json',
+        pluginDirs: ['/m/watcher-bridge', '/m/watcher-memory'],
+        appendSystemPrompt: 'nudge'
+      }
+      expect(composeClaudeCommand(spec(two))).toBe(
+        `'${BIN}' --session-id '${SID}' -n 'x' --settings '/s.json' --plugin-dir '/m/watcher-bridge' --plugin-dir '/m/watcher-memory' --append-system-prompt 'nudge'`
+      )
+      expect(composeClaudeCommand(spec({ ...two, resume: true }))).toBe(
+        `'${BIN}' --resume '${SID}' -n 'x' --settings '/s.json' --plugin-dir '/m/watcher-bridge' --plugin-dir '/m/watcher-memory' --append-system-prompt 'nudge'`
       )
     })
   })
@@ -449,9 +463,13 @@ describe('composeClaudeCommand', () => {
       expect(argv).toEqual(['--session-id', SID, '-n', 'x', '--', prompt])
     })
 
-    it('hands claude a --plugin-dir holding an apostrophe as ONE argument, right after --settings', () => {
+    it('hands claude each --plugin-dir, spaced or holding an apostrophe, as ONE argument, right after --settings', () => {
       const cmd = composeClaudeCommand(
-        spec({ claudeCommand: stub, hookSettingsPath: '/h/hooks.json', pluginDir: "/m/it's mod" })
+        spec({
+          claudeCommand: stub,
+          hookSettingsPath: '/h/hooks.json',
+          pluginDirs: ["/m/it's mod", "/m/a b/it's memory"]
+        })
       )
       const argv = execFileSync('/bin/sh', ['-l', '-c', cmd], { encoding: 'utf8' })
         .split('\n')
@@ -465,7 +483,9 @@ describe('composeClaudeCommand', () => {
         '--settings',
         '/h/hooks.json',
         '--plugin-dir',
-        "/m/it's mod"
+        "/m/it's mod",
+        '--plugin-dir',
+        "/m/a b/it's memory"
       ])
     })
 

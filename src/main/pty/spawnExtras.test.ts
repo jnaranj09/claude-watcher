@@ -38,7 +38,8 @@ function extras(
   m: MemorySpawnExtras,
   launch: { cwd: string; workspaceId: string | null } = LAUNCH,
   autoMemory: ClaudeAutoMemory = 'claude',
-  env: Readonly<Record<string, string>> = BASE_ENV
+  env: Readonly<Record<string, string>> = BASE_ENV,
+  bridgePluginDir: string | null = null
 ): ReturnType<typeof spawnExtras> {
   return spawnExtras({
     goal: g,
@@ -46,7 +47,8 @@ function extras(
     launch,
     activeWorkspaceId: () => 'active',
     autoMemory,
-    env
+    env,
+    bridgePluginDir
   })
 }
 
@@ -65,8 +67,7 @@ const base = {
   permissionMode: null,
   effort: null,
   initialPrompt: null,
-  resume: false,
-  pluginDir: null
+  resume: false
 }
 
 describe('spawnExtras command fields', () => {
@@ -74,7 +75,8 @@ describe('spawnExtras command fields', () => {
     expect(fieldsOf(goal, memory)).toEqual({
       appendSystemPrompt: `${QUESTION_FORMAT_PROMPT}\n\nTASK BLOCK\n\nMEMORY INDEX`,
       mcpConfigPaths: ['/ud/mcp/goals.json', '/ud/mcp/memory.json'],
-      allowedTools: `mcp__claude-watcher__mark_task_done,${memory.allowedTools ?? ''}`
+      allowedTools: `mcp__claude-watcher__mark_task_done,${memory.allowedTools ?? ''}`,
+      pluginDirs: []
     })
   })
 
@@ -82,7 +84,8 @@ describe('spawnExtras command fields', () => {
     expect(fieldsOf(goal, NO_MEMORY_EXTRAS)).toEqual({
       appendSystemPrompt: `${QUESTION_FORMAT_PROMPT}\n\nTASK BLOCK`,
       mcpConfigPaths: ['/ud/mcp/goals.json'],
-      allowedTools: 'mcp__claude-watcher__mark_task_done'
+      allowedTools: 'mcp__claude-watcher__mark_task_done',
+      pluginDirs: []
     })
   })
 
@@ -90,7 +93,8 @@ describe('spawnExtras command fields', () => {
     expect(fieldsOf(NO_GOAL, memory)).toEqual({
       appendSystemPrompt: `${QUESTION_FORMAT_PROMPT}\n\nMEMORY INDEX`,
       mcpConfigPaths: ['/ud/mcp/memory.json'],
-      allowedTools: memory.allowedTools
+      allowedTools: memory.allowedTools,
+      pluginDirs: []
     })
   })
 
@@ -99,7 +103,8 @@ describe('spawnExtras command fields', () => {
     expect(fields).toEqual({
       appendSystemPrompt: QUESTION_FORMAT_PROMPT,
       mcpConfigPaths: [],
-      allowedTools: null
+      allowedTools: null,
+      pluginDirs: []
     })
     const bare = composeClaudeCommand({ ...base, ...fields })
     expect(bare).not.toContain('--mcp-config')
@@ -114,6 +119,14 @@ describe('spawnExtras command fields', () => {
     expect(full).toContain('--allowedTools')
     expect(full).toContain('mcp__claude-watcher-memory__memory_get')
     expect(full).toContain('MEMORY INDEX')
+  })
+})
+
+describe('spawnExtras mod folders', () => {
+  it("lists the bridge mod's folder when there is one, and none when there is not", () => {
+    const withBridge = extras(goal, memory, LAUNCH, 'claude', BASE_ENV, '/m/watcher-bridge')
+    expect(withBridge.fields.pluginDirs).toEqual(['/m/watcher-bridge'])
+    expect(extras(goal, memory).fields.pluginDirs).toEqual([])
   })
 })
 
@@ -165,7 +178,8 @@ describe('spawnExtras env and workspace', () => {
       launch: LAUNCH,
       activeWorkspaceId: () => 'active',
       autoMemory: 'off',
-      env
+      env,
+      bridgePluginDir: null
     })
     expect(env).toEqual(BASE_ENV)
   })
@@ -178,7 +192,8 @@ describe('spawnExtras env and workspace', () => {
       launch: LAUNCH,
       activeWorkspaceId: () => 'active',
       autoMemory: 'off',
-      env: BASE_ENV
+      env: BASE_ENV,
+      bridgePluginDir: null
     })
     expect(memoryFor).toHaveBeenCalledWith({
       cwd: '/work/app',
@@ -198,7 +213,8 @@ describe('spawnExtras env and workspace', () => {
         launch: LAUNCH,
         activeWorkspaceId: () => 'active',
         autoMemory: 'claude',
-        env: BASE_ENV
+        env: BASE_ENV,
+        bridgePluginDir: null
       })
     }
     expect(memoryFor.mock.calls.map(([target]) => target.excludeTaskIds)).toEqual([
@@ -215,7 +231,8 @@ describe('spawnExtras env and workspace', () => {
       launch: { cwd: '/work/app', workspaceId: null },
       activeWorkspaceId: () => 'active',
       autoMemory: 'off',
-      env: BASE_ENV
+      env: BASE_ENV,
+      bridgePluginDir: null
     })
     expect(memoryFor).toHaveBeenCalledWith({
       cwd: '/work/app',

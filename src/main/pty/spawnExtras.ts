@@ -3,7 +3,8 @@
 // `--mcp-config` flag followed by a file per server (probed on claude 2.1.322: both servers
 // connect), so the two are joined here: the question nudge, the task block, then the memory index
 // (which leaves out the tasks the block lists);
-// the goals file first; one comma-joined `--allowedTools`. The child env is the base env plus
+// the goals file first; one comma-joined `--allowedTools`; the mod folders, the bridge mod's
+// first, one `--plugin-dir` each. The child env is the base env plus
 // memory's (`CLAUDE_WATCHER_MEMORY`, only while memory is on) plus what the `Claude's auto
 // memory` setting asks for (`AUTO_MEMORY_ENV`), which does not depend on memory being on.
 // `rawClaudeSpawn` (`ipc/registerLaunchIpc.ts`) spawns with exactly what this returns.
@@ -15,7 +16,7 @@ import type { MemorySpawnExtras } from '../memory/memoryLaunch'
 
 type SpawnCommandFields = Pick<
   ClaudeCommandSpec,
-  'appendSystemPrompt' | 'mcpConfigPaths' | 'allowedTools'
+  'appendSystemPrompt' | 'mcpConfigPaths' | 'allowedTools' | 'pluginDirs'
 >
 
 /** claude's own auto memory, per launch (`settings.claudeAutoMemory`). claude reads
@@ -29,7 +30,11 @@ const AUTO_MEMORY_ENV: Readonly<Record<ClaudeAutoMemory, Readonly<Record<string,
   claude: {}
 }
 
-function spawnCommandFields(goal: GoalSpawnExtras, memory: MemorySpawnExtras): SpawnCommandFields {
+function spawnCommandFields(
+  goal: GoalSpawnExtras,
+  memory: MemorySpawnExtras,
+  bridgePluginDir: string | null
+): SpawnCommandFields {
   const paths = [goal.mcpConfigPath, memory.mcpConfigPath].filter((p): p is string => p !== null)
   const tools = [goal.allowedTools, memory.allowedTools].filter((t): t is string => t !== null)
   return {
@@ -39,7 +44,8 @@ function spawnCommandFields(goal: GoalSpawnExtras, memory: MemorySpawnExtras): S
       memory.appendPrompt
     ),
     mcpConfigPaths: paths,
-    allowedTools: tools.length === 0 ? null : tools.join(',')
+    allowedTools: tools.length === 0 ? null : tools.join(','),
+    pluginDirs: bridgePluginDir === null ? [] : [bridgePluginDir]
   }
 }
 
@@ -59,6 +65,8 @@ export function spawnExtras(input: {
   /** `settings.claudeAutoMemory`, read at this spawn. */
   autoMemory: ClaudeAutoMemory
   env: Readonly<Record<string, string>>
+  /** The bridge mod's folder (`applyBridgeMod`), or null when the spawn skips the mod. */
+  bridgePluginDir: string | null
 }): { fields: SpawnCommandFields; env: Record<string, string> } {
   const { goal, launch } = input
   const memory = input.memory({
@@ -67,7 +75,7 @@ export function spawnExtras(input: {
     excludeTaskIds: goal.taskIds
   })
   return {
-    fields: spawnCommandFields(goal, memory),
+    fields: spawnCommandFields(goal, memory, input.bridgePluginDir),
     env: { ...input.env, ...memory.env, ...AUTO_MEMORY_ENV[input.autoMemory] }
   }
 }

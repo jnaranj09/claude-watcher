@@ -301,9 +301,10 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     const childPath = prependToPath(claude.dir, env.PATH)
     if (childPath !== undefined) env.PATH = childPath
 
-    // The bridge mod: `--plugin-dir` plus the report URL in the env, or a reason Context shows.
+    // The bridge mod: its folder (handed to spawnExtras, which lists it for `--plugin-dir`) plus
+    // the report URL in the env, or a reason Context shows.
     // FAIL OPEN: a skip launches the session exactly as before the mod existed.
-    const pluginDir = applyBridgeMod({
+    const bridgePluginDir = applyBridgeMod({
       sessionId,
       env,
       listening: () => serverHealth.hookListening(),
@@ -327,7 +328,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
       launch,
       activeWorkspaceId,
       autoMemory: claudeAutoMemory(),
-      env
+      env,
+      bridgePluginDir
     })
 
     return {
@@ -347,7 +349,6 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
           sessionId,
           displayName,
           hookSettingsPath: hookSettingsPathForSpawn(),
-          pluginDir,
           ...extras.fields,
           model: flags.model,
           permissionMode: flags.permissionMode,
