@@ -89,9 +89,11 @@ export function claudeSpawnCommand(
     request.resume,
     previousSessionId
   )
-  // Memory: the folder's index and the memory tools for this launch, or nothing at all (memory
-  // off, hook port not ours, database closed, a failure). Joined with goals, with the child env
-  // and the operator's choice for claude's own auto memory, in pty/spawnExtras.ts.
+  // Memory: the memory tools for this launch with either the folder's index (no recall) or the
+  // `watcher-memory` mod folder and its config var (recall: the mod sends the index as a section,
+  // so the command carries none), or nothing at all (memory off, hook port not ours, database
+  // closed, a failure). Joined with goals, with the child env and the operator's choice for
+  // claude's own auto memory, in pty/spawnExtras.ts.
   const extras = spawnExtras({
     goal,
     memory: (target) => deps.memorySpawnExtras(sessionId, target, previousSessionId),
@@ -108,8 +110,9 @@ export function claudeSpawnCommand(
     // name instead of generating its own title, `--settings <file>` carries the hook block
     // WITHOUT touching the operator's project, and `--append-system-prompt` injects the
     // deterministic-attention question-format nudge (DA-4; probe-verified GO), plus the task
-    // block of a session started from goal tasks and the memory index, with each server's
-    // `--mcp-config` file and tools.
+    // block of a session started from goal tasks and, for a session without recall, the memory
+    // index, with each server's `--mcp-config` file and tools, and one `--plugin-dir` per mod
+    // (the bridge mod first, then `watcher-memory` when the session gets recall).
     args: [
       '-l',
       '-c',

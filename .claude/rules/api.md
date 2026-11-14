@@ -141,6 +141,6 @@ already opened in claude once.
 - Don't accept caller prose (no free-text `prompt` field — that is RCE behind one token).
 - Don't run a regex before the length check; don't anchor by hand (`compileParamPattern` compiles
   standalone first — `a)|(.*` escapes naive anchors).
-- Don't add a third listener (the MCP paths `/mcp/goals` and `/mcp/memory` live on the :9279 hook listener, not here); don't bind `0.0.0.0` or make the host a setting; don't add CORS.
+- Don't add a third listener (the MCP paths `/mcp/goals` and `/mcp/memory` and the memory mod's `/mod/memory/*` live on the :9279 hook listener, not here); don't bind `0.0.0.0` or make the host a setting; don't add CORS.
 - Don't widen `ApiSession` with content; don't drop `.strict()` from `api.ts` schemas.
 - Don't return an unvalidated 200; don't pass `writeError` a runtime value.

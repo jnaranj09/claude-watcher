@@ -43,7 +43,16 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   watcher-bridge`, not `claude-…`: a reserved prefix) reads and reports paths + counts, and after
   each prompt POSTs who sent it (`prompt.submit` `origin.kind`, never the text) to `/mod/prompt`
   (`MOD_PROMPT_PATH`, `ModPromptSchema`, `modPromptOrigin.ts`; 409 not live, handler throw → 200 +
-  `code=mod_prompt_handler_error`; nothing sent when there is no origin); it never changes claude.
+  `code=mod_prompt_handler_error`; nothing sent when there is no origin). `watcher-bridge` reads
+  and reports and never changes what claude does or shows; a second mod, `watcher-memory` (spec
+  2026-11-12), is the one mod that changes what claude reads, only in a session started with
+  Memory and `Memory recall` on, the mod installed, and claude ≥ `MIN_MEMORY_MOD_CLAUDE_VERSION`
+  (2.1.323, probed), and only four ways: one `session` section added last (the index), one
+  context block beside an operator prompt, one context block after a Read / Edit / Write /
+  NotebookEdit result in the main conversation, and `/remember`; it never rewrites, drops or
+  denies, never breaks the prompt cache, draws nothing, registers no tool
+  (`tests/main/memoryModBounds.guard.test.ts`); an unknown event name unloads a whole hooks module
+  (probed 2.1.323), which is why it is a second mod.
   Origin probed on claude 2.1.309; `prompt.submit` is present in the 2.1.307–2.1.309 binaries; 2.1.304–2.1.306 are unverified (the mod
   floor stays 2.1.304: there the origin never arrives and the `UserPromptSubmit` fallback below
   applies). Context (`ContextDialog`) shows it, `mods/fileHistory.ts` keeps file
@@ -57,10 +66,13 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `code=mod_install_failed`, the other still installs); a spawn passes it, after the bridge mod's
   folder, only when memory's launch picks recall (the Memory bullet below). It hooks seven
   events (index section, recall per prompt, keys at use, `/remember`, window count on `/clear` and
-  compaction), each call to main raced by its own timer, and `tests/main/memoryModBounds.guard.test.ts`
-  bounds what it may hook and call.
+  compaction), each call to main raced by its own timer, and talks only to
+  `http://127.0.0.1:<port>/mcp/memory`'s listener (`parseConfig` refuses any other link, P3-C21).
+  `tests/main/memoryModBounds.guard.test.ts` bounds what it may hook and call (each hook inline,
+  each `on(…)` a statement of its own, one fetch); it is a tripwire for honest mistakes, not a
+  sandbox (P3-C25, P3-C27): review of the two mod files is the control.
   `src/mod/engine.d.ts` is the one ambient engine type file for both mods (not shipped).
-  The bridge mod's manifest and hooks module are pinned byte for byte (`tests/main/bridgeModPinned.test.ts`).
+  The bridge mod's hooks module and manifest stay byte for byte (`tests/main/bridgeModPinned.test.ts`, P3-C2).
   `npm run test:mod` = `claude plugin validate` + `claude plugin test` for both mods (local only).
   After a claude upgrade also run `npm run test:claude-drift` (local only): it checks that claude
   still describes an artifact watch as `hooks/backgroundTasks.ts` reads it.
@@ -176,13 +188,41 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   the mod folders (bridge first, then memory); it also asks memory for the launch's workspace
   (main's active one when it names none) and builds the child env (memory's vars only while
   memory is on). The launch path composes it all in `pty/claudeSpawnCommand.ts`.
+  The spawn choice (`createMemoryModChoice`) decides whether the session gets the mod, its
+  `CLAUDE_WATCHER_MEMORY_CONFIG` and no index in `--append-system-prompt`; `recall.launched`
+  keeps the goal block's task ids, so the section the mod asks for later leaves them out too.
+  Recall (`memory/memoryRecall.ts`, `modMemoryWiring.ts`): four POST routes at `MOD_MEMORY_PATHS`
+  (`/mod/memory/index`, `recall`, `at-use`, `remember`) on the hook listener behind the memory
+  bearer (P3-C20: only the memory server's own tokens open them); no body names a session (the
+  grant does); an unknown `/mod/memory/` path is 404. Every request carries the mod's `window`,
+  counted up at each `/clear` and compaction of the main conversation; a request whose window
+  differs from the one main keeps (a late one from an older window too, P3-C16) resets what main
+  remembers the session was told (the index's ids, the ids given since, at most 500, and the
+  characters given). The mod races each call: 500 ms (index), 250 ms (recall), 250 ms (at use),
+  3,000 ms (`/remember`); a miss or a failed call pauses every call but `/remember` for 30 s.
+  An index ask main ANSWERS with a no (Memory off, the gate) clears the mod's index; only a failed
+  ask keeps the last good one (P3-C22), so after Memory off and on in a running session the
+  section and the folder keys come back at the next `/clear` or compaction, per-prompt recall at
+  once. Budgets: at most 3 items and 2,000 characters a prompt (each line ≤ 600), at use at most
+  5 folders a call, 10 keys and 1,500 characters, and 20,000 characters of recall and at-use
+  blocks a window; an item is given once per window. Matching cuts the prompt's first 2,000
+  characters into 12 terms (`recallTerms.ts`); each term keeps its 200 newest rows (P3-C12); an
+  item needs 2 terms or 1 exact one. The prompt text is used for the match and dropped. claude
+  fixes a `session` section per conversation window, and a resumed conversation keeps its
+  recorded one (probed 2.1.323); a block is appended after the cached prefix and does not
+  invalidate the prompt cache (probed). `/remember` (no model turn; Windows line ends accepted,
+  P3-C14) saves one `stated` operator item and refuses a non-operator origin, an empty or too
+  long text, a control character and a secret (`hasSecret`). Every saved text a model reads goes
+  through `wrapperSafe` (P3-C1: a `system-reminder` tag and the memory block marker are
+  neutralised; on the joined text and on each composed line, P3-C15).
   claude's own auto memory is a separate setting (`settings.claudeAutoMemory`, owner 2026-11-12:
   the two memories work side by side), read at every spawn whether memory is on or not: `off` →
   env `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, `on` → `=0` (forces it on over the operator's
   `autoMemoryEnabled: false`), `claude` (default) → the app sets nothing, so claude's settings
   decide (all three probed on claude 2.1.322).
-  A launch never fails for memory: any throw leaves no token or file, logs
-  `code=memory_launch_failed`, and the session starts as if memory were off. A Reopen drops the
+  A launch never fails for memory: any throw (the mod's config or the launch index included,
+  P3-C24) leaves no token or file, logs `code=memory_launch_failed`, and the session starts as if
+  memory were off, with no recall mode recorded. A Reopen drops the
   replaced id's memory token and file first, even with memory off.
   Served at `MEMORY_MCP_PATH` (`/mcp/memory`) on the hook listener by the shared
   `mcp/mcpEndpoint.ts`, behind the same guards as `/mcp/goals`; a POST to any other `/mcp/` path
@@ -219,8 +259,9 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `EXTRACT_LIMITS.readBytesPerJob`), cleaned (`sliceCleaner.ts`: no thinking, web, MCP,
   subagent and other agents' results without their text (P3-R3), secrets replaced,
   `secretScan.ts`); what memory itself told the session (a block that starts
-  `Memory (Claude Watcher):`, a system-reminder) is never operator text, and a result that
-  holds a memory block is not kept (P3-R2, P3-C8); the slice is then cut into chunks; a job of
+  `Memory (Claude Watcher):`, a system-reminder) is never operator text, and a typed prompt or a
+  tool result that holds the marker anywhere (any case or spacing) is not kept as evidence
+  (P3-R2, P3-C5, P3-C8, P3-C9); the slice is then cut into chunks; a job of
   fewer than
   `EXTRACT_LIMITS.minPrompts` typed prompts makes no call (`reason=guard`). No transcript: a
   checkpoint waits; an end or a catch-up whose row never read anything (a session that never got

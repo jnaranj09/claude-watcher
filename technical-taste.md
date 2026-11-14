@@ -237,9 +237,10 @@ them:
   its own state ("push once, then believe `session_title`"); what a session loaded comes from the
   app's bridge mod inside it, not from a copy of claude's lookup rules. Memory's saves read
   claude's transcript file (found by session id; the same supported file the transcript tail
-  reads), never write it, and never decide a status from it.
+  reads), never write it, and never decide a status from it. Memory reaches a running session
+  only through the app's own mod (`watcher-memory`), and that mod adds, never rewrites.
 - **Zero footprint.** Never write into the operator's projects or global config. Never delete
-  their entries without being asked. Hooks go through `--settings` and the bridge mod through
+  their entries without being asked. Hooks go through `--settings` and the app's mods through
   `--plugin-dir`, both in the app's own data folder. One exception, started by the operator:
   Context's `Restore` writes an instruction file back to an older version, after keeping the
   file as it is now, and only a `.md` file a live session loaded (owner, 2026-10-18). A second
@@ -689,6 +690,7 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 | The app never writes into an operator's project                                                     | A goal's `Save to GOALS.md` keeps `<goal folder>/GOALS.md` (export only; only a file with the app's header; no write at startup)      | Owner 2026-10-29: commit a goal and its tasks with the project, like `IdeasBoard.md`                         |
 | A goal's folder is optional (goal → workspace folder → picker)                                      | A new goal needs a folder (create opens the picker); a goal's sessions start in it only; Daily tasks keep the fallback                | Owner 2026-10-29                                                                                             |
 | No database (JSON files only)                                                                       | Memory uses Electron's built-in SQLite (`node:sqlite`); still no second native module                                                 | Metadata filters and text search over items; owner 2026-11-11                                                |
+| The app's mod only reports; it never changes claude                                                 | `watcher-bridge` still only reports; `watcher-memory` adds memory to what claude reads (four ways, never a rewrite or a deny)         | Owner 2026-11-11: the mod is for recall                                                                      |
 
 ## 13. Rejected — don't propose these again
 

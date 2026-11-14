@@ -114,7 +114,8 @@ now, or restore it (the file as it is now is kept first, so a restore can be und
 The app learns this from a small Claude Code mod it passes to the sessions it launches
 (`--plugin-dir`, from the app's own data folder). The mod only reads and reports file paths and
 counts, plus who sent each prompt (the origin kind, never the text); it changes nothing in the session. It needs Claude Code 2.1.304 or newer; on an older
-claude the session runs as before and Context says why it is empty.
+claude the session runs as before and Context says why it is empty. Memory recall uses a second
+mod of its own (see Memory).
 
 ## Ending a session, and Past sessions
 
@@ -176,6 +177,17 @@ check it (`Check:`). A later session sees the folder's open tasks and can report
 a task it reports done shows **Reported done by "…"** and stays open: only you close a task
 (**Done**).
 
+**While a session runs.** Claude also gets the items that match what you type (at most three, each
+once per conversation), the keys saved for a folder when it opens a file there, and a fresh index
+after `/clear` and `/compact`. `/remember <text>` (or `/remember <key> = <value>`) saves a line
+yourself with no model turn, and refuses what looks like a secret. What memory tells Claude is
+never saved back as something a session saw, and Claude repeating a saved item in its own words
+does not change the item. **Settings → Memory → Memory recall** (on by default) turns all of this
+off for sessions started after the change and keeps the index a session gets at launch; it needs Claude 2.1.323 or newer, and the
+session's Context → **Memory** page says when it is not active and lists what memory gave. A
+matched item adds roughly 80 to 250 tokens to that prompt, at most about 800, and nothing when
+nothing matches.
+
 **☰ → Memory** lists the items of the workspace you are in (and the global ones) on four pages,
 **Specifics**, **Facts**, **Episodes** and **Commands**: search, filter by folder, session, tag,
 date or goal, edit, pin, mark stale, see **History** and restore a version, or delete. An item
@@ -201,7 +213,8 @@ and the model's answers are never written to a log, a notification or the local 
 **Settings → Memory**:
 
 - **Memory** (on by default) — off means sessions start with no memory tools and no index, and
-  nothing is saved from them. Items already saved are kept. While it is on, four more choices
+  nothing is saved from them; a session already running gets nothing more from recall. Items
+  already saved are kept. While it is on, four more choices
   show:
   - **Memory recall** (on by default) — while a session runs, Claude gets a fresh memory index
     after `/clear` and `/compact`, items that match each prompt, the keys saved for a folder when
@@ -241,6 +254,7 @@ Known limits:
 - A value written right before a dotted or hyphenated continuation (`1.2` in `1.2.34`) is
   dropped on purpose: a cut version or address is worse than none.
 - A value inside the cut middle of a very long tool result is not saved.
+- Claude restating a saved value under another key can still be saved as a new item.
 - A resumed turn you stop with Esc sends no turn end, so its text is saved only after a later
   resume.
 - A conversation switched with `/resume` inside claude is saved at the next start.
