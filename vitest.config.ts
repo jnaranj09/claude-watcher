@@ -27,8 +27,9 @@ const NODE_SHARED = [
   'tests/unit/**/*.test.ts',
   'src/__fixtures__/**/*.test.ts'
 ]
-// The bridge mod's own `*.test.ts` are engine tests (`claude plugin test`, npm run test:mod), not
-// Vitest files; its pure report builder is tested from tests/unit.
+// Each mod's own `*.test.ts` (watcher-bridge, watcher-memory) are engine tests (`claude plugin
+// test`, npm run test:mod), not Vitest files; their pure modules (the bridge's report builder, the
+// memory mod's protocol) are tested from tests/unit.
 const MOD_TESTS = 'src/mod/**'
 
 export default defineConfig({

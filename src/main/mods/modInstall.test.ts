@@ -178,6 +178,25 @@ describe('modSourceDir', () => {
   })
 })
 
+describe('modSourceDir for the memory mod', () => {
+  it('reads <resourcesPath>/mods/watcher-memory when packaged', () => {
+    expect(
+      modSourceDir({ name: MEMORY_MOD_NAME, isPackaged: true, resourcesPath: '/r', mainDir: '/x' })
+    ).toBe('/r/mods/watcher-memory')
+  })
+
+  it('reads the repo copy of the memory mod under src/mod when unpackaged', () => {
+    expect(
+      modSourceDir({
+        name: MEMORY_MOD_NAME,
+        isPackaged: false,
+        resourcesPath: '/r',
+        mainDir: '/repo/out/main'
+      })
+    ).toBe('/repo/src/mod/watcher-memory')
+  })
+})
+
 describe('modSmokeCheck', () => {
   it('passes when the installed plugin.json exists', () => {
     expect(modSmokeCheck(TARGET, (p) => p === `${TARGET}/.claude-plugin/plugin.json`)).toEqual({
