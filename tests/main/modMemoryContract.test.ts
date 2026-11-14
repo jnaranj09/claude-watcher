@@ -43,6 +43,7 @@ import {
   atUseBody,
   foldersFor,
   indexBody,
+  isNotOk,
   nextWindow,
   parseConfig,
   readIndexAnswer,
@@ -267,6 +268,25 @@ describe('the memory mod’s contract with main', () => {
       expect([folders, readTextAnswer(JSON.stringify(answer))]).toEqual([
         ['/work/other'],
         `${MEMORY_BLOCK_MARKER} saved for /work/other\n- db port (${formatDay(NOW)}) id=m1`
+      ])
+    })
+
+    it('the index answer of a session the gate refuses (Memory off) reads as a no', () => {
+      const recall = createMemoryRecall({
+        gate: () => null,
+        tasks: () => null,
+        activity: { injected: () => undefined, record: () => undefined },
+        operatorOrigins: OPERATOR_ORIGINS,
+        now: () => NOW,
+        log: () => undefined
+      })
+      const answer = recall.index(
+        { sessionId: 's1' },
+        ModMemoryIndexSchema.parse(JSON.parse(indexBody(0)))
+      )
+      expect([isNotOk(JSON.stringify(answer)), readIndexAnswer(JSON.stringify(answer))]).toEqual([
+        true,
+        undefined
       ])
     })
 

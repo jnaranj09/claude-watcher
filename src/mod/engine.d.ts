@@ -91,8 +91,10 @@ declare module 'claude-code' {
   /** Opaque here: the mod passes it on untouched. */
   export type PromptSubmitResult = Readonly<Record<string, unknown>>
 
-  /** Opaque here: the memory mod reads none of it. */
-  export type PromptComposeInput = Readonly<Record<string, unknown>>
+  /** The memory mod reads only `traits` (`analysis`: a `/context` render that sends nothing). */
+  export type PromptComposeInput = Readonly<Record<string, unknown>> & {
+    readonly traits: readonly string[]
+  }
   export type PromptComposeSection = {
     readonly id: string
     readonly text: string

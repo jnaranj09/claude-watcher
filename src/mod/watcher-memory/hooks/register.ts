@@ -34,6 +34,7 @@ import {
   atUseBody,
   foldersFor,
   indexBody,
+  isNotOk,
   nextWindow,
   parseConfig,
   readIndexAnswer,
@@ -115,11 +116,15 @@ export const register: Register = (on) => {
   on('prompt.compose', async ($, e, next) => {
     const composed = await next(e)
     if (link === undefined) return composed
-    if (cached?.window !== window) {
-      const answer = readIndexAnswer(
-        (await ask($, MOD_PATHS.index, indexBody(window), WAIT_MS.index)) ?? ''
-      )
+    // A `/context` render (`analysis`) sends nothing to the model: it shows what is cached and
+    // never spends the window's ask (nor starts a pause before the real request).
+    if (cached?.window !== window && !e.traits.includes('analysis')) {
+      const res = (await ask($, MOD_PATHS.index, indexBody(window), WAIT_MS.index)) ?? ''
+      const answer = readIndexAnswer(res)
       if (answer !== undefined) cached = { window, ...answer }
+      // main said no (Memory off, P3-C22): drop the index for this window. A failed ask (timer,
+      // throw, non-200, garbage) keeps the last good one.
+      else if (isNotOk(res)) cached = { window, text: '', folders: [] }
     }
     if (cached === undefined || cached.text === '') return composed
     return {

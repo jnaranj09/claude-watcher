@@ -185,13 +185,14 @@ test("after a compaction of the main conversation the window is 2; a subagent's 
 test("a recall block rides the prompt's context after what was already there", async ($, on) => {
   const { sent, submitted } = world(on, ENV)
   await $.session.start(START)
-  await $.prompt.submit({
+  const entered = await $.prompt.submit({
     text: PROMPT,
     wait: false,
     origin: { kind: 'composer' },
     context: ['earlier']
   })
-  expect([submitted, sent]).toEqual([
+  expect([entered, submitted, sent]).toEqual([
+    { text: PROMPT, context: ['earlier', RECALL] },
     [{ text: PROMPT, wait: false, origin: { kind: 'composer' }, context: ['earlier', RECALL] }],
     [
       {
@@ -246,11 +247,14 @@ test('a main that never answers the index leaves the compose answer as next gave
   expect([await composing, sent]).toEqual([{ sections: [CORE] }, [index(0)]])
 })
 
-const AT_USE = {
+const atUse = (window: number): Sent => ({
   url: `${BASE}/mod/memory/at-use`,
-  body: JSON.stringify({ version: 1, window: 0, folders: ['/work/app'] }),
+  body: JSON.stringify({ version: 1, window, folders: ['/work/app'] }),
   authorization: TOKEN
-}
+})
+const AT_USE = atUse(0)
+/** What the tool beneath answers a file tool, as the mod must hand it on when it adds nothing. */
+const RAN = { result: 'file text', text: 'file text' }
 
 test('a Read under a listed folder gets the block once', async ($, on) => {
   const { sent } = world(on, ENV)
@@ -259,11 +263,10 @@ test('a Read under a listed folder gets the block once', async ($, on) => {
   const first = await $.tool.call({ tool: 'Read', file_path: '/work/app/src/a.ts' })
   const second = await $.tool.call({ tool: 'Read', file_path: '/work/app/src/b.ts' })
   expect([first, second, sent]).toEqual([
-    expect.objectContaining({ result: 'file text', context: [KEYS] }),
-    expect.objectContaining({ result: 'file text' }),
+    { result: 'file text', text: 'file text', context: [KEYS] },
+    RAN,
     [index(0), AT_USE]
   ])
-  expect(second).not.toHaveProperty('context')
 })
 
 test('two Reads under one folder that run at once ask main once', async ($, on) => {
@@ -296,8 +299,7 @@ test("a subagent's Read asks nothing", async ($, on) => {
   await $.session.start(START)
   await $.prompt.compose(COMPOSE)
   const ran = await $.tool.call({ tool: 'Read', file_path: '/work/app/src/a.ts', agentId: 'a1' })
-  expect([ran, sent]).toEqual([expect.objectContaining({ result: 'file text' }), [index(0)]])
-  expect(ran).not.toHaveProperty('context')
+  expect([ran, sent]).toEqual([RAN, [index(0)]])
 })
 
 test('a failed at-use call leaves the folder to be asked again, an empty answer does not', async ($, on) => {
@@ -428,7 +430,7 @@ test('a Read that failed asks nothing and hands on the error', async ($, on) => 
   await $.session.start(START)
   await $.prompt.compose(COMPOSE)
   const ran = await $.tool.call({ tool: 'Read', file_path: '/work/app/a.ts' })
-  expect([ran, sent]).toEqual([expect.objectContaining(failed), [index(0)]])
+  expect([ran, sent]).toEqual([failed, [index(0)]])
 })
 
 test('a compaction that was skipped keeps the window', async ($, on) => {
@@ -437,4 +439,162 @@ test('a compaction that was skipped keeps the window', async ($, on) => {
   await $.session.compact({ trigger: 'manual', messages: MESSAGES })
   await $.prompt.compose(COMPOSE)
   expect(sent).toEqual([index(0)])
+})
+
+/** A main whose index route answers each of `answers` in turn (then well), every other route well. */
+function indexInTurn(answers: Answer[]): Main {
+  return async (path, body, clock) =>
+    path === '/mod/memory/index'
+      ? (answers.shift() ?? WELL(path, body, clock))
+      : WELL(path, body, clock)
+}
+const GOOD_INDEX = { status: 200, text: ANSWERS['/mod/memory/index'] ?? '' }
+const MEMORY_OFF = { status: 200, text: JSON.stringify({ ok: false }) }
+const recall = (window: number, origin: string): Sent => ({
+  url: `${BASE}/mod/memory/recall`,
+  body: JSON.stringify({ version: 1, window, origin, text: PROMPT }),
+  authorization: TOKEN
+})
+
+test('a tool that is not a file tool asks nothing, even with a path under a listed folder', async ($, on) => {
+  const { sent } = world(on, ENV)
+  await $.session.start(START)
+  await $.prompt.compose(COMPOSE)
+  const ran = await $.tool.call({ tool: 'mcp__files__open', file_path: '/work/app/a.ts' })
+  expect([ran, sent]).toEqual([RAN, [index(0)]])
+})
+
+test('an empty index adds no section', async ($, on) => {
+  const empty = {
+    status: 200,
+    text: JSON.stringify({ ok: true, text: '', folders: ['/work/app'] })
+  }
+  const { sent } = world(on, ENV, indexInTurn([empty]))
+  await $.session.start(START)
+  const composed = await $.prompt.compose(COMPOSE)
+  expect([composed, sent]).toEqual([{ sections: [CORE] }, [index(0)]])
+})
+
+test('after /clear a folder already asked is asked again, with the new window', async ($, on) => {
+  const { sent } = world(on, ENV)
+  await $.session.start(START)
+  await $.prompt.compose(COMPOSE)
+  await $.tool.call({ tool: 'Read', file_path: '/work/app/a.ts' })
+  await $.session.end(END_CLEAR)
+  await $.prompt.compose(COMPOSE)
+  const ran = await $.tool.call({ tool: 'Read', file_path: '/work/app/a.ts' })
+  expect([ran, sent]).toEqual([
+    { ...RAN, context: [KEYS] },
+    [index(0), atUse(0), index(1), atUse(1)]
+  ])
+})
+
+test('after a compaction a folder already asked is asked again, with the new window', async ($, on) => {
+  const { sent } = world(on, ENV)
+  await $.session.start(START)
+  await $.prompt.compose(COMPOSE)
+  await $.tool.call({ tool: 'Read', file_path: '/work/app/a.ts' })
+  await $.session.compact({ trigger: 'auto', messages: MESSAGES })
+  await $.prompt.compose(COMPOSE)
+  await $.tool.call({ tool: 'Read', file_path: '/work/app/a.ts' })
+  expect(sent).toEqual([index(0), atUse(0), index(1), atUse(1)])
+})
+
+test('after /clear a recall carries the new window', async ($, on) => {
+  const { sent } = world(on, ENV)
+  await $.session.start(START)
+  await $.session.end(END_CLEAR)
+  await $.prompt.submit({ text: PROMPT, wait: false, origin: { kind: 'composer' } })
+  expect(sent).toEqual([recall(1, 'composer')])
+})
+
+test("a prompt's origin is sent as it came, and a prompt with no origin is sent with ''", async ($, on) => {
+  const { sent } = world(on, ENV)
+  await $.session.start(START)
+  await $.prompt.submit({ text: PROMPT, wait: false, origin: { kind: 'sdk' } })
+  await $.prompt.submit({ text: PROMPT, wait: false } as Parameters<typeof $.prompt.submit>[0])
+  expect(sent).toEqual([recall(0, 'sdk'), recall(0, '')])
+})
+
+test('session.start, session.compact and session.end hand on exactly what next gave', async ($, on) => {
+  world(on, ENV)
+  const started = await $.session.start(START)
+  const compacted = await $.session.compact({ trigger: 'manual', messages: MESSAGES })
+  const ended = await $.session.end(END_CLEAR)
+  expect([started, compacted, ended]).toEqual([
+    { cwd: '/work/app' },
+    { messages: MESSAGES },
+    { sessionId: 's1' }
+  ])
+})
+
+test('a fetch that throws starts the pause', async ($, on) => {
+  const refused: Main = async () => {
+    throw new Error('connection refused')
+  }
+  const { sent, submitted, clock } = world(on, ENV, refused)
+  await $.session.start(START)
+  const plain = { text: PROMPT, wait: false, origin: { kind: 'composer' } } as const
+  await $.prompt.submit(plain)
+  await $.prompt.submit(plain)
+  const askedInPause = sent.length
+  await clock.advance(30_000)
+  await $.prompt.submit(plain)
+  expect([submitted, askedInPause, sent.length]).toEqual([[plain, plain, plain], 1, 2])
+})
+
+test('Memory off after /clear: the index main refuses drops the old one, so no section and no folder ask', async ($, on) => {
+  const { sent } = world(on, ENV, indexInTurn([GOOD_INDEX, MEMORY_OFF]))
+  await $.session.start(START)
+  const before = await $.prompt.compose(COMPOSE)
+  await $.session.end(END_CLEAR)
+  const after = await $.prompt.compose(COMPOSE)
+  const ran = await $.tool.call({ tool: 'Read', file_path: '/work/app/a.ts' })
+  expect([before, after, ran, sent]).toEqual([
+    { sections: [CORE, SECTION] },
+    { sections: [CORE] },
+    RAN,
+    [index(0), index(1)]
+  ])
+})
+
+test('Memory off after a compaction: the index main refuses drops the old one', async ($, on) => {
+  const { sent } = world(on, ENV, indexInTurn([GOOD_INDEX, MEMORY_OFF]))
+  await $.session.start(START)
+  await $.prompt.compose(COMPOSE)
+  await $.session.compact({ trigger: 'auto', messages: MESSAGES })
+  const after = await $.prompt.compose(COMPOSE)
+  expect([after, sent]).toEqual([{ sections: [CORE] }, [index(0), index(1)]])
+})
+
+test('an index ask that fails with a non-200 keeps the last good index', async ($, on) => {
+  const { sent } = world(on, ENV, indexInTurn([GOOD_INDEX, { status: 500, text: '' }]))
+  await $.session.start(START)
+  await $.prompt.compose(COMPOSE)
+  await $.session.end(END_CLEAR)
+  const after = await $.prompt.compose(COMPOSE)
+  expect([after, sent]).toEqual([{ sections: [CORE, SECTION] }, [index(0), index(1)]])
+})
+
+test('an index answer that is not JSON keeps the last good index', async ($, on) => {
+  const { sent } = world(on, ENV, indexInTurn([GOOD_INDEX, { status: 200, text: '<html>' }]))
+  await $.session.start(START)
+  await $.prompt.compose(COMPOSE)
+  await $.session.end(END_CLEAR)
+  const after = await $.prompt.compose(COMPOSE)
+  expect([after, sent]).toEqual([{ sections: [CORE, SECTION] }, [index(0), index(1)]])
+})
+
+test("a /context render asks nothing and leaves the window's ask to the next request", async ($, on) => {
+  const { sent } = world(on, ENV)
+  await $.session.start(START)
+  const measured = await $.prompt.compose({ ...COMPOSE, traits: ['analysis'] })
+  const asked = sent.length
+  const composed = await $.prompt.compose(COMPOSE)
+  expect([measured, asked, composed, sent]).toEqual([
+    { sections: [CORE] },
+    0,
+    { sections: [CORE, SECTION] },
+    [index(0)]
+  ])
 })

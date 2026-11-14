@@ -149,6 +149,13 @@ export function rememberBody(origin: string, text: string): string {
   })
 }
 
+/** Did main ANSWER and say no (`{ ok: false, … }`: Memory is off, or the gate refuses)? Not JSON,
+ *  not an object, or anything else is false: that is a failed ask, not an answer (P3-C22). */
+export function isNotOk(text: string): boolean {
+  const answer = json(text)
+  return isRecord(answer) && answer.ok === false
+}
+
 export function readIndexAnswer(text: string): { text: string; folders: string[] } | undefined {
   const answer = json(text)
   if (!isRecord(answer) || answer.ok !== true || typeof answer.text !== 'string') return undefined

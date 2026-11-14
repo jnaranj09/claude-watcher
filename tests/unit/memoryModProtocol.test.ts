@@ -14,6 +14,7 @@ import {
   foldersFor,
   WINDOW_MAX,
   indexBody,
+  isNotOk,
   nextWindow,
   parseConfig,
   readIndexAnswer,
@@ -198,6 +199,20 @@ describe('the memory mod protocol', () => {
       WINDOW_MAX,
       0
     ])
+  })
+
+  it('isNotOk is true only for an answer that says ok: false', () => {
+    expect(
+      [
+        '{"ok":false}',
+        '{"ok":false,"code":"x"}',
+        '{"ok":true,"text":""}',
+        'not json',
+        '[]',
+        '',
+        'null'
+      ].map(isNotOk)
+    ).toEqual([true, true, false, false, false, false, false])
   })
 
   it('rememberBody cuts the text to 8,000 characters', () => {
