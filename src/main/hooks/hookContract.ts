@@ -92,6 +92,20 @@ export const MEMORY_MCP_PATH = `${MCP_PATH_PREFIX}memory`
 /** The URL a memory session's `--mcp-config` file names. */
 export const MEMORY_MCP_URL = `http://${HOST}:${PORT}${MEMORY_MCP_PATH}`
 
+/** Every route of the `watcher-memory` mod starts here, on the hook listener behind the memory
+ *  bearer (memory phase 3; `memory/modMemoryRoutes.ts`); one with no route is 404, never a hook
+ *  (`hookServer.ts`). */
+export const MOD_MEMORY_PATH_PREFIX = '/mod/memory/'
+
+/** The memory mod's four routes: the memory section, recall per prompt, recall at use and
+ *  `/remember`. */
+export const MOD_MEMORY_PATHS = {
+  index: `${MOD_MEMORY_PATH_PREFIX}index`,
+  recall: `${MOD_MEMORY_PATH_PREFIX}recall`,
+  atUse: `${MOD_MEMORY_PATH_PREFIX}at-use`,
+  remember: `${MOD_MEMORY_PATH_PREFIX}remember`
+} as const
+
 /**
  * Maximum accepted HTTP request body size in bytes.
  * Most hook payloads are compact JSON, but a `PostToolUse` carries the tool's whole input and

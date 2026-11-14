@@ -2,7 +2,8 @@
 //
 // Binds to 127.0.0.1 only (never 0.0.0.0). Every inbound POST is validated at a fail-closed
 // boundary: HookEventSchema, ModReportSchema on `/mod/report`, ModPromptSchema on `/mod/prompt`, or
-// an MCP route's JSON-RPC schema (`/mcp/goals`, `/mcp/memory`). On bad input: respond 400 + log
+// an MCP route's JSON-RPC schema (`/mcp/goals`, `/mcp/memory`), or a token route's own schema
+// (`/mod/memory/*`). On bad input: respond 400 + log
 // PATH + CODE only — NEVER log the body (payloads carry prompt/tool_input/last_assistant_message).
 //
 // Body-size cap (MAX_BODY_BYTES): any request exceeding the cap is rejected 400.
@@ -13,7 +14,10 @@
 // same guards. Each MCP route (`mcpRoutes`; the goals server at `/mcp/goals`, the memory server
 // at `/mcp/memory`) is an app MCP endpoint behind the same guards plus its own bearer token (401
 // before the body is read; `mcp/mcpEndpoint.ts` parses the JSON-RPC body). A path under `/mcp/`
-// with no route is 404. Every other path is a hook, as before.
+// with no route is 404. Each token route (`tokenRoutes`; the memory mod's at `MOD_MEMORY_PATHS`,
+// `memory/modMemoryRoutes.ts`) works the same way behind its own bearer and answers its handler's
+// JSON, or 400 with the issue's PATH + CODE logged; a path under `/mod/memory/` with no route is
+// 404. Every other path is a hook, as before.
 // Never throws past the request handler.
 // [.claude/rules/zod-boundaries.md; spec hookServer.ts Code Map]
 
@@ -27,11 +31,79 @@ import {
   MAX_BODY_BYTES,
   MOD_REPORT_PATH,
   MOD_PROMPT_PATH,
-  MCP_PATH_PREFIX
+  MCP_PATH_PREFIX,
+  MOD_MEMORY_PATH_PREFIX
 } from './hookContract'
 import { buildHookResponseBody } from './hookResponse'
 import type { BoundaryErrorRecord } from '../c9watch/reducer'
-import type { JsonRpcResponse, McpRoute } from '../mcp/mcpEndpoint'
+import type { McpRoute } from '../mcp/mcpEndpoint'
+
+/** A token route's answer: 200 with its JSON body, or 400 whose path and code the server logs as a
+ *  boundary error, never with a value. */
+export type TokenRouteAnswer =
+  | { status: 200; body: Record<string, unknown> }
+  | { status: 400; path: string; code: string }
+
+/** A route behind its own bearer that answers JSON (the memory mod's, `memory/modMemoryRoutes.ts`). */
+export interface TokenRoute {
+  path: string
+  /** The bearer's handler, or null on a miss. Opened before the body is read and again when it ended. */
+  open(authorization: string | undefined): ((body: unknown) => TokenRouteAnswer) | null
+  /** A `route=mod_memory code=<code>` line; the route adds its own prefix. */
+  log(line: string): void
+}
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' } as const
+
+/** An MCP route or a token route, as the request handler drives it: `area` names its log lines
+ *  (`route=<area> code=unauthorized`, `code=<area>_handler_error`); a handler's result writes the
+ *  response. */
+interface BearerRoute {
+  area: 'mcp' | 'mod_memory'
+  open(authorization: string | undefined): ((body: unknown) => (res: ServerResponse) => void) | null
+  log(line: string): void
+}
+
+function fromMcpRoute(route: McpRoute): BearerRoute {
+  return {
+    area: 'mcp',
+    open(authorization) {
+      const handle = route.open(authorization)
+      if (handle === null) return null
+      return (body) => {
+        const response = handle(body)
+        // A notification gets 202 and no body.
+        return (res) => {
+          if (response === null) res.writeHead(202).end()
+          else res.writeHead(200, JSON_HEADERS).end(JSON.stringify(response))
+        }
+      }
+    },
+    log: (line) => route.log(line)
+  }
+}
+
+function fromTokenRoute(route: TokenRoute, log: (err: BoundaryErrorRecord) => void): BearerRoute {
+  return {
+    area: 'mod_memory',
+    open(authorization) {
+      const handle = route.open(authorization)
+      if (handle === null) return null
+      return (body) => {
+        const answer = handle(body)
+        return (res) => {
+          if (answer.status === 200) {
+            res.writeHead(200, JSON_HEADERS).end(JSON.stringify(answer.body))
+            return
+          }
+          log({ path: answer.path, code: answer.code })
+          res.writeHead(400).end()
+        }
+      }
+    },
+    log: (line) => route.log(line)
+  }
+}
 
 export interface HookServerOptions {
   /** Called when a POST arrives with a valid, schema-parsed hook event. */
@@ -65,6 +137,10 @@ export interface HookServerOptions {
    *  server at `GOALS_MCP_PATH`, spec 2026-10-19 goals). A route's `log` gets a `code=` line only,
    *  never a header value. A path under `MCP_PATH_PREFIX` with no route is answered 404. */
   mcpRoutes?: readonly McpRoute[]
+  /** The routes behind their own bearer that answer JSON (the memory mod's, `MOD_MEMORY_PATHS`). A
+   *  route's `log` gets a `code=` line only. A path under `MOD_MEMORY_PATH_PREFIX` with no route is
+   *  answered 404. */
+  tokenRoutes?: readonly TokenRoute[]
 }
 
 export interface HookServer {
@@ -76,7 +152,8 @@ export interface HookServer {
  * Create and start the localhost HTTP hook listener.
  *
  * Handles POST requests to any path (Claude Code always POSTs to HOOK_URL); `/mod/report` is the
- * bridge mod's report, `/mod/prompt` its prompt origin, each `mcpRoutes` path an MCP endpoint, every other path a hook. Any
+ * bridge mod's report, `/mod/prompt` its prompt origin, each `mcpRoutes` path an MCP endpoint, each
+ * `tokenRoutes` path a JSON route behind its own bearer, every other path a hook. Any
  * non-POST method is rejected with 405 before the body is read. Per the spec, the
  * handler NEVER throws past the request callback.
  *
@@ -84,12 +161,14 @@ export interface HookServer {
  */
 export function createHookServer(options: HookServerOptions): HookServer {
   const { onHookEvent, takePendingTitle, onModReport, onModPrompt } = options
-  const mcpRoutes = options.mcpRoutes ?? []
   const log =
     options.log ??
     ((err: BoundaryErrorRecord): void => {
       console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`)
     })
+  const bearerRoutes = new Map<string, BearerRoute>()
+  for (const r of options.mcpRoutes ?? []) bearerRoutes.set(r.path, fromMcpRoute(r))
+  for (const r of options.tokenRoutes ?? []) bearerRoutes.set(r.path, fromTokenRoute(r, log))
 
   const server = createServer((req: IncomingMessage, res: ServerResponse): void => {
     // Only POST is accepted (Claude Code always POSTs to HOOK_URL). Reject any other
@@ -110,16 +189,20 @@ export function createHookServer(options: HookServerOptions): HookServer {
       return
     }
 
-    // An MCP route: a live bearer token of THAT route's server or nothing, decided before the body
-    // is read. A miss says nothing more than 401; the log carries the code only, never the header.
+    // An MCP or token route: a live bearer token of THAT route's server or nothing, decided before
+    // the body is read. A miss says nothing more than 401; the log carries the code only, never the
+    // header.
     const route = (req.url ?? '/').split('?')[0] ?? '/'
-    const mcp = mcpRoutes.find((r) => r.path === route)
-    if (mcp === undefined && route.startsWith(MCP_PATH_PREFIX)) {
+    const bearer = bearerRoutes.get(route)
+    if (
+      bearer === undefined &&
+      (route.startsWith(MCP_PATH_PREFIX) || route.startsWith(MOD_MEMORY_PATH_PREFIX))
+    ) {
       res.writeHead(404).end()
       return
     }
-    if (mcp !== undefined && mcp.open(req.headers.authorization) === null) {
-      mcp.log('route=mcp code=unauthorized')
+    if (bearer !== undefined && bearer.open(req.headers.authorization) === null) {
+      bearer.log(`route=${bearer.area} code=unauthorized`)
       res.writeHead(401).end()
       return
     }
@@ -157,30 +240,26 @@ export function createHookServer(options: HookServerOptions): HookServer {
         return
       }
 
-      // An MCP route (authorized above): its own JSON-RPC boundary. The token is resolved AGAIN
-      // now: a session removed (revoked) while the body arrived must not act, and a `/clear`
-      // meanwhile means the grant now names the new id. A notification gets 202 and no body. A
-      // throw costs this request only (never-crash).
-      if (mcp !== undefined) {
-        const live = mcp.open(req.headers.authorization)
+      // An MCP or token route (authorized above): its own boundary (an MCP route's JSON-RPC, a
+      // token route's schema). The token is resolved AGAIN now: a session removed (revoked) while
+      // the body arrived must not act, and a `/clear` meanwhile means the grant now names the new
+      // id. A throw costs this request only (never-crash).
+      if (bearer !== undefined) {
+        const live = bearer.open(req.headers.authorization)
         if (live === null) {
-          mcp.log('route=mcp code=unauthorized')
+          bearer.log(`route=${bearer.area} code=unauthorized`)
           res.writeHead(401).end()
           return
         }
-        let response: JsonRpcResponse | null
+        let respond: (r: ServerResponse) => void
         try {
-          response = live(parsed)
+          respond = live(parsed)
         } catch {
-          mcp.log('route=mcp code=mcp_handler_error')
+          bearer.log(`route=${bearer.area} code=${bearer.area}_handler_error`)
           res.writeHead(500).end()
           return
         }
-        if (response === null) {
-          res.writeHead(202).end()
-          return
-        }
-        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(response))
+        respond(res)
         return
       }
 

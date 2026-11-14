@@ -19,6 +19,13 @@ export interface SessionTokens<G extends { sessionId: string }> {
   revoke(sessionId: string): void
 }
 
+/** The token of an `Authorization: Bearer <token>` header value, or null. The MCP endpoints
+ *  (`mcpEndpoint.ts`) and the memory mod's routes (`memory/modMemoryRoutes.ts`) read it here. */
+export function bearerToken(authorization: string | undefined): string | null {
+  if (authorization === undefined || !authorization.startsWith('Bearer ')) return null
+  return authorization.slice('Bearer '.length)
+}
+
 function sha256(s: string): Buffer {
   return createHash('sha256').update(s).digest()
 }

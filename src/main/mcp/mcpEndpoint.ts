@@ -15,6 +15,7 @@
 // `other`), and a `code=`: never a token, a header value, a tool's arguments or its result.
 import { z } from 'zod'
 import { GOALS_MCP_PATH, MEMORY_MCP_PATH } from '../hooks/hookContract'
+import { bearerToken } from './sessionTokens'
 
 /** Newest first; an unknown requested version gets the first. */
 const SUPPORTED_PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26'] as const
@@ -163,8 +164,8 @@ export function createMcpEndpoint<G>(deps: {
   return {
     area: deps.area,
     resolve(authorization) {
-      if (authorization === undefined || !authorization.startsWith('Bearer ')) return null
-      return deps.tokens.resolve(authorization.slice('Bearer '.length))
+      const token = bearerToken(authorization)
+      return token === null ? null : deps.tokens.resolve(token)
     },
     handle(body, grant) {
       const a = answer(body, grant, deps.tools, deps.serverName)

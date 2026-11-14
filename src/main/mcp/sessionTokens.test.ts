@@ -1,7 +1,7 @@
 // The per-session MCP bearer tokens any of the app's MCP servers uses: one live token per session,
 // memory only, resolved to the grant it was minted for.
 import { describe, it, expect } from 'vitest'
-import { createSessionTokens } from './sessionTokens'
+import { bearerToken, createSessionTokens } from './sessionTokens'
 
 interface TestGrant {
   sessionId: string
@@ -47,5 +47,9 @@ describe('session tokens', () => {
     tokens.mint(grant('sess-a'))
     expect(tokens.resolve('0'.repeat(64))).toBeNull()
     expect(tokens.resolve('')).toBeNull()
+  })
+
+  it('bearerToken reads only a Bearer header', () => {
+    expect([undefined, 'Basic x', 'Bearer abc'].map(bearerToken)).toEqual([null, null, 'abc'])
   })
 })
