@@ -25,7 +25,7 @@ import type { MemoryGrant } from './memoryTools'
 import { MEMORY_BLOCK_MARKER, oneLine } from './promptText'
 import { recallTerms } from './recallTerms'
 import { buildSessionIndex } from './sessionIndex'
-import { parseRemember } from './rememberText'
+import { capped, parseRemember } from './rememberText'
 
 export interface MemoryRecall {
   /** A spawn that hands the session the mod: the tasks its goal block lists, left out of its index. */
@@ -58,11 +58,12 @@ const NOTHING: ModMemoryTextAnswer = { ok: true, text: '' }
 
 const moreLine = (n: number): string => `${n} more; use memory_search`
 
-/** `line` cut to `max` characters with its id kept at the end. */
+/** `line` cut to `max` characters with `… id=<id>` kept at the end; never half of a surrogate
+ *  pair (one character shorter then). */
 function capLine(line: string, id: string, max: number): string {
   if (line.length <= max) return line
-  const tail = `… id=${id}`
-  return line.slice(0, max - tail.length) + tail
+  const suffix = ` id=${id}`
+  return capped(line, max - suffix.length) + suffix
 }
 
 export function createMemoryRecall(deps: {
@@ -75,12 +76,17 @@ export function createMemoryRecall(deps: {
   log: (line: string) => void
   /** Default MEMORY_LIMITS.recallWindowChars; a test passes a small one. */
   windowChars?: number
+  /** Default MEMORY_LIMITS.recallChars; a test passes a small one (with today's limits three
+   *  lines never reach it: a second line of defence, P3-C17). */
+  recallChars?: number
 }): MemoryRecall {
   const windowChars = deps.windowChars ?? MEMORY_LIMITS.recallWindowChars
+  const recallChars = deps.recallChars ?? MEMORY_LIMITS.recallChars
   const windows = new Map<string, WindowState>()
   const launches = new Map<string, readonly string[]>()
 
-  /** The session's state for `window`: a different window starts empty. */
+  /** The session's state for `window`: a different window starts empty, an older one too: meant
+   *  (P3-C16), since a mod process that restarts counts from 0 again for the same session. */
   function stateFor(sessionId: string, window: number): WindowState {
     const kept = windows.get(sessionId)
     if (kept !== undefined && kept.window === window) return kept
@@ -132,6 +138,8 @@ export function createMemoryRecall(deps: {
     }
     outer: for (const folder of folders) {
       const rows = found.rows.filter((row) => row.folder === folder)
+      // No `wrapperSafe` on the composed line (P3-C18): the folder ends it and the prefix holds no
+      // `<` or `:`, so the template cannot complete a reminder tag or the marker.
       let header: string | null = `${MEMORY_BLOCK_MARKER} saved for ${oneLine(folder)}`
       for (const row of rows) {
         const line = specificLine(row)
@@ -196,7 +204,7 @@ export function createMemoryRecall(deps: {
             item.id,
             MEMORY_LIMITS.recallLineChars
           )
-          if (text.length + 1 + line.length > MEMORY_LIMITS.recallChars) break
+          if (text.length + 1 + line.length > recallChars) break
           text += `\n${line}`
           given += 1
           deliver(state, call.sessionId, item.id, 'prompt')
@@ -213,13 +221,15 @@ export function createMemoryRecall(deps: {
         if (call === null) return NOT_OK
         const state = stateFor(call.sessionId, req.window)
         if (state.chars >= windowChars) return NOTHING
+        // A folder asked twice is listed once, so no key goes out twice in a block.
+        const folders = [...new Set(req.folders)]
         const found = call.store.specificsInFolders(
           call.scope,
-          req.folders,
+          folders,
           [...state.indexed, ...state.delivered],
           MEMORY_LIMITS.atUseRows
         )
-        const text = atUseText(state, call.sessionId, req.folders, found)
+        const text = atUseText(state, call.sessionId, folders, found)
         state.chars += text.length
         return { ok: true, text }
       })

@@ -52,7 +52,7 @@ let recorded: [string, Entry][]
 let logged: string[]
 let recall: MemoryRecall
 
-function build(windowChars?: number): MemoryRecall {
+function build(over: { windowChars?: number; recallChars?: number } = {}): MemoryRecall {
   return createMemoryRecall({
     gate: createMemoryGate({
       enabled: () => enabled,
@@ -67,7 +67,7 @@ function build(windowChars?: number): MemoryRecall {
     operatorOrigins: OPERATOR_ORIGINS,
     now: () => NOW,
     log: (line) => logged.push(line),
-    ...(windowChars === undefined ? {} : { windowChars })
+    ...over
   })
 }
 
@@ -144,6 +144,14 @@ describe('index', () => {
     })
     expect(out).toMatchObject({ text: expect.stringMatching(/^# Memory \(Claude Watcher\)\n/) })
     expect(injected).toEqual([['s1', { chars: expect.any(Number), itemIds: [here.id] }]])
+  })
+
+  it('the index names at most 200 folders it did not list', () => {
+    for (let i = 0; i < 201; i++) add(specific('db port', '5433'), { folder: `/work/f${i}` })
+    expect(recall.index(grant, { version: 1, window: 0 })).toMatchObject({
+      ok: true,
+      folders: expect.toSatisfy((folders: string[]) => folders.length === 200)
+    })
   })
 
   it('the index leaves out the tasks the launch said its goal block lists', () => {
@@ -254,7 +262,7 @@ describe('recall', () => {
   })
 
   it('past the window budget a prompt gets nothing more', () => {
-    recall = build(100)
+    recall = build({ windowChars: 100 })
     add(specific('staging port', '9281'))
     add(specific('db host', 'db.acme.test'))
     const ask = (text: string): ReturnType<MemoryRecall['recall']> =>
@@ -264,6 +272,79 @@ describe('recall', () => {
     }) // over 100 characters
     expect(ask('db host db.acme.test')).toEqual({ ok: true, text: '' })
     expect(recorded).toHaveLength(1)
+  })
+
+  it('a long line is never cut inside a surrogate pair', () => {
+    const body = 'x' + '\u{1F600}'.repeat(400)
+    const item = add(fact('emoji notes', body))
+    const out = recall.recall(grant, {
+      version: 1,
+      window: 0,
+      origin: 'composer',
+      text: 'emoji notes'
+    })
+    // The cut at 600 characters falls inside an emoji: the half is dropped, the line is 599 long.
+    expect(out).toMatchObject({
+      ok: true,
+      text: expect.stringMatching(
+        new RegExp(`\\n- emoji notes: x(?:\u{1F600})+\u2026 id=${item.id}$`, 'u')
+      )
+    })
+    expect(out).toMatchObject({
+      text: expect.not.stringMatching(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
+    })
+  })
+
+  it('a prompt gets at most 3 items', () => {
+    for (let i = 0; i < 4; i++) add(specific(`port ${i}`, 'x9281'))
+    expect(
+      recall.recall(grant, { version: 1, window: 0, origin: 'composer', text: 'is it x9281' })
+    ).toMatchObject({ ok: true, text: expect.stringMatching(/^[^\n]+(?:\n[^\n]+){3}$/) })
+    expect(recorded).toHaveLength(3)
+  })
+
+  it('a line that would take the block past its character cap ends the block (P3-C17)', () => {
+    // Header 56, each line 54 or so: with a 150-character cap one line fits, a second does not.
+    recall = build({ recallChars: 150 })
+    add(specific('staging port', 'x9281'))
+    add(specific('backup port', 'x9281'))
+    expect(
+      recall.recall(grant, { version: 1, window: 0, origin: 'composer', text: 'is it x9281' })
+    ).toMatchObject({ ok: true, text: expect.stringMatching(/^[^\n]+\n[^\n]+$/) })
+    expect(recorded).toHaveLength(1)
+  })
+
+  it('a window gets 20,000 characters of blocks by default', () => {
+    // Each block is 657 characters (one line cut to 600): 31 blocks pass 20,000, 30 do not.
+    for (let i = 0; i < 32; i++) add(fact(`zeta${i}q`, 'word '.repeat(150).trim()))
+    const texts = Array.from({ length: 32 }, (_, i) =>
+      recall.recall(grant, { version: 1, window: 0, origin: 'composer', text: `zeta${i}q` })
+    ).map((out) => JSON.stringify(out).length > 100)
+    expect(texts).toEqual([...Array<boolean>(31).fill(true), false])
+  })
+
+  it('a late request from an older window starts that window again, so an indexed key can go out a second time (P3-C16)', () => {
+    const here = add(specific('api base', 'https://api.acme.test'), { folder: '/work/app' })
+    recall.index(grant, { version: 1, window: 1 })
+    recall.recall(grant, {
+      version: 1,
+      window: 0,
+      origin: 'composer',
+      text: 'unrelated words here'
+    })
+    expect(recall.atUse(grant, { version: 1, window: 1, folders: ['/work/app'] })).toEqual({
+      ok: true,
+      text: `Memory (Claude Watcher): saved for /work/app\n- api base (${DAY}) id=${here.id}`
+    })
+  })
+
+  it('the launch facts follow a /clear adoption', () => {
+    view = { goals: [], tasks: [task('t1', 'Ship the fix'), task('t2', 'Write the notes')] }
+    recall.launched('s1', { excludeTaskIds: ['t1'] })
+    recall.rebind('s1', 's2')
+    const out = recall.index({ sessionId: 's2' }, { version: 1, window: 0 })
+    expect(out).toMatchObject({ ok: true, text: expect.stringContaining('Write the notes') })
+    expect(out).toMatchObject({ text: expect.not.stringContaining('Ship the fix') })
   })
 
   it('a forgotten session starts a fresh window', () => {
@@ -342,7 +423,7 @@ describe('at use', () => {
   })
 
   it('a window remembers its newest 500 given ids, so the oldest may be given again', () => {
-    recall = build(1_000_000)
+    recall = build({ windowChars: 1_000_000 })
     for (let i = 0; i < 510; i++) add(specific(`key ${i}`, 'v'), { folder: '/work/other' })
     const req = { version: 1 as const, window: 0, folders: ['/work/other'] }
     for (let i = 0; i < 51; i++) recall.atUse(grant, req)
@@ -354,8 +435,31 @@ describe('at use', () => {
     ])
   })
 
+  it('a folder asked twice gives each key once', () => {
+    const other = add(specific('db port', '5433'), { folder: '/work/other' })
+    expect(
+      recall.atUse(grant, { version: 1, window: 0, folders: ['/work/other', '/work/other'] })
+    ).toEqual({
+      ok: true,
+      text: `Memory (Claude Watcher): saved for /work/other\n- db port (${DAY}) id=${other.id}`
+    })
+    expect(recorded).toHaveLength(1)
+  })
+
+  it('at-use blocks count toward the window budget', () => {
+    recall = build({ windowChars: 100 })
+    add(specific('database port of the staging cluster', '5433'), { folder: '/work/other' })
+    add(specific('api base', 'https://api.acme.test'), { folder: '/work/third' })
+    recall.atUse(grant, { version: 1, window: 0, folders: ['/work/other'] }) // over 100 characters
+    expect(recall.atUse(grant, { version: 1, window: 0, folders: ['/work/third'] })).toEqual({
+      ok: true,
+      text: ''
+    })
+    expect(recorded).toHaveLength(1)
+  })
+
   it('past the window budget at use gives nothing more', () => {
-    recall = build(100)
+    recall = build({ windowChars: 100 })
     add(specific('staging port', '9281'))
     add(specific('db port', '5433'), { folder: '/work/other' })
     recall.recall(grant, { version: 1, window: 0, origin: 'composer', text: 'staging port 9281' })

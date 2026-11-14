@@ -16,8 +16,9 @@ type RememberCode = Extract<
   'remember_empty' | 'remember_too_long' | 'remember_invalid' | 'remember_secret'
 >
 
-/** `text` cut to `max` characters, the last one an ellipsis; never half of a surrogate pair. */
-function capped(text: string, max: number): string {
+/** `text` cut to `max` characters, the last one an ellipsis; never half of a surrogate pair. Also
+ *  cuts a recall line (`memoryRecall.ts`). */
+export function capped(text: string, max: number): string {
   if (text.length <= max) return text
   const head = text.slice(0, max - ELLIPSIS.length)
   return (/[\uD800-\uDBFF]$/.test(head) ? head.slice(0, -1) : head) + ELLIPSIS
