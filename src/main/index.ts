@@ -14,6 +14,7 @@ import type { TerminalManager } from './pty/terminalManager'
 // version (see claudeVersion.ts for why that inversion is deliberate).
 import { createClaudeVersionGate, createVersionReads } from './pty/claudeVersion'
 import type { AttentionTracker } from './c9watch/attention'
+import { OPERATOR_ORIGINS } from './c9watch/reducer'
 // Story 2.4 — the app-global settings store (electron-store in MAIN, behind a DI seam) +
 // its versioned-Zod payload schema. The store is constructed ONCE (settings are app-global,
 // NOT per-window like the feed/tray) and registered on the typed CH.settingsGet/Set channels.
@@ -66,6 +67,8 @@ import { sendMemoryChanged } from './ipc/sendMemoryChanged'
 import { createExtractResultPush } from './ipc/extractResultPush'
 import { MEMORY_DB_FILE } from './memory/memoryDb'
 import { createMemoryActivity } from './memory/memoryActivity'
+import { createMemoryGate } from './memory/memoryGate'
+import { createMemoryRecall } from './memory/memoryRecall'
 import { memoryNameLookups } from './memory/memoryNames'
 import { openMemory, type OpenedMemory } from './memory/memoryStartup'
 import type { MemoryStore } from './memory/memoryStore'
@@ -618,6 +621,18 @@ const memoryMcp = createMemoryMcp({
   now: () => Date.now(),
   log: (line) => console.warn(line)
 })
+// Memory recall (memory phase 3, memory/memoryRecall.ts): what the `watcher-memory` mod asks for
+// over `/mod/memory/*` on each window's hook listener, behind the memory server's tokens. The gate
+// reads Memory, the store and the live session on every request; each window's state follows a
+// card on `/clear` and goes with it (window/cardState.ts).
+const memoryRecall = createMemoryRecall({
+  gate: createMemoryGate({ enabled: memoryEnabled, store: memoryStore, session: sessionMeta }),
+  tasks: () => goalsStore?.view() ?? null,
+  activity: memoryActivity,
+  operatorOrigins: OPERATOR_ORIGINS,
+  now: () => Date.now(),
+  log: (line) => console.warn(line)
+})
 // One run's `claude --version` reads (R37): the launch gate reads through it; a memory save reuses
 // its answer instead of a second blocking login-shell probe on main.
 const claudeVersionReads = createVersionReads(() => readClaudeVersionRaw(SHELL))
@@ -778,7 +793,8 @@ const { registerWatchFeed, teardownWatchFeed } = createWatchFeed({
   memoryActivity,
   getMemoryStore: memoryStore,
   getMemoryCommands: () => memory?.commands ?? null,
-  extractor
+  extractor,
+  memoryRecall
 })
 
 // Story 3.5 (SM-2) — the ONE app-global telemetry store. Append-only JSONL in userData

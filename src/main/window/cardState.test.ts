@@ -1,7 +1,8 @@
 // What a card carries beside the reducer, and must follow when the card moves (`/clear` re-keys
 // it) or leaves: its pending rename, its Context setup (spec 2026-10-18 §7), and its goal task
 // links, MCP token and `--mcp-config` file (spec 2026-10-19 goals), and its memory token, config
-// file, activity record and the origin of the items it saved (spec 2026-11-11 memory).
+// file, activity record, recall window and the origin of the items it saved (spec 2026-11-11
+// memory, phase 3 recall).
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -48,6 +49,10 @@ function deps(): Parameters<typeof moveCardState>[0] & {
   memoryTokens: ReturnType<typeof createMemoryMcp>['tokens']
   memoryActivity: ReturnType<typeof createMemoryActivity>
   memoryStore: MemoryStore
+  memoryRecall: {
+    rebind: ReturnType<typeof vi.fn<Rebind>>
+    forget: ReturnType<typeof vi.fn<Forget>>
+  }
   lines: string[]
 } {
   const userData = mkdtempSync(join(tmpdir(), 'cw-card-'))
@@ -97,6 +102,7 @@ function deps(): Parameters<typeof moveCardState>[0] & {
     memoryStore,
     memoryCommands: createMemoryCommands({ db: open.db, newId: () => `c${++n}` }),
     memoryExtract: null,
+    memoryRecall: { rebind: vi.fn<Rebind>(), forget: vi.fn<Forget>() },
     lines,
     log: (line) => lines.push(line)
   }
@@ -134,6 +140,18 @@ describe('card state', () => {
     moveCardState(d, 'old', 'new')
     expect(d.pendingTitles.rebind).toHaveBeenCalledWith('old', 'new')
     expect(d.sessionSetup.rebind).toHaveBeenCalledWith('old', 'new')
+  })
+
+  it('a /clear moves the recall window with the other memory state', () => {
+    const d = deps()
+    moveCardState(d, 'old', 'new')
+    expect(d.memoryRecall.rebind.mock.calls).toEqual([['old', 'new']])
+  })
+
+  it('a dropped card forgets its recall window', () => {
+    const d = deps()
+    dropCardState(d, 'gone')
+    expect(d.memoryRecall.forget.mock.calls).toEqual([['gone']])
   })
 
   it('drops the pending rename and the Context setup of a removed card', () => {
