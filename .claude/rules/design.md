@@ -546,9 +546,14 @@ feedbackShown={copied !== null}`. `busy` = disabled + `aria-busy`; busy `Delete`
   on that session; nothing while a modal is open); `Nothing new to remember from "<name>".`
   (info); `Could not save memory from "<name>".` (error; `claude_version` adds
   `Needs claude <version> or newer.`). The title stays short so only a long name is cut.
-- Settings → Memory: the `Memory` Switch; while it is on, `Memory checkpoint` (Select `Off` /
-  `10 turns` / `15 turns` / `25 turns`), `Save open work as tasks` (Switch) and `Memory model`
-  (Select `Haiku` / `Sonnet`), each with its hint; off, the three are not rendered.
+- Settings → Memory: the `Memory` Switch; while it is on, `Memory recall` (Switch, first),
+  `Memory checkpoint` (Select `Off` / `10 turns` / `15 turns` / `25 turns`), `Save open work as
+  tasks` (Switch) and `Memory model` (Select `Haiku` / `Sonnet`), each with its hint; off, the
+  four are not rendered.
+- Context → Memory: `Injected` lists, under its summary line, each item recall gave while the
+  session ran (`With a prompt` / `With a file`); a session that runs without recall for a reason
+  the operator did not choose shows an info `Callout` above the lists (`claude_too_old`,
+  `mod_not_installed`; none for `setting_off`).
 - Startup load failure = ONE toast naming every store (`Could not load templates, tags and rules.
 Reopen the app to try again.`); each dialog says `Could not load <x>.`
 

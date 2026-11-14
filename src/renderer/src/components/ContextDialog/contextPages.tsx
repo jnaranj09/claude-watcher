@@ -14,6 +14,7 @@ import { isAbsolutePath, isInstructionPath } from '../../../../shared/schemas/co
 import {
   CONTEXT_COPY,
   DROP_REASON_COPY,
+  MEMORY_RECALL_OFF_COPY,
   contextErrorCopy,
   fileName,
   tierLabel,
@@ -135,13 +136,21 @@ function InstructionsPage({
   )
 }
 
+/** A row's name: how recall gave the item, a drop's reason in plain words, or the tool. */
+function entryName(list: 'pulled' | 'saved' | 'dropped' | 'injected', e: ActivityEntry): string {
+  if (list === 'injected')
+    return e.tool === 'prompt' ? CONTEXT_COPY.withPrompt : CONTEXT_COPY.withFile
+  if (list === 'dropped' && e.reason !== null) return DROP_REASON_COPY[e.reason]
+  return e.tool
+}
+
 export type MemoryLoad = { activity: MemoryActivity; at: number }
 
 type ActivityEntry = MemoryActivity['entries'][number]
 
 /** Which list an entry is under: what the session pulled; what it saved (an update, a task report
  *  and a stale mark are writes too, so they list with the saves); what extraction dropped; what
- *  recall injected (memory phase 3; the page does not list it yet). */
+ *  recall injected while the session ran (memory phase 3, listed under Injected). */
 const LIST_OF: Readonly<
   Record<ActivityEntry['action'], 'pulled' | 'saved' | 'dropped' | 'injected'>
 > = {
@@ -153,11 +162,12 @@ const LIST_OF: Readonly<
   injected: 'injected'
 }
 
-/** What this session was given at launch, then what it pulled, what it saved and what extraction
- *  dropped (memory phase 2), each entry under exactly one of them (an injected entry, under none
- *  yet). `at` is when the answer came,
- *  the "now" its times are measured from. A row names the tool, or for a drop the reason in plain
- *  words; it never needs an item id (a task report has none). */
+/** What this session was given at launch and by recall while it ran, then what it pulled, what it
+ *  saved and what extraction dropped, each entry under exactly one of them. `at` is when the answer
+ *  came, the "now" its times are measured from. A row names the tool, how recall gave the item, or
+ *  for a drop the reason in plain words; it never needs an item id (a task report has none). Above
+ *  the lists, an info notice says why the session runs without recall when the operator did not
+ *  choose that (a `setting_off` session, or one with no recorded mode, shows none). */
 export function MemoryPage({
   memory,
   error
@@ -171,37 +181,45 @@ export function MemoryPage({
     )
   if (memory === null) return <>{notice}</>
   const { activity, at } = memory
+  const rowsOf = (list: 'pulled' | 'saved' | 'dropped' | 'injected'): JSX.Element | null => {
+    const rows = activity.entries.filter((e) => LIST_OF[e.action] === list)
+    if (rows.length === 0) return null
+    const testId = list === 'dropped' ? 'context-memory-dropped-entry' : 'context-memory-entry'
+    return (
+      <div data-settings-group="">
+        {rows.map((e, i) => (
+          <Row
+            key={`${i}-${e.at}-${e.tool}`}
+            testId={testId}
+            name={entryName(list, e)}
+            details={[relativeEnded(e.at, at)]}
+          />
+        ))}
+      </div>
+    )
+  }
   const entries = (
     list: 'pulled' | 'saved' | 'dropped',
     title: string,
     none: string
-  ): JSX.Element => {
-    const rows = activity.entries.filter((e) => LIST_OF[e.action] === list)
-    const testId = list === 'dropped' ? 'context-memory-dropped-entry' : 'context-memory-entry'
-    return (
-      <section data-testid={`context-memory-${list}`}>
-        <h4 className={styles.section}>{title}</h4>
-        {rows.length === 0 ? (
-          <p className={styles.empty}>{none}</p>
-        ) : (
-          <div data-settings-group="">
-            {rows.map((e, i) => (
-              <Row
-                key={`${i}-${e.at}-${e.tool}`}
-                testId={testId}
-                name={list === 'dropped' && e.reason !== null ? DROP_REASON_COPY[e.reason] : e.tool}
-                details={[relativeEnded(e.at, at)]}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-    )
-  }
+  ): JSX.Element => (
+    <section data-testid={`context-memory-${list}`}>
+      <h4 className={styles.section}>{title}</h4>
+      {rowsOf(list) ?? <p className={styles.empty}>{none}</p>}
+    </section>
+  )
+  const recall = activity.recall
   return (
     <div className={styles.sections}>
       {notice}
-      <section>
+      {recall !== null && recall.mode === 'launch' && recall.reason !== 'setting_off' ? (
+        <Callout
+          tone="info"
+          title={MEMORY_RECALL_OFF_COPY[recall.reason]}
+          testId="context-memory-recall-off"
+        />
+      ) : null}
+      <section data-testid="context-memory-injected-section">
         <h4 className={styles.section}>{CONTEXT_COPY.injected}</h4>
         <p className={styles.empty} data-testid="context-memory-injected">
           {activity.injected === null
@@ -211,6 +229,7 @@ export function MemoryPage({
                 activity.injected.itemIds.length
               )}
         </p>
+        {rowsOf('injected')}
       </section>
       {entries('pulled', CONTEXT_COPY.pulled, CONTEXT_COPY.nothingPulled)}
       {entries('saved', CONTEXT_COPY.saved, CONTEXT_COPY.nothingSaved)}

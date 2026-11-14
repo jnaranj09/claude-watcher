@@ -1,5 +1,5 @@
-// Settings → Memory, the phase 2 rows (memory phase 2 addendum "UI"): when and with which model
-// memory saves from a session. jsdom `unit` project; the real panel against a stubbed
+// Settings → Memory, the rows shown only while Memory is on: when and with which model memory
+// saves from a session (memory phase 2), and recall while a session runs (memory phase 3). jsdom `unit` project; the real panel against a stubbed
 // window.settings and the singleton settings store.
 import { describe, it, expect, afterEach } from 'vitest'
 import { screen, within } from '@testing-library/react'
@@ -9,6 +9,8 @@ import { flush, renderTracked, unmountRendered } from '../../test/renderComponen
 import { stubSettings } from '../../test/settingsBridge'
 import { resetSettingsPanel, stubThemes } from '../../test/settingsPanelHarness'
 import { dialogToast } from '../../test/toasts'
+import { settingsStore } from '../../stores/settingsStore'
+import { DEFAULT_SETTINGS } from '../../../../shared/schemas/settings'
 
 afterEach(() => {
   unmountRendered()
@@ -126,5 +128,67 @@ describe('Settings → Memory — saving from a session', () => {
     await flush(3)
     expect(screen.getByRole('button', { name: 'Memory model' })).toHaveTextContent('Sonnet')
     expect(dialogToast('settings')?.title).toBe('Could not save the memory model.')
+  })
+})
+
+// Memory phase 3: recall while a session runs, the first row shown only while Memory is on.
+describe('Settings → Memory — Memory recall', () => {
+  async function openMemory(memoryEnabled: boolean): Promise<{ setCalls: unknown[] }> {
+    const user = userEvent.setup()
+    const stub = stubSettings()
+    stubThemes()
+    settingsStore
+      .getState()
+      .hydrate({ ...DEFAULT_SETTINGS, memoryEnabled, memoryRecallEnabled: true })
+    renderPanel()
+    await user.click(screen.getByRole('button', { name: 'Memory' }))
+    return stub
+  }
+
+  it('Memory recall saves on change', async () => {
+    const stub = await openMemory(true)
+    expect(screen.getByRole('switch', { name: 'Memory recall' })).toBeChecked()
+    await userEvent.setup().click(screen.getByRole('switch', { name: 'Memory recall' }))
+    await flush(2)
+    expect(stub.setCalls.at(-1)).toEqual({ memoryRecallEnabled: false })
+    expect(screen.getByRole('switch', { name: 'Memory recall' })).not.toBeChecked()
+    expect(dialogToast('settings')?.title).toBe('Saved')
+  })
+
+  it('with Memory off there is no Memory recall control', async () => {
+    await openMemory(false)
+    expect(screen.queryByRole('switch', { name: 'Memory recall' })).not.toBeInTheDocument()
+  })
+
+  it('Memory recall is the first of the rows shown only while Memory is on', async () => {
+    await openMemory(true)
+    const recall = screen.getByRole('switch', { name: 'Memory recall' })
+    const checkpoint = screen.getByRole('button', { name: 'Memory checkpoint' })
+    const memory = screen.getByRole('switch', { name: 'Memory' })
+    expect([
+      memory.compareDocumentPosition(recall) & Node.DOCUMENT_POSITION_FOLLOWING,
+      recall.compareDocumentPosition(checkpoint) & Node.DOCUMENT_POSITION_FOLLOWING
+    ]).toEqual([Node.DOCUMENT_POSITION_FOLLOWING, Node.DOCUMENT_POSITION_FOLLOWING])
+  })
+
+  it('the hint says what recall does and which claude it needs, word for word', async () => {
+    await openMemory(true)
+    expect(
+      screen.getByText(
+        'While a session runs, Claude gets a fresh memory index after /clear and /compact, items that match each prompt, the keys saved for a folder when it opens a file there, and the /remember command. Needs Claude 2.1.323 or newer. A change applies to sessions started after it.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('a refused change rolls back and names memory recall', async () => {
+    const user = userEvent.setup()
+    stubSettings(() => Promise.reject(new Error('settings_persist_failed')))
+    stubThemes()
+    renderPanel()
+    await user.click(screen.getByRole('button', { name: 'Memory' }))
+    await user.click(screen.getByRole('switch', { name: 'Memory recall' }))
+    await flush(3)
+    expect(screen.getByRole('switch', { name: 'Memory recall' })).toBeChecked()
+    expect(dialogToast('settings')?.title).toBe('Could not save memory recall.')
   })
 })

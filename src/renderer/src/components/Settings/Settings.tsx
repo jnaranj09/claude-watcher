@@ -18,6 +18,7 @@ import {
   selectMemoryCheckpoint,
   selectMemorySaveTasks,
   selectMemoryModel,
+  selectMemoryRecallEnabled,
   selectTerminalFontSize,
   selectReminderCount,
   selectReminderFirstDelayMinutes,
@@ -49,6 +50,10 @@ import { TextInput } from '../TextInput/TextInput'
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
 import { Switch } from '../Switch/Switch'
 import { MEMORY_TERMS } from '../../copy/terms'
+import {
+  formatVersion,
+  MIN_MEMORY_MOD_CLAUDE_VERSION
+} from '../../../../shared/launch/claudeVersion'
 import { Button } from '../Button/Button'
 import { Callout } from '../Callout/Callout'
 import { KeyChordRecorder } from '../ShortcutsDialog/KeyChordRecorder'
@@ -141,6 +146,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   const memoryCheckpoint = useSettings(selectMemoryCheckpoint)
   const memorySaveTasks = useSettings(selectMemorySaveTasks)
   const memoryModel = useSettings(selectMemoryModel)
+  const memoryRecallEnabled = useSettings(selectMemoryRecallEnabled)
   const reminderCount = useSettings(selectReminderCount)
   const reminderFirstDelayMinutes = useSettings(selectReminderFirstDelayMinutes)
 
@@ -699,11 +705,30 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                     Sessions this app starts can save exact values and facts, and find them again.
                   </p>
 
-                  {/* Memory phase 2 — when and with which model memory saves from a session. NOT
-                    rendered while Memory is off (design.md: a control the operator must not use is
-                    not rendered). */}
+                  {/* Memory phase 3 — recall while a session runs; memory phase 2 — when and with
+                    which model memory saves from a session. NOT rendered while Memory is off
+                    (design.md: a control the operator must not use is not rendered). */}
                   {memoryEnabled && (
                     <>
+                      <div className={styles.row}>
+                        <label className={styles.label} htmlFor="settings-memory-recall">
+                          {MEMORY_TERMS.recall}
+                        </label>
+                        <div className={styles.controlGroup}>
+                          <Switch
+                            id="settings-memory-recall"
+                            testId="settings-memory-recall"
+                            checked={memoryRecallEnabled}
+                            onChange={(on) => {
+                              void persistSetting({ memoryRecallEnabled: on }, 'memory recall')
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <p className={styles.hint}>
+                        {`While a session runs, Claude gets a fresh memory index after /clear and /compact, items that match each prompt, the keys saved for a folder when it opens a file there, and the /remember command. Needs Claude ${formatVersion(MIN_MEMORY_MOD_CLAUDE_VERSION)} or newer. A change applies to sessions started after it.`}
+                      </p>
+
                       <div className={styles.row}>
                         <span className={styles.label}>{MEMORY_TERMS.checkpoint}</span>
                         <div className={styles.controlGroup}>

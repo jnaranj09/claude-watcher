@@ -73,6 +73,9 @@ export interface SettingsState {
   memorySaveTasks: boolean
   /** Saving memory from sessions — the model that reads a session. */
   memoryModel: MemoryModel
+  /** Memory recall while a session runs (memory phase 3). Main reads its own copy at each spawn,
+   *  so a change applies to sessions started after it; this drives Settings. */
+  memoryRecallEnabled: boolean
   /** Action feedback (spec 2026-09-29 §2.1) — the last Settings MAIN returned (DEFAULT_SETTINGS
    *  before the first load). A refused write rolls the projection back to it. */
   authoritative: Settings
@@ -114,6 +117,7 @@ export function createSettingsStore(): SettingsStoreApi {
     memoryCheckpoint: DEFAULT_SETTINGS.memoryCheckpoint,
     memorySaveTasks: DEFAULT_SETTINGS.memorySaveTasks,
     memoryModel: DEFAULT_SETTINGS.memoryModel,
+    memoryRecallEnabled: DEFAULT_SETTINGS.memoryRecallEnabled,
     authoritative: DEFAULT_SETTINGS,
 
     hydrate: (settings) => {
@@ -139,6 +143,7 @@ export function createSettingsStore(): SettingsStoreApi {
         memoryCheckpoint: settings.memoryCheckpoint,
         memorySaveTasks: settings.memorySaveTasks,
         memoryModel: settings.memoryModel,
+        memoryRecallEnabled: settings.memoryRecallEnabled,
         authoritative: settings
       })
     },
@@ -182,7 +187,10 @@ export function createSettingsStore(): SettingsStoreApi {
           ? { memoryCheckpoint: patch.memoryCheckpoint }
           : {}),
         ...(patch.memorySaveTasks !== undefined ? { memorySaveTasks: patch.memorySaveTasks } : {}),
-        ...(patch.memoryModel !== undefined ? { memoryModel: patch.memoryModel } : {})
+        ...(patch.memoryModel !== undefined ? { memoryModel: patch.memoryModel } : {}),
+        ...(patch.memoryRecallEnabled !== undefined
+          ? { memoryRecallEnabled: patch.memoryRecallEnabled }
+          : {})
       })
     }
   }))
@@ -204,6 +212,9 @@ export const selectMemoryCheckpoint = (state: SettingsState): MemoryCheckpoint =
   state.memoryCheckpoint
 /** Saving memory from sessions — open work saved as Goals tasks (primitive). */
 export const selectMemorySaveTasks = (state: SettingsState): boolean => state.memorySaveTasks
+/** Memory recall while a session runs, read at spawn (primitive). */
+export const selectMemoryRecallEnabled = (state: SettingsState): boolean =>
+  state.memoryRecallEnabled
 /** Saving memory from sessions — the model (primitive). */
 export const selectMemoryModel = (state: SettingsState): MemoryModel => state.memoryModel
 /** UX-13 — the live desktop-popup toggle (primitive). */

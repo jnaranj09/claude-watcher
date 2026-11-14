@@ -182,8 +182,10 @@ date or goal, edit, pin, mark stale, see **History** and restore a version, or d
 saved from a session has **Open source**, which shows the words it was taken from. An item is
 global or belongs to one workspace. Each record in **Past sessions** has a **Memory:** line (what
 was saved, `nothing new`, `failed`, `saving…` or `off`) and the session's episode under it. The
-**Context** button of a session has a **Memory** page: what the session got at launch, what it
-read, what it saved and what was dropped.
+**Context** button of a session has a **Memory** page: what the session got at launch, what
+recall gave it while it ran (**With a prompt** / **With a file**), what it read, what it saved and
+what was dropped; a session that runs without recall for a reason you did not choose (an older
+claude, or the app could not set up its mod) says so there.
 
 What it costs: each save is a headless `claude -p` call (a long session can take a few) on your
 own Claude account and login, with the model you choose (**Sonnet** by default), each call capped
@@ -199,8 +201,12 @@ and the model's answers are never written to a log, a notification or the local 
 **Settings → Memory**:
 
 - **Memory** (on by default) — off means sessions start with no memory tools and no index, and
-  nothing is saved from them. Items already saved are kept. While it is on, three more choices
+  nothing is saved from them. Items already saved are kept. While it is on, four more choices
   show:
+  - **Memory recall** (on by default) — while a session runs, Claude gets a fresh memory index
+    after `/clear` and `/compact`, items that match each prompt, the keys saved for a folder when
+    it opens a file there, and the `/remember` command. Needs Claude 2.1.323 or newer. A change
+    applies to sessions started after it.
   - **Memory checkpoint** — saves from a running session every 10, 15 (the default) or 25
     turns, or **Off**: only when a session ends.
   - **Save open work as tasks** (on by default) — work a session leaves open becomes a task in

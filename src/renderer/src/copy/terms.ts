@@ -115,7 +115,9 @@ export const MEMORY_TERMS = {
   sessionDeleted: 'Session deleted',
   checkpoint: 'Memory checkpoint',
   saveTasks: 'Save open work as tasks',
-  model: 'Memory model'
+  model: 'Memory model',
+  /** Recall while a session runs (memory phase 3): the Settings switch and the Context notice. */
+  recall: 'Memory recall'
 } as const
 
 /** The Sessions dialog's record of ended sessions: the ☰ Sessions row, the empty board's way

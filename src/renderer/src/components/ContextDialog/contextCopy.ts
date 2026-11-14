@@ -1,8 +1,12 @@
 // Context's words (spec 2026-10-18 §5 and its Copy table; the plan's [AGENT] rows for the
 // unavailable reasons). Copy maps from a CODE, never from an error's text (design.md Feedback).
-import { formatVersion, MIN_MOD_CLAUDE_VERSION } from '../../../../shared/launch/claudeVersion'
+import {
+  formatVersion,
+  MIN_MEMORY_MOD_CLAUDE_VERSION,
+  MIN_MOD_CLAUDE_VERSION
+} from '../../../../shared/launch/claudeVersion'
 import type { ContextRefusalCode, ModSkipReason } from '../../../../shared/ipc/contract'
-import type { DropReason } from '../../../../shared/schemas/memory'
+import type { DropReason, MemoryRecallSkip } from '../../../../shared/schemas/memory'
 import { CONTEXT_REFUSAL_CODES } from '../../../../shared/schemas/contextIpc'
 import { BRIDGE_MOD_FAILED_COPY, STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 import { CONTEXT_TERMS, HISTORY_TERMS, MEMORY_TERMS } from '../../copy/terms'
@@ -51,6 +55,10 @@ export const CONTEXT_COPY = {
   saved: 'Saved',
   dropped: 'Dropped',
   nothingInjected: 'Nothing injected.',
+  /** How recall gave an item while the session ran (memory phase 3): with a prompt, or when claude
+   *  opened a file in a folder that has saved keys. */
+  withPrompt: 'With a prompt',
+  withFile: 'With a file',
   nothingPulled: 'Nothing pulled.',
   nothingSaved: 'Nothing saved.',
   nothingDropped: 'Nothing dropped.',
@@ -67,6 +75,13 @@ export const DROP_REASON_COPY: Readonly<Record<DropReason, string>> = {
   operator_item: 'You wrote that item',
   tasks_off: 'Tasks are off',
   claude_only: 'Only Claude said it'
+}
+
+/** Why a session runs without recall, when the operator did not choose it (memory phase 3).
+ *  `setting_off` has no sentence: the operator turned recall off and knows. */
+export const MEMORY_RECALL_OFF_COPY: Record<Exclude<MemoryRecallSkip, 'setting_off'>, string> = {
+  claude_too_old: `Update claude to ${formatVersion(MIN_MEMORY_MOD_CLAUDE_VERSION)} or newer for memory recall in this session.`,
+  mod_not_installed: BRIDGE_MOD_FAILED_COPY
 }
 
 export const UNAVAILABLE_COPY: Record<ModSkipReason, string> = {
