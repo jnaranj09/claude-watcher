@@ -8,6 +8,12 @@
 // item it listed. `list` passes the dialog's workspace scope, and "here" (the folder filter) means
 // nothing for the operator (`sessionFolder: null`).
 //
+// The `Same value` flag (`memoryTwins.ts`) rides on two answers: `list` adds `twinIds`, the ids of
+// the page's rows that hold the same value as another specific (`[]` for a page that is not
+// Specifics), and `get` adds the open specific's twins (at most `MEMORY_LIMITS.twinsShown`, newest
+// first) and `twinsMore`, how many more (none for a fact or an episode). Both are computed at read
+// time; nothing is stored. A failed twin read fails the whole answer (`memory_read_failed`).
+//
 // Refusals pass through unchanged: `memory_not_found`, `memory_version_not_found`,
 // `memory_read_failed` and `store_write_failed` (the store already logged and reported it).
 // While memory is off (the file could not be opened, the smoke test, after quit) every handler but
@@ -38,6 +44,7 @@ import {
   MemoryRestoreSchema,
   MemorySetPinnedSchema,
   MemorySetStateSchema,
+  MEMORY_LIMITS,
   type MemoryActivity,
   type MemoryItem
 } from '../../shared/schemas/memory'
@@ -103,8 +110,10 @@ export function createMemoryIpcHandlers(deps: {
     list(raw) {
       const req = MemoryListSchema.parse(raw)
       const { workspaceId } = req
-      return requireStore().search(
-        { workspaceId, includeGlobal: req.includeGlobal },
+      const store = requireStore()
+      const scope = { workspaceId, includeGlobal: req.includeGlobal }
+      const found = store.search(
+        scope,
         {
           kind: req.kind,
           query: req.query,
@@ -118,13 +127,23 @@ export function createMemoryIpcHandlers(deps: {
           goalIdsByName: (name) => names.goalIdsByName(workspaceId, name)
         }
       )
+      if (req.kind !== 'specific') return { ...found, twinIds: [] }
+      const twins = new Set(store.twinIds(scope))
+      return { ...found, twinIds: found.rows.filter((r) => twins.has(r.id)).map((r) => r.id) }
     },
     get(raw) {
       const { id } = MemoryGetSchema.parse(raw)
       const s = requireStore()
       const item = s.get(id)
       if (item === null) throw new Error(MEMORY_ERROR.notFound)
-      return { item, versions: s.versions(id) }
+      // Past sessions reads episodes through this handler too: only a specific has twins.
+      const twins = item.kind === 'specific' ? s.twinsOf(id) : []
+      return {
+        item,
+        versions: s.versions(id),
+        twins: twins.slice(0, MEMORY_LIMITS.twinsShown),
+        twinsMore: Math.max(0, twins.length - MEMORY_LIMITS.twinsShown)
+      }
     },
     create(raw) {
       const req = MemoryCreateSchema.parse(raw)

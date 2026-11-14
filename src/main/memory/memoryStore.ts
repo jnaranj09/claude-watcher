@@ -14,6 +14,7 @@
 // `MEMORY_ERROR.readFailed` with no storage report (the file opened; the caller shows the
 // failure), never a result that looks real. Memory text is sensitive: logs carry `code=` only.
 import { z } from 'zod'
+import type { MemoryTwin } from '../../shared/ipc/contract'
 import {
   MEMORY_BASES,
   MEMORY_ERROR,
@@ -41,6 +42,8 @@ import {
   recallItems,
   searchItems,
   specificFolders,
+  twinIdsInScope,
+  twinsOfItem,
   writerOfCurrent,
   type BrowseBy,
   type MemoryScope,
@@ -137,6 +140,11 @@ export interface MemoryStore {
     excludeIds: readonly string[],
     limit: number
   ): { rows: MemoryRow[]; more: number }
+  /** The ids of the active specifics in scope that hold the same exact value as another one in
+   *  their workspace and folder (`memoryTwins.ts`, the dialog's `Same value` flag). */
+  twinIds(scope: MemoryScope): string[]
+  /** The twins of `id`, newest first; none for an unknown id, a fact, an episode or a stale item. */
+  twinsOf(id: string): MemoryTwin[]
   /** Active specifics `originSessionId` saved with the tool that have no source yet. */
   agentSpecificsWithoutSource(originSessionId: string): { id: string; value: string }[]
   /** Who wrote the newest version; null for an unknown id. */
@@ -476,6 +484,10 @@ export function createMemoryStore(deps: {
 
     specificsInFolders: (scope, folders, excludeIds, limit) =>
       read(() => folderSpecifics(db, scope, folders, excludeIds, limit)),
+
+    twinIds: (scope) => read(() => twinIdsInScope(db, scope)),
+
+    twinsOf: (id) => read(() => twinsOfItem(db, id)),
 
     agentSpecificsWithoutSource: (originSessionId) =>
       read(() => agentSpecificsNoSource(db, originSessionId)),

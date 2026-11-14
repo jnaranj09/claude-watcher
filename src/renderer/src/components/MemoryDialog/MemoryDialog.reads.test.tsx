@@ -126,14 +126,14 @@ describe('MemoryDialog — a new list keeps the old rows until it answers', () =
     const held = deferred<MemoryListResult>()
     bridge.list.mockImplementation((req) =>
       req.query === null
-        ? Promise.resolve({ rows: bridge.items.map(rowOf), total: 2 })
+        ? Promise.resolve({ rows: bridge.items.map(rowOf), total: 2, twinIds: [] })
         : held.promise
     )
     await userEvent.type(screen.getByRole('textbox', { name: 'Search memory' }), 'p')
     expect(row('API port')).toBeVisible()
     expect(row('Deploy command')).toBeVisible()
     expect(screen.getAllByTestId('memory-row')[0]).toHaveAttribute('data-selected', 'true')
-    await act(async () => held.resolve({ rows: [rowOf(specificItem())], total: 1 }))
+    await act(async () => held.resolve({ rows: [rowOf(specificItem())], total: 1, twinIds: [] }))
     expect(screen.queryByRole('button', { name: /^Deploy command/ })).not.toBeInTheDocument()
   })
 })

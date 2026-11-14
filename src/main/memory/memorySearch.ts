@@ -4,9 +4,11 @@
 // trigram index finds. The reads extraction needs (memory phase 2: the scope shown to the model,
 // the specifics a session saved without a source, who wrote an item's current text) live here
 // too, and so do the reads recall needs while a session runs (phase 3 addendum §6): the items a
-// prompt's terms name, the folders that hold saved keys, and the keys of a folder. These functions throw on any SQLite or row failure; `memoryStore.ts` wraps them so a
+// prompt's terms name, the folders that hold saved keys, and the keys of a folder, and the specifics
+// that hold the same value as another one, for the dialog's `Same value` flag. These functions throw on any SQLite or row failure; `memoryStore.ts` wraps them so a
 // failure is never mistaken for a result.
 import { z } from 'zod'
+import type { MemoryTwin } from '../../shared/ipc/contract'
 import { MEMORY_FILTER_FIELDS, type MemoryFilters } from '../../shared/memory/filterFields'
 import {
   MEMORY_ITEM_KINDS,
@@ -36,6 +38,7 @@ import {
   selectItems,
   type EpisodeRow
 } from './memoryRows'
+import { twinsById, type TwinCandidate } from './memoryTwins'
 import type { RecallTerm } from './recallTerms'
 
 export type MemoryScope = { workspaceId: string; includeGlobal: boolean }
@@ -415,4 +418,55 @@ export function folderSpecifics(
     [...where.params, limit]
   )
   return { rows, more: count(db, where) - rows.length }
+}
+
+const TwinRow = z
+  .object({
+    id: z.string(),
+    workspace_id: z.string().nullable(),
+    folder: z.string().nullable(),
+    updated_at: z.number(),
+    head: z.string(),
+    body: z.string()
+  })
+  .transform(
+    (r): TwinCandidate => ({
+      id: r.id,
+      workspaceId: r.workspace_id,
+      folder: r.folder,
+      key: r.head,
+      value: r.body,
+      updatedAt: r.updated_at
+    })
+  )
+
+const PlaceRow = z.object({ workspace_id: z.string().nullable(), folder: z.string().nullable() })
+
+/** The active specifics `where` selects, as the twin rule reads them, newest first. */
+function twinCandidates(db: MemoryDb, where: SqlClause): TwinCandidate[] {
+  const all = and([where, ACTIVE, SPECIFIC])
+  return db.all(
+    `SELECT item.id, item.workspace_id, item.folder, item.updated_at, cur.head, cur.body
+     FROM item ${CURRENT_JOIN} WHERE ${all.sql} ORDER BY ${NEWEST_FIRST}`,
+    TwinRow,
+    all.params
+  )
+}
+
+/** The ids of the active specifics in scope that have a twin (`memoryTwins.ts`). */
+export function twinIdsInScope(db: MemoryDb, scope: MemoryScope): string[] {
+  return [...twinsById(twinCandidates(db, scopeClause(scope))).keys()]
+}
+
+/** The twins of `id`, newest first: read among the active specifics of its workspace and folder.
+ *  None for an unknown id, a fact, an episode or a stale item. */
+export function twinsOfItem(db: MemoryDb, id: string): MemoryTwin[] {
+  const place = db.get('SELECT workspace_id, folder FROM item WHERE id = ?', PlaceRow, [id])
+  if (place === null) return []
+  // `IS` matches two NULLs, which `=` does not.
+  const here: SqlClause = {
+    sql: 'item.workspace_id IS ? AND item.folder IS ?',
+    params: [place.workspace_id, place.folder]
+  }
+  return twinsById(twinCandidates(db, here)).get(id) ?? []
 }

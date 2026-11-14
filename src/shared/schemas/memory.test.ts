@@ -56,7 +56,8 @@ describe('memory text limits', () => {
       atUseChars: 1500,
       indexFolders: 200,
       windowItems: 500,
-      rememberChars: 8000
+      rememberChars: 8000,
+      twinsShown: 5
     })
   })
 

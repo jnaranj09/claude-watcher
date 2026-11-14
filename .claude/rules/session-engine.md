@@ -361,7 +361,10 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   delete is an error toast with the items still marked. "The items the session saved" (the
   count, the delete, the `Session deleted` mark) leave out an item whose origin is the operator
   (`origin.by = 'operator'`: a `/remember` line), which keeps the session id as provenance
-  (`SAVED_BY_SESSION` in `memoryStore.ts`, P3-C29). Memory text (key, value, title, body, check, reason, query)
+  (`SAVED_BY_SESSION` in `memoryStore.ts`, P3-C29). The dialog's `Same value` flag is computed when
+  it reads (`memory/memoryTwins.ts`: two active specifics, same workspace and folder, same value
+  holding an exact term; `memory:list` answers `twinIds`, `memory:get` `twins` and `twinsMore`):
+  nothing is stored, nothing is changed, and no session is told. Memory text (key, value, title, body, check, reason, query)
   never reaches a log, a notification, the API or an attention event (logs carry `code=` only).
   SMOKE opens no database (memory is off); its memory check writes into a temporary folder, never
   userData.

@@ -115,7 +115,7 @@ function optionalBridgeDefaults(): Partial<Record<OptionalBridgeName, Bridge>> {
     },
     shortcuts: { list: vi.fn(() => Promise.resolve([])), save: vi.fn(), remove: vi.fn() },
     memory: {
-      list: vi.fn(() => Promise.resolve({ rows: [], total: 0 })),
+      list: vi.fn(() => Promise.resolve({ rows: [], total: 0, twinIds: [] })),
       // The Delete confirm asks what the session saved: nothing, so it shows no memory row.
       sessionCount: vi.fn(() => Promise.resolve(0)),
       onChanged: vi.fn(() => () => {}),

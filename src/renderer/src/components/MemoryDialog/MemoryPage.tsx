@@ -151,7 +151,13 @@ export function MemoryPage({
 
   /** A save opens the saved item (a new one too) and says so after the `select`. */
   function revealSaved(saved: MemoryItem): void {
-    setDetail((d) => ({ item: saved, versions: d?.item.id === saved.id ? d.versions : [] }))
+    // The read that follows fills the twins.
+    setDetail((d) => ({
+      item: saved,
+      versions: d?.item.id === saved.id ? d.versions : [],
+      twins: [],
+      twinsMore: 0
+    }))
     actions.select(saved.id)
     actions.showSuccess(MEMORY_COPY.saved)
     refresh()

@@ -59,7 +59,9 @@ export const MEMORY_LIMITS = {
   /** Item ids remembered per window (what this window was already told). */
   windowItems: 500,
   /** A `/remember` text on the wire. */
-  rememberChars: 8000
+  rememberChars: 8000,
+  /** Twins the dialog names for one item; the rest are counted. */
+  twinsShown: 5
 } as const
 
 /** Codes the memory store throws (the renderer maps them to copy, never the message).

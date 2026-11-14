@@ -129,7 +129,7 @@ describe('list', () => {
     ctx?.goalIdsByName('Ship')
     expect(names.goalIdsByName).toHaveBeenCalledWith('w1', 'Ship')
     // The item has no tag, so the tag filter narrows it out.
-    expect(out).toEqual({ rows: [], total: 0 })
+    expect(out).toEqual({ rows: [], total: 0, twinIds: [] })
   })
 
   it('answers the rows of the asked kind in the asked workspace', () => {
@@ -164,6 +164,48 @@ describe('get', () => {
 
   it('refuses an extra key', () => {
     expect(() => h.get({ id: create(), extra: 1 })).toThrow()
+  })
+})
+
+describe('same value', () => {
+  // 6
+  it('list answers the ids of its rows that have a twin, and none for another page', () => {
+    const a = create()
+    const b = create({ ...PORT, key: 'port of the api' })
+    create({ ...PORT, key: 'web port', value: '9444' })
+    expect(h.list(LIST).twinIds.sort()).toEqual([a, b].sort())
+    create(NOTE)
+    expect(h.list({ ...LIST, kind: 'fact' }).twinIds).toEqual([])
+  })
+  // 7
+  it('list names only twins that are rows of the page it answers', () => {
+    const a = create()
+    create({ ...PORT, key: 'listener' })
+    const page = h.list({ ...LIST, query: 'API' })
+    expect(page.rows.map((r) => r.id)).toEqual([a])
+    expect(page.twinIds).toEqual([a])
+  })
+  // 8
+  it('get names at most five twins, newest first, and counts the rest', () => {
+    const first = create()
+    const others = ['b', 'c', 'd', 'e', 'f', 'g'].map((k) => create({ ...PORT, key: `port ${k}` }))
+    const out = h.get({ id: first })
+    expect(out.twins.map((t) => t.id)).toEqual([...others].reverse().slice(0, 5))
+    expect(out.twins[0]).toMatchObject({ key: 'port g' })
+    expect(out.twinsMore).toBe(1)
+  })
+  // 9
+  it('get answers no twins for an item that has none', () => {
+    const out = h.get({ id: create() })
+    expect([out.twins, out.twinsMore]).toEqual([[], 0])
+  })
+
+  // 10
+  it('get reads no twins for a fact, whatever the store would answer', () => {
+    const twinsOf = vi.spyOn(store, 'twinsOf')
+    const out = h.get({ id: create(NOTE) })
+    expect([out.twins, out.twinsMore]).toEqual([[], 0])
+    expect(twinsOf).not.toHaveBeenCalled()
   })
 })
 

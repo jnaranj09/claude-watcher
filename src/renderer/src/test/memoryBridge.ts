@@ -1,7 +1,8 @@
 // A small stand-in for main's memory store behind `window.memory` (the GoalsDialog test's style):
 // it keeps the items it answers with, applies the dialog's writes to them, and records every call.
 // It does not filter: what the dialog ASKS for is what the tests check. Shared by the Memory
-// dialog's tests.
+// dialog's tests. `twins` stands in for main's `Same value` rule: `list` marks the rows it returns
+// that have an entry there, and `get` answers the first five of an item's entry and counts the rest.
 import { vi, type Mock } from 'vitest'
 import type {
   MemoryCommand,
@@ -15,7 +16,8 @@ import type {
 import type {
   MemoryCommandsResult,
   MemoryGetResult,
-  MemoryListResult
+  MemoryListResult,
+  MemoryTwin
 } from '../../../shared/ipc/contract'
 
 export const MEMORY_NOW = new Date(2026, 10, 12, 15, 0).getTime()
@@ -132,6 +134,8 @@ export function rowOf(item: MemoryItem): MemoryRow {
 export interface MemoryBridge {
   items: MemoryItem[]
   versions: Record<string, MemoryVersion[]>
+  /** Each item id → the twins main would answer for it. */
+  twins: Record<string, MemoryTwin[]>
   list: Mock<(req: MemoryListRequest) => Promise<MemoryListResult>>
   get: Mock<(id: string) => Promise<MemoryGetResult>>
   create: Mock<(req: MemoryCreateRequest) => Promise<MemoryItem>>
@@ -186,11 +190,14 @@ export function installMemoryBridge(
     items,
     commandRows,
     versions: {},
+    twins: {},
     list: vi.fn((req: MemoryListRequest) => {
       const rows = bridge.items.filter((i) => i.kind === req.kind).map(rowOf)
+      const page = rows.slice(req.offset, req.offset + req.limit)
       return Promise.resolve({
-        rows: rows.slice(req.offset, req.offset + req.limit),
-        total: rows.length
+        rows: page,
+        total: rows.length,
+        twinIds: page.filter((r) => (bridge.twins[r.id] ?? []).length > 0).map((r) => r.id)
       })
     }),
     get: vi.fn((id: string) =>
@@ -205,7 +212,9 @@ export function installMemoryBridge(
             head: head(item),
             body: text(item)
           }
-        ]
+        ],
+        twins: (bridge.twins[id] ?? []).slice(0, 5),
+        twinsMore: Math.max(0, (bridge.twins[id] ?? []).length - 5)
       }))
     ),
     create: vi.fn((req: MemoryCreateRequest) => {

@@ -195,6 +195,8 @@ export const CH = {
   // `memory:extract-result` is the PUSH after a save from a session (counts, the session's name
   // and codes only, validated at source: sendMemoryExtractResult.ts); one produced before a
   // renderer loaded is held in main and sent when one has (ipc/extractResultPush.ts).
+  // `memory:list` also answers which rows hold the same value as another specific, `memory:get`
+  // the open item's twins (computed at read time, nothing stored).
   memoryList: 'memory:list',
   memoryGet: 'memory:get',
   memoryCreate: 'memory:create',
@@ -768,10 +770,19 @@ export type {
   MemoryCommand,
   MemoryExtractResult
 } from '../schemas/memory'
-/** `memory:list` result — one page of rows plus how many match in all. */
-export type MemoryListResult = { rows: MemoryRow[]; total: number }
-/** `memory:get` result — the item and its versions, newest first (`[0]` is the current text). */
-export type MemoryGetResult = { item: MemoryItem; versions: MemoryVersion[] }
+/** Another active specific with the same exact value in the same workspace and folder. */
+export type MemoryTwin = { id: string; key: string; updatedAt: number }
+/** `memory:list` result — one page of rows plus how many match in all, and `twinIds`: the ids
+ *  among `rows` that have a twin (`[]` for a page that is not Specifics). */
+export type MemoryListResult = { rows: MemoryRow[]; total: number; twinIds: string[] }
+/** `memory:get` result — the item and its versions, newest first (`[0]` is the current text), and
+ *  its twins: at most `MEMORY_LIMITS.twinsShown`, newest first; `twinsMore` counts the rest. */
+export type MemoryGetResult = {
+  item: MemoryItem
+  versions: MemoryVersion[]
+  twins: MemoryTwin[]
+  twinsMore: number
+}
 /** `memory:commands` result — one page of a workspace's commands plus how many match in all. */
 export type MemoryCommandsResult = { rows: MemoryCommand[]; total: number }
 
