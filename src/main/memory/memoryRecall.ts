@@ -138,8 +138,9 @@ export function createMemoryRecall(deps: {
     }
     outer: for (const folder of folders) {
       const rows = found.rows.filter((row) => row.folder === folder)
-      // No `wrapperSafe` on the composed line (P3-C18): the folder ends it and the prefix holds no
-      // `<` or `:`, so the template cannot complete a reminder tag or the marker.
+      // No `wrapperSafe` on the composed line (P3-C18): the folder (through `oneLine`) ends the
+      // line, the text before it ends in ` saved for `, and the next line starts with `- ` or a
+      // digit, so the header's own characters cannot complete a reminder tag or the marker.
       let header: string | null = `${MEMORY_BLOCK_MARKER} saved for ${oneLine(folder)}`
       for (const row of rows) {
         const line = specificLine(row)

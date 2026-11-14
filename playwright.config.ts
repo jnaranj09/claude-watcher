@@ -1,8 +1,8 @@
-// Playwright-Electron e2e: the specs in tests/e2e/*.e2e.ts (launch, native engine, terminal,
-// quit, single instance) plus the e2e profile's refusal check (profile.e2e.ts). Each launches the
+// Playwright-Electron e2e: every spec in tests/e2e/*.e2e.ts. Each launches the
 // BUILT app (`out/main/index.js`); `npm run test:e2e` builds first, and globalSetup fails the run
 // on an older build. Every app runs on the e2e profile (its own ports, a fresh temp data folder
-// per launch, tests/e2e/fixtures.ts) on a hidden display (tests/headless/headlessDisplay.mjs).
+// per launch, tests/e2e/fixtures.ts; profile.e2e.ts leaves the folder out to check the refusal)
+// on a hidden display (tests/headless/headlessDisplay.mjs).
 // The zero-dependency packaged smoke (`npm run smoke`) is a separate gate.
 import { defineConfig } from '@playwright/test'
 
