@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { nodeFileHistoryFs } from './fileHistory'
 import { nodeContextFs } from './contextHandlers'
-import { nodeBridgeModFs } from './bridgeModInstall'
+import { nodeModFs } from './modInstall'
 
 let dir = ''
 beforeEach(() => {
@@ -110,15 +110,15 @@ describe('nodeContextFs', () => {
   })
 })
 
-describe('nodeBridgeModFs.listFiles', () => {
+describe('nodeModFs.listFiles', () => {
   it('lists every file under a folder, relative and sorted', async () => {
     mkdirSync(join(dir, 'hooks'))
     writeFileSync(join(dir, 'hooks', 'register.ts'), '')
     writeFileSync(join(dir, 'a.json'), '')
-    expect(await nodeBridgeModFs.listFiles(dir)).toEqual(['a.json', 'hooks/register.ts'])
+    expect(await nodeModFs.listFiles(dir)).toEqual(['a.json', 'hooks/register.ts'])
   })
 
   it('answers [] for a missing folder', async () => {
-    expect(await nodeBridgeModFs.listFiles(join(dir, 'gone'))).toEqual([])
+    expect(await nodeModFs.listFiles(join(dir, 'gone'))).toEqual([])
   })
 })

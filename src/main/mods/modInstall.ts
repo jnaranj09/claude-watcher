@@ -1,6 +1,6 @@
-// The bridge mod's install at start (spec 2026-10-18 §1.2): copy the shipped mod into
-// <userData>/mods/watcher-bridge, the folder every spawn hands claude as `--plugin-dir`. Each
-// profile has its own userData, so dev, drive and e2e never share a copy.
+// A shipped mod's install at start (spec 2026-10-18 §1.2): copy the shipped mod into
+// <userData>/mods/<name>, the folder a spawn hands claude as `--plugin-dir`. Each profile has its
+// own userData, so dev, drive and e2e never share a copy.
 //
 // The folder is replaced WHOLE, and only when a shipped file differs from the installed one.
 // Files only the installed copy has (the engine lays its types and a tsconfig.json into a
@@ -12,11 +12,12 @@ import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { StorageProblemCode } from '../../shared/schemas/storageHealth'
 
-/** The mod's folder and plugin name. Not `claude-…`: the engine reserves that prefix. The
- *  shipped `plugin.json` and `electron-builder.yml` hold the same string (bridgeModInstall.test). */
+/** A mod's folder and plugin name. Not `claude-…`: the engine reserves that prefix. The
+ *  shipped `plugin.json` and `electron-builder.yml` hold the same string (modInstall.test). */
 export const BRIDGE_MOD_NAME = 'watcher-bridge'
+export type ModName = typeof BRIDGE_MOD_NAME
 
-export interface BridgeModFs {
+export interface ModFs {
   /** Every file under `dir`, relative to it with `/`; [] when `dir` does not exist. */
   listFiles(dir: string): Promise<string[]>
   /** The file's bytes, or null when it does not exist. */
@@ -26,35 +27,37 @@ export interface BridgeModFs {
   removeDir(path: string): Promise<void>
 }
 
-export function bridgeModSourceDir(opts: {
+export function modSourceDir(opts: {
+  name: ModName
   isPackaged: boolean
   resourcesPath: string
   /** `__dirname` of the built main bundle — `<repo>/out/main` in every unpackaged run. */
   mainDir: string
 }): string {
   return opts.isPackaged
-    ? join(opts.resourcesPath, 'mods', BRIDGE_MOD_NAME)
-    : join(opts.mainDir, '..', '..', 'src', 'mod', BRIDGE_MOD_NAME)
+    ? join(opts.resourcesPath, 'mods', opts.name)
+    : join(opts.mainDir, '..', '..', 'src', 'mod', opts.name)
 }
 
 /** Shipped files: everything in the mod folder but its engine tests. */
 const ships = (rel: string): boolean => !rel.endsWith('.test.ts')
 
-export async function installBridgeMod(deps: {
+export async function installMod(deps: {
+  name: ModName
   sourceDir: string
   userDataDir: string
-  fs: BridgeModFs
+  fs: ModFs
   report: (code: StorageProblemCode) => void
   log: (line: string) => void
 }): Promise<string | null> {
-  const target = join(deps.userDataDir, 'mods', BRIDGE_MOD_NAME)
+  const target = join(deps.userDataDir, 'mods', deps.name)
   try {
     const files = (await deps.fs.listFiles(deps.sourceDir)).filter(ships)
-    if (files.length === 0) throw new Error('bridge mod source holds no files')
+    if (files.length === 0) throw new Error('mod source holds no files')
     const shipped = new Map<string, Buffer>()
     for (const rel of files) {
       const data = await deps.fs.readFile(join(deps.sourceDir, rel))
-      if (data === null) throw new Error('bridge mod source file vanished')
+      if (data === null) throw new Error('mod source file vanished')
       shipped.set(rel, data)
     }
     let same = true
@@ -77,7 +80,7 @@ export async function installBridgeMod(deps: {
 }
 
 /** The packaged smoke's check: the install at start left a manifest behind. */
-export function bridgeModSmokeCheck(
+export function modSmokeCheck(
   dir: string | null,
   exists: (path: string) => boolean
 ): { installed: boolean; pass: boolean } {
@@ -88,8 +91,8 @@ export function bridgeModSmokeCheck(
 const isMissing = (err: unknown): boolean =>
   err instanceof Error && 'code' in err && err.code === 'ENOENT'
 
-/** The real filesystem behind `BridgeModFs`. */
-export const nodeBridgeModFs: BridgeModFs = {
+/** The real filesystem behind `ModFs`. */
+export const nodeModFs: ModFs = {
   async listFiles(dir) {
     try {
       const entries = await readdir(dir, { recursive: true, withFileTypes: true })

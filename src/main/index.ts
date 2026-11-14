@@ -116,7 +116,7 @@ import { API_SPAWN_TIMEOUT_MS } from './api/apiContract'
 // Custom themes — the folder scanner (T5) and the apply lifecycle (T11), wired below.
 import { createThemeScanner, type ThemeScanner } from './themes/themeScanner'
 import { BUNDLED_THEME_IDS, bundledThemesDir } from './themes/bundledThemes'
-import { bridgeModSourceDir, installBridgeMod, nodeBridgeModFs } from './mods/bridgeModInstall'
+import { BRIDGE_MOD_NAME, installMod, modSourceDir, nodeModFs } from './mods/modInstall'
 import { createSessionSetup } from './mods/sessionSetup'
 import { createContextHandlers, nodeContextFs } from './mods/contextHandlers'
 import { pushSessionSetupChanged, registerContextIpc } from './ipc/registerContextIpc'
@@ -941,14 +941,16 @@ app
 
     // The bridge mod (spec 2026-10-18 §1.2): copied into userData now, awaited before the window
     // opens, so no launch can race it. Never rejects; a failure leaves the dir null (fail open).
-    const bridgeModInstalled = installBridgeMod({
-      sourceDir: bridgeModSourceDir({
+    const bridgeModInstalled = installMod({
+      name: BRIDGE_MOD_NAME,
+      sourceDir: modSourceDir({
+        name: BRIDGE_MOD_NAME,
         isPackaged: app.isPackaged,
         resourcesPath: process.resourcesPath,
         mainDir: __dirname
       }),
       userDataDir: app.getPath('userData'),
-      fs: nodeBridgeModFs,
+      fs: nodeModFs,
       report: storageHealth.reporterFor('bridge_mod'),
       log: (line) => console.warn(line)
     }).then((dir) => {

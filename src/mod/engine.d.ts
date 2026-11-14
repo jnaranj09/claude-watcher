@@ -1,8 +1,12 @@
-// The slice of claude's mod engine API the bridge mod uses, copied by hand from the engine's
-// declarations (claude 2.1.304). `prompt.submit`: origin probed on 2.1.309; present in the 2.1.307–2.1.309
+// The slice of claude's mod engine API the mods under `src/mod/` use, copied by hand from the
+// engine's declarations (claude 2.1.304). `prompt.submit`: origin probed on 2.1.309; present in the 2.1.307–2.1.309
 // binaries; 2.1.304–2.1.306 unverified. The engine's own file is the authority and it moves
 // between releases: `npm run test:mod` runs `claude plugin validate` and `claude plugin test` against the
-// real engine. Declare ONLY what register.ts calls.
+// real engine. Declare ONLY what a mod's register.ts calls.
+//
+// One ambient file serves every mod: two files that each `declare module 'claude-code'` with
+// their own `export type`s collide under `tsconfig.node.json`. No mod imports it, and it ships in
+// no mod folder: the engine lays its own types into a `--plugin-dir` folder.
 declare module 'claude-code' {
   export type InstructionFile = {
     path: string

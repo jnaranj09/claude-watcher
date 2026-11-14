@@ -1,21 +1,15 @@
-// The bridge mod's install at start (spec 2026-10-18 §1.2): copy the shipped mod into
-// <userData>/mods/watcher-bridge, and replace that folder whole only when it differs.
+// A shipped mod's install at start (spec 2026-10-18 §1.2): copy the shipped mod into
+// <userData>/mods/<name>, and replace that folder whole only when it differs.
 import { describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import {
-  BRIDGE_MOD_NAME,
-  bridgeModSmokeCheck,
-  bridgeModSourceDir,
-  installBridgeMod,
-  type BridgeModFs
-} from './bridgeModInstall'
+import { BRIDGE_MOD_NAME, installMod, modSmokeCheck, modSourceDir, type ModFs } from './modInstall'
 
 const SRC = '/app/mods/watcher-bridge'
 const USER = '/data'
 const TARGET = '/data/mods/watcher-bridge'
 
-function fakeFs(files: Record<string, string>): BridgeModFs & {
+function fakeFs(files: Record<string, string>): ModFs & {
   files: Map<string, string>
   touched: string[]
 } {
@@ -56,7 +50,7 @@ const SHIPPED = {
   [`${SRC}/hooks/report.test.ts`]: 'test'
 }
 
-function run(fs: BridgeModFs): {
+function run(fs: ModFs): {
   out: Promise<string | null>
   report: ReturnType<typeof vi.fn>
   log: ReturnType<typeof vi.fn<(l: string) => void>>
@@ -64,13 +58,13 @@ function run(fs: BridgeModFs): {
   const report = vi.fn()
   const log = vi.fn<(l: string) => void>()
   return {
-    out: installBridgeMod({ sourceDir: SRC, userDataDir: USER, fs, report, log }),
+    out: installMod({ name: BRIDGE_MOD_NAME, sourceDir: SRC, userDataDir: USER, fs, report, log }),
     report,
     log
   }
 }
 
-describe('installBridgeMod', () => {
+describe('installMod', () => {
   it('copies the shipped mod on the first run, without its tests', async () => {
     const fs = fakeFs(SHIPPED)
     expect(await run(fs).out).toBe(TARGET)
@@ -134,29 +128,35 @@ describe('installBridgeMod', () => {
   })
 })
 
-describe('bridgeModSourceDir', () => {
+describe('modSourceDir', () => {
   it('reads <resourcesPath>/mods/watcher-bridge when packaged', () => {
-    expect(bridgeModSourceDir({ isPackaged: true, resourcesPath: '/r', mainDir: '/x' })).toBe(
-      '/r/mods/watcher-bridge'
-    )
+    expect(
+      modSourceDir({ name: BRIDGE_MOD_NAME, isPackaged: true, resourcesPath: '/r', mainDir: '/x' })
+    ).toBe('/r/mods/watcher-bridge')
   })
 
   it('reads the repo copy under src/mod when unpackaged', () => {
     expect(
-      bridgeModSourceDir({ isPackaged: false, resourcesPath: '/r', mainDir: '/repo/out/main' })
+      modSourceDir({
+        name: BRIDGE_MOD_NAME,
+        isPackaged: false,
+        resourcesPath: '/r',
+        mainDir: '/repo/out/main'
+      })
     ).toBe('/repo/src/mod/watcher-bridge')
   })
 })
 
-describe('bridgeModSmokeCheck', () => {
+describe('modSmokeCheck', () => {
   it('passes when the installed plugin.json exists', () => {
-    expect(
-      bridgeModSmokeCheck(TARGET, (p) => p === `${TARGET}/.claude-plugin/plugin.json`)
-    ).toEqual({ installed: true, pass: true })
+    expect(modSmokeCheck(TARGET, (p) => p === `${TARGET}/.claude-plugin/plugin.json`)).toEqual({
+      installed: true,
+      pass: true
+    })
   })
 
   it('fails when nothing was installed', () => {
-    expect(bridgeModSmokeCheck(null, () => true)).toEqual({ installed: false, pass: false })
+    expect(modSmokeCheck(null, () => true)).toEqual({ installed: false, pass: false })
   })
 })
 

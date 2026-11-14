@@ -11,7 +11,7 @@ import { buildPtyEnv } from '../pty/ptyEnv'
 import type { ApiLifecycle } from '../api/apiLifecycle'
 import { createThemeScanner } from '../themes/themeScanner'
 import { BUNDLED_THEME_IDS } from '../themes/bundledThemes'
-import { bridgeModSmokeCheck } from '../mods/bridgeModInstall'
+import { modSmokeCheck } from '../mods/modInstall'
 import { memorySmokeCheck } from '../memory/memoryDb'
 import { containSmokeReport, registerSmokeIpc } from '../smoke/smokeIpc'
 import type { TrustedIpc } from './trustedIpc'
@@ -172,7 +172,7 @@ export function registerPtyIpc(deps: PtyIpcDeps): void {
     }
     // The bridge mod (spec 2026-10-18 §1.2) — the install at start copied it out of
     // <resourcesPath>/mods into userData; a false here is a package that did not carry it.
-    const bridgeMod = bridgeModSmokeCheck(bridgeModDir(), existsSync)
+    const bridgeMod = modSmokeCheck(bridgeModDir(), existsSync)
     // Memory (spec 2026-11-11 §2) — `node:sqlite` with FTS5 word and trigram indexes inside the
     // package. A PROBE folder, not userData: the smoke runs on the default profile, and its test
     // row must never land in the operator's memory file.
