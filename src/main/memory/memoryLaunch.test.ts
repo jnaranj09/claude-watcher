@@ -85,7 +85,10 @@ function spawnDeps(over: Partial<Omit<MemorySpawnDeps, 'tokens'>> = {}): MemoryS
       report: () => undefined
     }),
     url: MEMORY_MCP_URL,
-    activity: { injected: (id, value) => injected.push([id, value]) },
+    activity: { injected: (id, value) => injected.push([id, value]), recallMode: () => undefined },
+    // Phase 1 (the index at launch); the memory mod's own cases: memoryLaunch.mod.test.ts.
+    recallMod: () => ({ skip: 'setting_off' }),
+    recall: { launched: () => undefined },
     log: (line) => lines.push(line),
     injected,
     lines,
@@ -222,7 +225,7 @@ describe('memorySpawnExtras', () => {
     expect(on.injected).toEqual([])
   })
 
-  it('an unreadable index launches as if memory were off, mints nothing and logs a code', () => {
+  it('an unreadable index launches as if memory were off, leaves no token or file and logs a code', () => {
     const store = openStore()
     store.indexRows = () => {
       throw new Error('memory_read_failed')
@@ -232,8 +235,10 @@ describe('memorySpawnExtras', () => {
     const write = vi.spyOn(on.configs, 'write')
     const out = memorySpawnExtras(on, 's1', launch, null)
     expect(out).toEqual(NO_MEMORY_EXTRAS)
-    expect(mint).not.toHaveBeenCalled()
-    expect(write).not.toHaveBeenCalled()
+    // The index is built after the config is written (a mod session builds none), so the token
+    // and the file were made, then dropped by the catch.
+    expect(on.tokens.resolve(mint.mock.results[0]?.value as string)).toBeNull()
+    expect(existsSync(write.mock.results[0]?.value as string)).toBe(false)
     expect(on.lines).toEqual(['[claude-watcher][memory] code=memory_launch_failed'])
     expect(on.injected).toEqual([])
   })
@@ -243,7 +248,8 @@ describe('memorySpawnExtras', () => {
       activity: {
         injected: () => {
           throw new Error('boom')
-        }
+        },
+        recallMode: () => undefined
       }
     })
     const mint = vi.spyOn(on.tokens, 'mint')

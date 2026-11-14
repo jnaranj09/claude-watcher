@@ -4,9 +4,13 @@
 // `memorySpawnExtras` runs inside every actual spawn (`rawClaudeSpawn`, ipc/registerLaunchIpc.ts).
 // With memory on, the hook port ours (SEC-6: the server lives on it) and the database open, the
 // session gets its own bearer token, a `--mcp-config` file for `claude-watcher-memory`, the memory
-// tools pre-allowed (`MEMORY_TOOLS`), the index for its folder (its open tasks, specifics and
-// recent sessions) appended to its system prompt, and one env var that lets an operator's own
-// hooks tell. All of it or nothing: a memory failure never fails a launch;
+// tools pre-allowed (`MEMORY_TOOLS`), and one env var that lets an operator's own hooks tell. Then
+// one choice (`recallMod`, mods/memoryModSpawn.ts, memory phase 3 addendum §2): the `watcher-memory`
+// mod (`--plugin-dir`, and `MEMORY_CONFIG_ENV` naming the config file, where the mod reads the link
+// to main and this session's token), which sends the index and recall while the session runs; or
+// phase 1, the index for its folder (its open tasks, specifics and recent sessions) appended to its
+// system prompt. Either way the choice is recorded for Context (`activity.recallMode`). All of it
+// or nothing: a memory failure never fails a launch;
 // the session starts as if memory were off, with a code logged. claude's own auto memory is not
 // set here: it has its own setting, applied to every launch in `pty/spawnExtras.ts`.
 //
@@ -27,9 +31,11 @@ import type { StorageProblemCode } from '../../shared/schemas/storageHealth'
 import { createMcpConfigs, grantMcpConfig, type McpConfigs } from '../goals/mcp/mcpConfigFile'
 import { createMcpEndpoint, type McpEndpoint } from '../mcp/mcpEndpoint'
 import { createSessionTokens, type SessionTokens } from '../mcp/sessionTokens'
+import type { MemoryRecallMod } from '../mods/memoryModSpawn'
 import type { Extractor } from './extract/extractor'
 import type { MemoryActivityLog } from './memoryActivity'
 import type { MemoryCommands } from './memoryCommands'
+import type { MemoryRecall } from './memoryRecall'
 import type { MemoryStore } from './memoryStore'
 import {
   MEMORY_MCP_SERVER_NAME,
@@ -47,11 +53,18 @@ const LOG_PREFIX = `[claude-watcher][${AREA}]`
 /** The env a memory launch gets: a flag for the operator's own hooks. */
 const MEMORY_SPAWN_ENV = { CLAUDE_WATCHER_MEMORY: '1' } as const
 
+/** The env var that names a mod session's `--mcp-config` file. The mod holds its own copy
+ *  (`CONFIG_ENV`, src/mod/watcher-memory/hooks/protocol.ts); `tests/main/modMemoryContract.test.ts`
+ *  pins the two together. */
+export const MEMORY_CONFIG_ENV = 'CLAUDE_WATCHER_MEMORY_CONFIG'
+
 /** What one spawn gets from memory. `NO_MEMORY_EXTRAS` = nothing, not even the env. */
 export interface MemorySpawnExtras {
   appendPrompt: string | null
   mcpConfigPath: string | null
   allowedTools: string | null
+  /** The `watcher-memory` mod's folder for `--plugin-dir`, or null (phase 1, or no memory). */
+  pluginDir: string | null
   env: Record<string, string>
 }
 
@@ -61,6 +74,7 @@ export const NO_MEMORY_EXTRAS: Readonly<MemorySpawnExtras> = Object.freeze({
   appendPrompt: null,
   mcpConfigPath: null,
   allowedTools: null,
+  pluginDir: null,
   env: Object.freeze({})
 })
 
@@ -89,7 +103,11 @@ export interface MemorySpawnDeps {
   configs: Pick<McpConfigs, 'write' | 'remove'>
   /** `MEMORY_MCP_URL`. */
   url: string
-  activity: Pick<MemoryActivityLog, 'injected'>
+  activity: Pick<MemoryActivityLog, 'injected' | 'recallMode'>
+  /** The memory mod or the reason not (`createMemoryModChoice`), asked once the config is written. */
+  recallMod: () => MemoryRecallMod
+  /** A mod session's recall starts with nothing sent and the goal block's tasks left out. */
+  recall: Pick<MemoryRecall, 'launched'>
   /** Code-only log sink. */
   log: (line: string) => void
 }
@@ -98,9 +116,12 @@ export interface MemorySpawnDeps {
  * The memory part of ONE spawn of `sessionId`, in `launch.cwd` for `launch.workspaceId`. The
  * index leaves out `launch.excludeTaskIds` (the tasks the goal block of this spawn lists).
  * `previousSessionId` is the id this terminal's last spawn minted (a Reopen replaces it): its
- * token and file go first, whether or not memory is still on. The whole body is guarded: any throw
- * (a getter, an unreadable index, the activity record) leaves no token or file of `sessionId`
- * behind, logs `code=memory_launch_failed`, and launches the session as if memory were off.
+ * token and file go first, whether or not memory is still on. Once the config is written, a mod
+ * session gets no index on its command line (the mod sends it) and phase 1 gets the index; the
+ * recall mode is recorded either way. The whole body is guarded: any throw (a getter, an
+ * unreadable index, the activity record, the recall service) leaves no token or file of
+ * `sessionId` behind, logs `code=memory_launch_failed`, and launches the session as if memory were
+ * off.
  */
 export function memorySpawnExtras(
   deps: MemorySpawnDeps,
@@ -116,14 +137,28 @@ export function memorySpawnExtras(
     const store = deps.store()
     // The hook port down is already on screen (`ServerHealthBanner`): no log per launch.
     if (!deps.enabled() || !deps.hookListening() || store === null) return noMemory()
-    const index = buildSessionIndex(deps, store, launch)
     const path = grantMcpConfig(deps, AREA, { sessionId })
     if (path === null) return noMemory()
+    const mod = deps.recallMod()
+    if ('dir' in mod) {
+      deps.recall.launched(sessionId, { excludeTaskIds: launch.excludeTaskIds })
+      deps.activity.recallMode(sessionId, { mode: 'mod' })
+      return {
+        appendPrompt: null,
+        mcpConfigPath: path,
+        allowedTools: MEMORY_ALLOWED,
+        pluginDir: mod.dir,
+        env: { ...MEMORY_SPAWN_ENV, [MEMORY_CONFIG_ENV]: path }
+      }
+    }
+    const index = buildSessionIndex(deps, store, launch)
     deps.activity.injected(sessionId, { chars: index.text.length, itemIds: index.itemIds })
+    deps.activity.recallMode(sessionId, { mode: 'launch', reason: mod.skip })
     return {
       appendPrompt: index.text,
       mcpConfigPath: path,
       allowedTools: MEMORY_ALLOWED,
+      pluginDir: null,
       env: { ...MEMORY_SPAWN_ENV }
     }
   } catch {

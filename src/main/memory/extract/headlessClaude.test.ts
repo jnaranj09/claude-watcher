@@ -14,6 +14,7 @@ import {
   type ChildSeam,
   type SpawnSeam
 } from './headlessClaude'
+import { MEMORY_CONFIG_ENV } from '../memoryLaunch'
 
 const output: ExtractOutput = {
   candidates: [
@@ -55,6 +56,32 @@ describe('composeExtractCommand', () => {
     ).toBe(
       "'/opt/bin/claude' -p --model 'haiku' --output-format json --json-schema '{}' --system-prompt 'P' --no-session-persistence --setting-sources '' --tools '' --strict-mcp-config --disable-slash-commands --max-budget-usd 1"
     )
+  })
+})
+
+describe('the save call never gets the memory mod', () => {
+  it('a mod session’s env gives the save call no config path, memory flag or mod link', () => {
+    const base = {
+      PATH: '/usr/bin',
+      CLAUDE_WATCHER_MEMORY: '1',
+      [MEMORY_CONFIG_ENV]: '/data/mcp/a.json',
+      CLAUDE_WATCHER_MOD_URL: 'http://127.0.0.1:1/mod/report'
+    }
+    expect(buildExtractEnv(base, null)).toEqual({
+      PATH: '/usr/bin',
+      CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1'
+    })
+  })
+
+  it('the save call’s command loads no mod folder and no MCP config file', () => {
+    const words = composeExtractCommand({
+      claudeCommand: '/opt/bin/claude',
+      model: 'haiku',
+      systemPrompt: 'P',
+      jsonSchema: '{}',
+      budgetUsd: 1
+    }).split(' ')
+    expect([words.includes('--plugin-dir'), words.includes('--mcp-config')]).toEqual([false, false])
   })
 })
 

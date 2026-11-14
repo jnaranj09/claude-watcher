@@ -119,6 +119,7 @@ import { BUNDLED_THEME_IDS, bundledThemesDir } from './themes/bundledThemes'
 import { modSourceDir, nodeModFs } from './mods/modInstall'
 import { installAppMods } from './mods/startMods'
 import { createModDirs } from './mods/modDirs'
+import { createMemoryModChoice } from './mods/memoryModSpawn'
 import { createSessionSetup } from './mods/sessionSetup'
 import { createContextHandlers, nodeContextFs } from './mods/contextHandlers'
 import { pushSessionSetupChanged, registerContextIpc } from './ipc/registerContextIpc'
@@ -852,6 +853,15 @@ const claudeVersionGate = createClaudeVersionGate({
 })
 /** The installed mod folders; each null until the install at start succeeds (or when it failed). */
 const modDirs = createModDirs()
+/** Each spawn's choice between the memory mod and the launch index (mods/memoryModSpawn.ts): the
+ *  `Memory recall` setting, the installed folder and the claude version, read at each spawn. */
+const memoryModChoice = createMemoryModChoice({
+  settings: () => settingsStore?.get() ?? DEFAULT_SETTINGS,
+  installedDir: modDirs.memory,
+  exists: isExistingDirectory,
+  version: () => claudeVersionGate.lastVersion(),
+  log: (line) => console.warn(line)
+})
 function claudeVersionAllowsLaunch(): boolean {
   return claudeVersionGate.allowsInteractiveLaunch()
 }
@@ -1333,6 +1343,8 @@ app
             configs: memoryMcp.configs,
             url: MEMORY_MCP_URL,
             activity: memoryActivity,
+            recallMod: memoryModChoice,
+            recall: memoryMcp.recall,
             log: (line) => console.warn(line)
           },
           sessionId,

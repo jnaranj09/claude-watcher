@@ -50,7 +50,7 @@ need `build:dir` + `smoke` (proves node-pty survives packaging — load-bearing)
   (`createWindow`, watch feed). `index.ts` = lifecycle + wiring only. Main owns session truth.
 - `src/preload/` — typed `contextBridge` seam; renderer never gets `ipcRenderer`/Node.
 - `src/renderer/` — React UI (sandboxed), view-state in Zustand (`stores/boardStore.ts`).
-- `src/mod/` — mods claude loads via `--plugin-dir`: `watcher-bridge`, `watcher-memory` (`session-engine.md`).
+- `src/mod/` — mods claude loads via `--plugin-dir`: `watcher-bridge`; `watcher-memory` when a spawn picks recall (`session-engine.md`).
 - `src/shared/` — `ipc/contract.ts` (`CH` registry + payload types), `schemas/hookEvent.ts`
   (hook-POST adapter), `schemas/session.ts`.
 - `src/__fixtures__/` — fake hook feed, launched-session fixtures (never shipped).

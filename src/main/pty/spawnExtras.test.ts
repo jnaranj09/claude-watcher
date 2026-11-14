@@ -27,7 +27,15 @@ const memory: MemorySpawnExtras = {
   appendPrompt: 'MEMORY INDEX',
   mcpConfigPath: '/ud/mcp/memory.json',
   allowedTools: 'mcp__claude-watcher-memory__memory_search,mcp__claude-watcher-memory__memory_get',
+  pluginDir: null,
   env: { CLAUDE_WATCHER_MEMORY: '1' }
+}
+/** A session given the memory mod: no index, the mod's folder and its config env var. */
+const memoryMod: MemorySpawnExtras = {
+  ...memory,
+  appendPrompt: null,
+  pluginDir: '/m/watcher-memory',
+  env: { CLAUDE_WATCHER_MEMORY: '1', CLAUDE_WATCHER_MEMORY_CONFIG: '/ud/mcp/memory.json' }
 }
 
 const LAUNCH = { cwd: '/work/app', workspaceId: 'w1' }
@@ -127,6 +135,38 @@ describe('spawnExtras mod folders', () => {
     const withBridge = extras(goal, memory, LAUNCH, 'claude', BASE_ENV, '/m/watcher-bridge')
     expect(withBridge.fields.pluginDirs).toEqual(['/m/watcher-bridge'])
     expect(extras(goal, memory).fields.pluginDirs).toEqual([])
+  })
+
+  it('lists the bridge mod first and the memory mod second', () => {
+    expect(
+      extras(goal, memoryMod, LAUNCH, 'claude', BASE_ENV, '/m/watcher-bridge').fields.pluginDirs
+    ).toEqual(['/m/watcher-bridge', '/m/watcher-memory'])
+  })
+
+  it('lists only the memory mod when the bridge mod was skipped', () => {
+    expect(extras(goal, memoryMod).fields.pluginDirs).toEqual(['/m/watcher-memory'])
+  })
+
+  it('a memory mod session carries the config env var to the child', () => {
+    expect(extras(NO_GOAL, memoryMod).env).toEqual({
+      ...BASE_ENV,
+      CLAUDE_WATCHER_MEMORY: '1',
+      CLAUDE_WATCHER_MEMORY_CONFIG: '/ud/mcp/memory.json'
+    })
+  })
+
+  it('a session without the memory mod composes the same command, byte for byte, as before it', () => {
+    const fields = extras(goal, memory, LAUNCH, 'claude', BASE_ENV, '/m/watcher-bridge').fields
+    expect(composeClaudeCommand({ ...base, hookSettingsPath: '/ud/hooks.json', ...fields })).toBe(
+      composeClaudeCommand({
+        ...base,
+        hookSettingsPath: '/ud/hooks.json',
+        appendSystemPrompt: `${QUESTION_FORMAT_PROMPT}\n\nTASK BLOCK\n\nMEMORY INDEX`,
+        mcpConfigPaths: ['/ud/mcp/goals.json', '/ud/mcp/memory.json'],
+        allowedTools: `mcp__claude-watcher__mark_task_done,${memory.allowedTools ?? ''}`,
+        pluginDirs: ['/m/watcher-bridge']
+      })
+    )
   })
 })
 

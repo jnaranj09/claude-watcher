@@ -18,6 +18,11 @@ import {
 import { formatDay } from '../../src/main/memory/formatDay'
 import { openMemoryDb } from '../../src/main/memory/memoryDb'
 import { createMemoryGate } from '../../src/main/memory/memoryGate'
+import {
+  MEMORY_CONFIG_ENV,
+  createMemoryMcp,
+  memorySpawnExtras
+} from '../../src/main/memory/memoryLaunch'
 import { createMemoryRecall, type MemoryRecall } from '../../src/main/memory/memoryRecall'
 import { createMemoryStore, type MemoryStore } from '../../src/main/memory/memoryStore'
 import { MEMORY_MCP_SERVER_NAME, type MemorySessionMeta } from '../../src/main/memory/memoryTools'
@@ -32,6 +37,7 @@ import {
   REMEMBER_REFUSALS
 } from '../../src/shared/schemas/modMemory'
 import {
+  CONFIG_ENV,
   FOLDER_CHARS,
   FOLDERS_PER_CALL,
   MCP_PATH,
@@ -84,10 +90,24 @@ describe('the memory mod’s contract with main', () => {
     ])
   })
 
+  it('the mod reads the env var main sets', () => {
+    expect(CONFIG_ENV).toBe(MEMORY_CONFIG_ENV)
+  })
+
   describe('the config file', () => {
     let dir: string
+    let modStore: MemoryStore
     beforeEach(() => {
       dir = mkdtempSync(join(tmpdir(), 'mod-memory-contract-'))
+      const open = openMemoryDb(':memory:', { now: () => NOW, log: () => undefined })
+      if (!open.ok) throw new Error('open failed')
+      modStore = createMemoryStore({
+        db: open.db,
+        now: () => NOW,
+        newId: () => 'm1',
+        report: () => undefined,
+        log: () => undefined
+      })
     })
     afterEach(() => {
       rmSync(dir, { recursive: true, force: true })
@@ -121,6 +141,55 @@ describe('the memory mod’s contract with main', () => {
         )
       ).toEqual(
         ports.map((port) => ({ base: `http://${HOST}:${port}`, authorization: 'Bearer tok' }))
+      )
+    })
+
+    it('a mod session’s env names a file the mod reads, with the session’s memory token, on every profile’s hook port', () => {
+      const mcp = createMemoryMcp({
+        dir: () => dir,
+        report: () => undefined,
+        enabled: () => true,
+        store: () => null,
+        session: () => null,
+        names: { tagIdsByName: () => [], tagName: () => null, goalIdsByName: () => [] },
+        tasks: () => null,
+        commands: () => null,
+        activity: { injected: () => undefined, record: () => undefined },
+        now: () => NOW,
+        log: () => undefined
+      })
+      const ports = [DEFAULT_PROFILE, DEV_PROFILE, DRIVE_PROFILE, E2E_PROFILE].map(
+        (profile) => profile.hookPort
+      )
+      const read = ports.map((port, i) => {
+        const sessionId = `s${i}`
+        const out = memorySpawnExtras(
+          {
+            enabled: () => true,
+            hookListening: () => true,
+            store: () => modStore,
+            tasks: () => null,
+            now: () => NOW,
+            tokens: mcp.tokens,
+            configs: mcp.configs,
+            url: `http://${HOST}:${port}${MEMORY_MCP_PATH}`,
+            activity: { injected: () => undefined, recallMode: () => undefined },
+            recallMod: () => ({ dir: '/data/mods/watcher-memory' }),
+            recall: { launched: () => undefined },
+            log: () => undefined
+          },
+          sessionId,
+          { cwd: '/work/app', workspaceId: 'w1', excludeTaskIds: [] },
+          null
+        )
+        const link = parseConfig(readFileSync(out.env[CONFIG_ENV] ?? '', 'utf8'))
+        return {
+          base: link?.base,
+          grant: mcp.tokens.resolve(link?.authorization.slice('Bearer '.length) ?? '')
+        }
+      })
+      expect(read).toEqual(
+        ports.map((port, i) => ({ base: `http://${HOST}:${port}`, grant: { sessionId: `s${i}` } }))
       )
     })
   })

@@ -54,7 +54,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   (`isInstructionPath`). A second mod, `src/mod/watcher-memory` (memory phase 3), ships and
   installs the same way into `<userData>/mods/watcher-memory` (`mods/startMods.ts`
   `installAppMods`: each install on its own, a failed one reports `bridge_mod` and logs
-  `code=mod_install_failed`, the other still installs); no spawn passes it yet. It hooks seven
+  `code=mod_install_failed`, the other still installs); a spawn passes it, after the bridge mod's
+  folder, only when memory's launch picks recall (the Memory bullet below). It hooks seven
   events (index section, recall per prompt, keys at use, `/remember`, window count on `/clear` and
   compaction), each call to main raced by its own timer, and `tests/main/memoryModBounds.guard.test.ts`
   bounds what it may hook and call.
@@ -154,11 +155,27 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   the day the session ended), the tasks left out counted in `<n> more open tasks …; see Goals`
   and the rest in `<n> more; use memory_search`; every saved text on one line,
   `memory/promptText.ts`, with a system-reminder tag and the memory block marker neutralised (P3-C1); a tool result prints a fact or episode body last, each line indented) and
-  the env `CLAUDE_WATCHER_MEMORY=1` (for the operator's own hooks). `pty/spawnExtras.ts`
+  the env `CLAUDE_WATCHER_MEMORY=1` (for the operator's own hooks). Once the config file is
+  written, one choice per spawn (`mods/memoryModSpawn.ts` `createMemoryModChoice`, read live:
+  `settings.memoryRecallEnabled`, then the installed `watcher-memory` folder still there, then
+  claude ≥ `MIN_MEMORY_MOD_CLAUDE_VERSION` 2.1.323, its own floor; unknown version →
+  `code=memory_mod_skipped_version`) picks recall or phase 1. Recall: NO index block (the mod
+  sends it as a section), `--plugin-dir <userData>/mods/watcher-memory` after the bridge mod's
+  folder, env `CLAUDE_WATCHER_MEMORY_CONFIG=<the session's memory --mcp-config file>`
+  (`MEMORY_CONFIG_ENV`; the mod reads the link and the token there, so the token never reaches the
+  env or argv), and `recall.launched`. Phase 1: the index block as above, no mod, no config var.
+  Either way the activity record keeps the mode (`mod`, or `launch` + `setting_off` /
+  `mod_not_installed` / `claude_too_old`) for Context; a session with no memory keeps none. A
+  session without recall composes the same command as before phase 3. The setting is a choice
+  made at spawn: a change applies to sessions started after it (P3-C19); `Memory` off reaches a
+  running mod at its next request. A `/clear` rebind moves the token and keeps the file, so the
+  mod process (whose env still names that file) calls as the new id; a resume or a Reopen is a
+  new spawn (a new token and file, the replaced ones dropped first). `pty/spawnExtras.ts`
   joins it with goals: one `--append-system-prompt` (`QUESTION_FORMAT_PROMPT`, the task block,
-  then the index), one `--mcp-config` flag (goals file first), one comma-joined `--allowedTools`;
-  it also asks memory for the launch's workspace (main's active one when it names none) and
-  builds the child env (memory's var only while memory is on).
+  then the index), one `--mcp-config` flag (goals file first), one comma-joined `--allowedTools`,
+  the mod folders (bridge first, then memory); it also asks memory for the launch's workspace
+  (main's active one when it names none) and builds the child env (memory's vars only while
+  memory is on). The launch path composes it all in `pty/claudeSpawnCommand.ts`.
   claude's own auto memory is a separate setting (`settings.claudeAutoMemory`, owner 2026-11-12:
   the two memories work side by side), read at every spawn whether memory is on or not: `off` →
   env `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, `on` → `=0` (forces it on over the operator's

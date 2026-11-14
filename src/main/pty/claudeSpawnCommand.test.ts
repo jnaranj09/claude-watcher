@@ -75,6 +75,32 @@ describe('claudeSpawnCommand', () => {
     expect(d.skips).toEqual([])
   })
 
+  it('a session given the memory mod gets its folder after the bridge mod’s, and the config env var', () => {
+    const d = deps({
+      memorySpawnExtras: () => ({
+        appendPrompt: null,
+        mcpConfigPath: '/data/mcp/m.json',
+        allowedTools: 'mcp__claude-watcher-memory__memory_search',
+        pluginDir: '/data/mods/watcher-memory',
+        env: { CLAUDE_WATCHER_MEMORY: '1', CLAUDE_WATCHER_MEMORY_CONFIG: '/data/mcp/m.json' }
+      })
+    })
+    expect(claudeSpawnCommand(d, request())).toEqual({
+      file: '/bin/bash',
+      args: [
+        '-l',
+        '-c',
+        `'/opt/bin/claude' --session-id '${SID}' -n 'x' --settings '/data/hooks.json' --plugin-dir '/data/mods/watcher-bridge' --plugin-dir '/data/mods/watcher-memory' --append-system-prompt ${shellQuote(QUESTION_FORMAT_PROMPT)} --mcp-config '/data/mcp/m.json' --allowedTools 'mcp__claude-watcher-memory__memory_search'`
+      ],
+      env: {
+        PATH: '/usr/bin',
+        CLAUDE_WATCHER_MOD_URL: 'http://127.0.0.1:19279/mod/report',
+        CLAUDE_WATCHER_MEMORY: '1',
+        CLAUDE_WATCHER_MEMORY_CONFIG: '/data/mcp/m.json'
+      }
+    })
+  })
+
   it('a skipped bridge mod puts no --plugin-dir on the command and tells Context why', () => {
     const d = deps({
       bridgeMod: {
