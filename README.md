@@ -183,14 +183,18 @@ a task it reports done shows **Reported done by "…"** and stays open: only you
 once per conversation), the keys saved for a folder when it opens a file there, and a fresh index
 after `/clear` and `/compact`. `/remember <text>` (or `/remember <key> = <value>`) saves a line
 yourself with no model turn, and refuses what looks like a secret. What memory tells Claude is
-never saved back as something a session saw, and Claude repeating a saved item in its own words
-does not change the item. **Settings → Memory → Memory recall** (on by default) turns all of this
-off for sessions started after the change and keeps the index a session gets at launch; it needs Claude 2.1.323 or newer, and the
-session's Context → **Memory** page says when it is not active and lists what memory gave. A
-matched item adds roughly 80 to 250 tokens to that prompt, at most about 800, and nothing when
-nothing matches. A session you resume from **Past sessions** (or **Resume conversation**) gets
-the matched items and the folder keys at once, but Claude keeps the index the conversation started
-with until its next `/compact` or `/clear`; until then its Context page shows no **Index:** line.
+never itself taken as something the session saw, and Claude repeating a saved item in its own
+words does not change the item. But when Claude writes a recalled value with a tool and the tool's
+result shows it (an Edit's snippet, `echo` in Bash), a save can take that value as seen; and a
+save can write a task that restates a recalled value in Claude's words. **Settings → Memory →
+Memory recall** (on by default) turns all of this off for sessions started after the change and
+keeps the index a session gets at launch; it needs Claude 2.1.323 or newer. The session's Context
+→ **Memory** page lists what memory gave, and says why recall is not active when you did not turn
+it off. A matched item adds roughly 80 to 250 tokens to that prompt, at most about 800, and
+nothing when nothing matches. A session you resume from **Past sessions** (or **Resume
+conversation**) gets the matched items and the folder keys at once, but Claude keeps the index the
+conversation started with until its next `/compact` or `/clear`; until then its Context page shows
+no **Index:** line.
 
 **☰ → Memory** lists the items of the workspace you are in (and the global ones) on four pages,
 **Specifics**, **Facts**, **Episodes** and **Commands**: search, filter by folder, session, tag,
@@ -258,7 +262,8 @@ Known limits:
 - A value written right before a dotted or hyphenated continuation (`1.2` in `1.2.34`) is
   dropped on purpose: a cut version or address is worse than none.
 - A value inside the cut middle of a very long tool result is not saved.
-- Claude restating a saved value under another key can still be saved as a new item.
+- Claude restating a saved value under another key can still be saved as a new item, and a
+  recalled value Claude restates can end up in a new task's title.
 - A resumed turn you stop with Esc sends no turn end, so its text is saved only after a later
   resume.
 - A conversation switched with `/resume` inside claude is saved at the next start.

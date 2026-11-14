@@ -191,9 +191,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   the mod folders (bridge first, then memory); it also asks memory for the launch's workspace
   (main's active one when it names none) and builds the child env (memory's vars only while
   memory is on). The launch path composes it all in `pty/claudeSpawnCommand.ts`.
-  The spawn choice (`createMemoryModChoice`) decides whether the session gets the mod, its
-  `CLAUDE_WATCHER_MEMORY_CONFIG` and no index in `--append-system-prompt`; `recall.launched`
-  keeps the goal block's task ids, so the section the mod asks for later leaves them out too.
+  `recall.launched` keeps the goal block's task ids, so the section the mod asks for later leaves
+  them out too.
   Recall (`memory/memoryRecall.ts`, `modMemoryWiring.ts`): four POST routes at `MOD_MEMORY_PATHS`
   (`/mod/memory/index`, `recall`, `at-use`, `remember`) on the hook listener behind the memory
   bearer (P3-C20: only the memory server's own tokens open them); no body names a session (the
@@ -204,9 +203,10 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   characters given). The mod races each call: 500 ms (index), 250 ms (recall), 250 ms (at use),
   3,000 ms (`/remember`); a miss or a failed call pauses every call but `/remember` for 30 s.
   An index ask main ANSWERS with a no (Memory off, the gate) clears the mod's index; only a failed
-  ask keeps the last good one (P3-C22), so after Memory off and on in a running session the
-  section and the folder keys come back at the next `/clear` or compaction, per-prompt recall at
-  once. The mod asks for the index once per window, at the window's first request, and that ask
+  ask keeps the last good one (P3-C22). So a window that began while Memory was off keeps no
+  section and no folder keys after Memory is back on: they come back at the next window (the next
+  `/clear` or compaction); per-prompt recall works at once. Off and on inside one window leaves
+  its section as it was. The mod asks for the index once per window, at the window's first request, and that ask
   ignores the pause; whatever comes back (the index, a no, or a failure that keeps the last good
   index of an earlier window, else none) holds until the next window (P3-C28). Budgets: at most
   3 items and 2,000 characters a prompt (each line ≤ 600), at use at most 5 folders a call, 10
@@ -302,7 +302,11 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `claude_only`; P3-C6, P3-C11, P3-C30). Drop reasons live only in the session's activity (RAM)
   and the `memory_candidates_dropped` log line. Only a quote found in a tool result or in
   the operator's text moves an item's (a `none`) or a task's (an update) last-seen date; claude
-  repeating what memory told it moves nothing (R48). A save never closes, pins or deletes: open
+  repeating what memory told it moves nothing (R48). A recall block itself is never evidence (its
+  marker, `sliceCleaner.ts`), but a recalled value claude writes with its own tool call, when the
+  tool result shows it (an Edit snippet, `echo` in Bash), counts as `observed` (a `none` moves the
+  item's last-seen date, an update can be kept); and a save can add a task whose title restates a
+  recalled value in claude's words (`inferred`, quoted from claude's text). A save never closes, pins or deletes: open
   work becomes a task (`settings.memorySaveTasks`) and a session only flags one (`task_report`).
   Three failed calls in a row give a chunk up (`memory_extract_gave_up`; the job ends `failed`).
   Version: `MIN_EXTRACT_CLAUDE_VERSION` (2.1.323; an unreadable version runs). The gate reuses the

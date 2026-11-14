@@ -46,11 +46,11 @@ need `build:dir` + `smoke` (proves node-pty survives packaging — load-bearing)
 
 - `src/main/` — main process. **node-pty runs HERE only.** `c9watch/` (reducer → enrich → ship;
   historical name), `hooks/`, `pty/`, `kde/`, `lifecycle/`, `persistence/`, `api/`, `themes/`,
-  `mods/` (mod installs, bridge mod host, Context), `ipc/` (trusted wrapper + every `register*Ipc`), `window/`
+  `mods/` (mod installs + host, Context), `ipc/` (trusted wrapper + every `register*Ipc`), `window/`
   (`createWindow`, watch feed). `index.ts` = lifecycle + wiring only. Main owns session truth.
 - `src/preload/` — typed `contextBridge` seam; renderer never gets `ipcRenderer`/Node.
 - `src/renderer/` — React UI (sandboxed), view-state in Zustand (`stores/boardStore.ts`).
-- `src/mod/` — the two mods claude loads via `--plugin-dir`: `watcher-bridge` reports; `watcher-memory` gives a session its memory (only with Memory and `Memory recall` on, claude ≥ 2.1.323 and the mod installed).
+- `src/mod/` — mods claude loads via `--plugin-dir`: `watcher-bridge` (reports), `watcher-memory`.
 - `src/shared/` — `ipc/contract.ts` (`CH` registry + payload types), `schemas/hookEvent.ts`
   (hook-POST adapter), `schemas/session.ts`.
 - `src/__fixtures__/` — fake hook feed, launched-session fixtures (never shipped).
@@ -97,11 +97,11 @@ every exit is archived or deleted with a reason; min claude version is checked a
 
 ## Memory (`src/main/memory/`; rules: `.claude/rules/session-engine.md`)
 
-`claude-watcher-memory.db` (`node:sqlite`, imported by `memory/memoryDb.ts` only); items global or
-per workspace; MCP `/mcp/memory` (own tokens); the agent never deletes or pins. Recall while a session runs
-goes through `watcher-memory` and `/mod/memory/*`. Saves from sessions (`memory/extract/`): a headless `claude -p`
-main starts (never in a hook, never node-pty); a value needs its quote in the transcript; a save never closes a task.
-Memory text, transcript text, model output and the prompt text sent for a match are sensitive. claude's own auto memory: `claudeAutoMemory` (`pty/spawnExtras.ts`).
+`claude-watcher-memory.db` (`node:sqlite`, only via `memory/memoryDb.ts`); items global or per
+workspace; MCP `/mcp/memory` (own tokens); the agent never deletes or pins. Recall in a running
+session: `watcher-memory` → `/mod/memory/*`. Saves (`memory/extract/`): headless `claude -p` from
+main (never a hook or node-pty); a value needs its quote in the transcript; never closes a task.
+Memory, transcript and prompt text and model output are sensitive. Auto memory: `claudeAutoMemory`.
 
 ## Workspaces
 

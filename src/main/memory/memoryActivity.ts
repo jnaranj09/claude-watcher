@@ -1,5 +1,6 @@
-// What memory did for each session, kept in memory only: the index claude got at launch, how it
-// gets memory (the recall mode), and every item it pulled, saved or had injected since. The
+// What memory did for each session, kept in memory only: the index claude got (at launch, or the
+// mod's last index ask; none in the window a resume came back into, P3-C28), how it gets memory
+// (the recall mode), and every item it pulled, saved or had injected since. The
 // Context dialog reads it, and lists again on the `memory:changed` push its `onChange` drives (a pull changes no stored item, so the store's own
 // push would miss it). Holds ids and counts, never memory text (memory text is sensitive); logs
 // only a `code=` when a listener throws.

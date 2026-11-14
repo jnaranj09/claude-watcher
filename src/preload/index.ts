@@ -643,7 +643,8 @@ const memoryApi = {
   restore(id: string, versionAt: number): Promise<MemoryItem> {
     return ipcRenderer.invoke(CH.memoryRestore, { id, versionAt })
   },
-  /** What memory did for one session: the index it got at launch and what it pulled or saved. */
+  /** What memory did for one session: the index it got (at launch, or the mod's last index ask;
+   *  none in the window a resume came back into) and what it pulled or saved. */
   activity(sessionId: string): Promise<MemoryActivity> {
     return ipcRenderer.invoke(CH.memoryActivity, { sessionId })
   },
