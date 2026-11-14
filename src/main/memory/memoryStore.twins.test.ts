@@ -127,4 +127,35 @@ describe('twins', () => {
     expect(() => store.twinIds(scope)).toThrow(MEMORY_ERROR.readFailed)
     expect(() => store.twinsOf('m1', 5).twins).toThrow(MEMORY_ERROR.readFailed)
   })
+  // 6 (review M-2)
+  it("twinsOf reads only the specifics of the item's own workspace and folder", () => {
+    // The same value in another folder and another workspace: the rule would drop them anyway, so
+    // only the size of the read shows whether the SQL kept them out.
+    const read: number[] = []
+    const watched: MemoryDb = {
+      run: (sql, params) => db.run(sql, params),
+      get: (sql, schema, params) => db.get(sql, schema, params),
+      all: (sql, schema, params) => {
+        const rows = db.all(sql, schema, params)
+        if (sql.includes('cur.head, cur.body')) read.push(rows.length)
+        return rows
+      },
+      transaction: (work) => db.transaction(work),
+      close: () => db.close()
+    }
+    const seen = createMemoryStore({
+      db: watched,
+      now: () => clock,
+      newId: () => `m${++ids}`,
+      report: () => undefined,
+      log: () => undefined
+    })
+    const a = add(specific('API port', '9281'), { folder: '/work/app' })
+    add(specific('port of the api', '9281'), { folder: '/work/app' })
+    add(specific('web port', '9281'), { folder: '/work/web' })
+    add(specific('no folder port', '9281'))
+    add(specific('elsewhere', '9281'), { workspaceId: 'w2', folder: '/work/app' })
+    expect(seen.twinsOf(a.id, 5).twins.map((t) => t.key)).toEqual(['port of the api'])
+    expect(read).toEqual([2])
+  })
 })
