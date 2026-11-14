@@ -114,13 +114,24 @@ function specific(key: string, value: string): MemoryText {
   return { kind: 'specific', key, value }
 }
 
+/** A saved specific, with the key and value its block shows. */
+interface Saved {
+  id: string
+  key: string
+  value: string
+}
+
+function addSpecific(key: string, value: string, extra: { folder?: string } = {}): Saved {
+  return { id: add(specific(key, value), extra).id, key, value }
+}
+
 /** The recall block one specific makes, as main writes it. */
-function recallBlock(item: MemoryItem): string {
+function recallBlock(item: Saved): string {
   return `Memory (Claude Watcher): items that may match this prompt\n- ${item.key}: ${item.value} (seen ${DAY}, inferred) id=${item.id}`
 }
 
 /** The at-use block one specific of `folder` makes, as main writes it. */
-function atUseBlock(item: MemoryItem, folder: string): string {
+function atUseBlock(item: Saved, folder: string): string {
   return `Memory (Claude Watcher): saved for ${folder}\n- ${item.key} (${DAY}) id=${item.id}`
 }
 
@@ -335,7 +346,7 @@ describe('recall', () => {
   })
 
   it('past the window budget a prompt gets nothing more', () => {
-    const first = add(specific('staging port', '9281'))
+    const first = addSpecific('staging port', '9281')
     add(specific('db host', 'db.acme.test'))
     recall = build({ windowChars: recallBlock(first).length })
     const ask = (text: string): ReturnType<MemoryRecall['recall']> =>
@@ -352,7 +363,7 @@ describe('recall', () => {
     ['exactly at the ceiling', 0, true],
     ['one past the ceiling', -1, false]
   ])('a prompt block that leaves the window %s (room %i) is given: %s', (_, room, given) => {
-    const item = add(specific('staging port', '9281'))
+    const item = addSpecific('staging port', '9281')
     recall = build({ windowChars: recallBlock(item).length + room })
     expect([
       recall.recall(grant, {
@@ -539,7 +550,7 @@ describe('at use', () => {
   })
 
   it('at-use blocks count toward the window budget', () => {
-    const first = add(specific('database port of the staging cluster', '5433'), {
+    const first = addSpecific('database port of the staging cluster', '5433', {
       folder: '/work/other'
     })
     add(specific('api base', 'https://api.acme.test'), { folder: '/work/third' })
@@ -556,7 +567,7 @@ describe('at use', () => {
   })
 
   it('past the window budget at use gives nothing more', () => {
-    const first = add(specific('staging port', '9281'))
+    const first = addSpecific('staging port', '9281')
     add(specific('db port', '5433'), { folder: '/work/other' })
     recall = build({ windowChars: recallBlock(first).length })
     recall.recall(grant, { version: 1, window: 0, origin: 'composer', text: 'staging port 9281' })
@@ -574,7 +585,7 @@ describe('the per-window ceiling at use (M13)', () => {
     ['exactly at the ceiling', 0, true],
     ['one past the ceiling', -1, false]
   ])('an at-use block that leaves the window %s (room %i) is given: %s', (_, room, given) => {
-    const item = add(specific('db port', '5433'), { folder: '/work/other' })
+    const item = addSpecific('db port', '5433', { folder: '/work/other' })
     recall = build({ windowChars: atUseBlock(item, '/work/other').length + room })
     expect([
       recall.atUse(grant, { version: 1, window: 0, folders: ['/work/other'] }),
