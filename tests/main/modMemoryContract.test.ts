@@ -35,8 +35,10 @@ import {
   PROMPT_CHARS,
   REMEMBER_CHARS,
   SERVER_NAME,
+  WINDOW_MAX,
   atUseBody,
   indexBody,
+  nextWindow,
   parseConfig,
   readIndexAnswer,
   readRememberAnswer,
@@ -104,6 +106,14 @@ describe('the memory mod’s contract with main', () => {
       ModMemoryRememberSchema.safeParse(JSON.parse(rememberBody('composer', 'x'.repeat(20_000))))
         .success
     ]).toEqual([true, true, true, true, true])
+  })
+
+  it('the mod’s largest window is main’s largest', () => {
+    expect([
+      ModMemoryIndexSchema.safeParse(JSON.parse(indexBody(WINDOW_MAX))).success,
+      ModMemoryIndexSchema.safeParse(JSON.parse(indexBody(WINDOW_MAX + 1))).success,
+      ModMemoryIndexSchema.safeParse(JSON.parse(indexBody(nextWindow(WINDOW_MAX)))).success
+    ]).toEqual([true, false, true])
   })
 
   it('a body with an origin longer than main takes still passes main’s schema', () => {

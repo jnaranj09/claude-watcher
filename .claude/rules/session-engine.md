@@ -54,7 +54,10 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   (`isInstructionPath`). A second mod, `src/mod/watcher-memory` (memory phase 3), ships and
   installs the same way into `<userData>/mods/watcher-memory` (`mods/startMods.ts`
   `installAppMods`: each install on its own, a failed one reports `bridge_mod` and logs
-  `code=mod_install_failed`, the other still installs); it hooks no event yet and no spawn passes it.
+  `code=mod_install_failed`, the other still installs); no spawn passes it yet. It hooks seven
+  events (index section, recall per prompt, keys at use, `/remember`, window count on `/clear` and
+  compaction), each call to main raced by its own timer, and `tests/main/memoryModBounds.guard.test.ts`
+  bounds what it may hook and call.
   `src/mod/engine.d.ts` is the one ambient engine type file for both mods (not shipped).
   The bridge mod's manifest and hooks module are pinned byte for byte (`tests/main/bridgeModPinned.test.ts`).
   `npm run test:mod` = `claude plugin validate` + `claude plugin test` for both mods (local only).

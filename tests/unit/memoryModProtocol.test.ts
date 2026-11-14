@@ -11,7 +11,9 @@ import {
   WAIT_MS,
   atUseBody,
   foldersFor,
+  WINDOW_MAX,
   indexBody,
+  nextWindow,
   parseConfig,
   readIndexAnswer,
   readRememberAnswer,
@@ -111,6 +113,14 @@ describe('the memory mod protocol', () => {
     expect([JSON.parse(indexBody(3)), JSON.parse(atUseBody(4, ['/work/app']))]).toEqual([
       { version: 1, window: 3 },
       { version: 1, window: 4, folders: ['/work/app'] }
+    ])
+  })
+
+  it('the window counts up by one and starts again at 0 past main’s largest', () => {
+    expect([nextWindow(0), nextWindow(WINDOW_MAX - 1), nextWindow(WINDOW_MAX)]).toEqual([
+      1,
+      WINDOW_MAX,
+      0
     ])
   })
 

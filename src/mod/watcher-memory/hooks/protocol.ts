@@ -91,6 +91,16 @@ export function parseConfig(text: string): Link | undefined {
   return { base, authorization }
 }
 
+/** main's largest window (its WindowSchema max). */
+export const WINDOW_MAX = 1_000_000
+
+/** The window after a `/clear` or a compaction of the main conversation. Past main's largest it
+ *  starts again at 0: main resets a session's sets on any window that differs from the one it
+ *  keeps (P3-C16), so 0 is a new window to it, and every body stays one main takes. */
+export function nextWindow(window: number): number {
+  return window >= WINDOW_MAX ? 0 : window + 1
+}
+
 export function indexBody(window: number): string {
   return JSON.stringify({ version: 1, window })
 }
