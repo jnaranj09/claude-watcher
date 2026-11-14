@@ -21,6 +21,7 @@ import {
 import type { TranscriptEntry } from '../../../shared/schemas/transcriptEntry'
 import { INTERRUPT_MARKERS } from '../../hooks/transcriptSignal'
 import { MEMORY_BLOCK_MARKER } from '../promptText'
+import { cutSpans, spanTag } from '../tagSpans'
 import { redactSecrets } from './secretScan'
 import type { ReadLine } from './transcriptReader'
 
@@ -65,27 +66,11 @@ export function isNonEvidenceTool(name: string): boolean {
 /** A line claude wrote itself starts with a lowercase tag (`<command-name>`, `<task-notification>`). */
 const LEADING_TAG = /^<[a-z][a-z-]*>/
 
-/** A `system-reminder` tag, opening or closing (a `/` among the spaces after `<`), in any case,
- *  with or without its `>` (P3-C7): the name is not followed by a name character, so
- *  `<system-reminders` is no tag, while a cut-off `<system-reminder` or one with attributes is.
- *  Only spaces and `/` are taken after the name, so the tag never takes the text after it. Linear
- *  on any input: every try starts at a `<` and scans one run of spaces and `/` on each side of
- *  the name. */
-const REMINDER_TAG = /<([\s/]*)system-reminder(?![\p{L}\p{N}_-])[\s/]*>?/giu
+/** A `system-reminder` tag as `spanTag` reads it (P3-C7: `<system-reminders` is no tag). */
+const REMINDER_TAG = spanTag('system-reminder')
 
-/** P3-R2: every `system-reminder` span cut out, nested ones whole; an opening tag that never
- *  closes cuts to the end, and a closing tag with no opening one is cut alone. */
-function cutReminders(text: string): string {
-  let kept = ''
-  let depth = 0
-  let from = 0
-  for (const tag of text.matchAll(REMINDER_TAG)) {
-    if (depth === 0) kept += text.slice(from, tag.index)
-    depth = (tag[1] ?? '').includes('/') ? Math.max(0, depth - 1) : depth + 1
-    from = tag.index + tag[0].length
-  }
-  return depth === 0 ? kept + text.slice(from) : kept
-}
+/** P3-R2: every `system-reminder` span cut out (`cutSpans`), nothing left where it stood. */
+const cutReminders = (text: string): string => cutSpans(text, REMINDER_TAG, '')
 
 /** Text as the marker test reads it: no white space or format character, lower case, so a
  *  marker in another case or spacing is still the marker. */
