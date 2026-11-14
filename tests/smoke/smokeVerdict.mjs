@@ -34,6 +34,9 @@ export function evaluateVerdict(report, mode) {
     // The bridge mod — main copied it from <resourcesPath>/mods into userData at start. A false
     // here is a package that did not carry it (electron-builder extraResources).
     report.main?.bridgeMod?.pass === true &&
+    // The memory mod — installed the same way, into its own folder. A false here is a package
+    // that did not carry it (its own extraResources entry).
+    report.main?.memoryMod?.pass === true &&
     // Memory — `node:sqlite` inside the packaged Electron: a file opens, one row is written and is
     // found by a word (FTS5) and by three characters (the trigram index). A false here is a
     // package whose Node lacks `node:sqlite`, FTS5 or the trigram tokenizer.

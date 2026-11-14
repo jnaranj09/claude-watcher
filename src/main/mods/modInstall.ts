@@ -15,7 +15,8 @@ import type { StorageProblemCode } from '../../shared/schemas/storageHealth'
 /** A mod's folder and plugin name. Not `claude-…`: the engine reserves that prefix. The
  *  shipped `plugin.json` and `electron-builder.yml` hold the same string (modInstall.test). */
 export const BRIDGE_MOD_NAME = 'watcher-bridge'
-export type ModName = typeof BRIDGE_MOD_NAME
+export const MEMORY_MOD_NAME = 'watcher-memory'
+export type ModName = typeof BRIDGE_MOD_NAME | typeof MEMORY_MOD_NAME
 
 export interface ModFs {
   /** Every file under `dir`, relative to it with `/`; [] when `dir` does not exist. */

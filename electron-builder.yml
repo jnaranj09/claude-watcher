@@ -55,6 +55,14 @@ extraResources:
     filter:
       - '**/*'
       - '!**/*.test.ts'
+  # The memory mod (memory phase 3): shipped and installed the same way, into
+  # <userData>/mods/watcher-memory. The name matches MEMORY_MOD_NAME (src/main/mods/modInstall.ts;
+  # modInstall.test.ts fails when they differ).
+  - from: src/mod/watcher-memory
+    to: mods/watcher-memory
+    filter:
+      - '**/*'
+      - '!**/*.test.ts'
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

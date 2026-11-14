@@ -46,11 +46,11 @@ need `build:dir` + `smoke` (proves node-pty survives packaging — load-bearing)
 
 - `src/main/` — main process. **node-pty runs HERE only.** `c9watch/` (reducer → enrich → ship;
   historical name), `hooks/`, `pty/`, `kde/`, `lifecycle/`, `persistence/`, `api/`, `themes/`,
-  `mods/` (bridge mod host, Context), `ipc/` (trusted wrapper + every `register*Ipc`), `window/`
+  `mods/` (mod installs, bridge mod host, Context), `ipc/` (trusted wrapper + every `register*Ipc`), `window/`
   (`createWindow`, watch feed). `index.ts` = lifecycle + wiring only. Main owns session truth.
 - `src/preload/` — typed `contextBridge` seam; renderer never gets `ipcRenderer`/Node.
 - `src/renderer/` — React UI (sandboxed), view-state in Zustand (`stores/boardStore.ts`).
-- `src/mod/` — the bridge mod claude loads via `--plugin-dir` (`session-engine.md` "Bridge mod").
+- `src/mod/` — mods claude loads via `--plugin-dir`: `watcher-bridge`, `watcher-memory` (`session-engine.md`).
 - `src/shared/` — `ipc/contract.ts` (`CH` registry + payload types), `schemas/hookEvent.ts`
   (hook-POST adapter), `schemas/session.ts`.
 - `src/__fixtures__/` — fake hook feed, launched-session fixtures (never shipped).

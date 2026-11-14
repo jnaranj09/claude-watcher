@@ -30,6 +30,8 @@ export interface PtyIpcDeps {
   bundledThemes: () => { dir: string; ids: typeof BUNDLED_THEME_IDS }
   /** The installed bridge mod folder (null when the install at start failed). */
   bridgeModDir: () => string | null
+  /** The installed memory mod folder (null when the install at start failed). */
+  memoryModDir: () => string | null
 }
 
 // Build the child env for the PTY (Review F7): drop undefined-valued keys (the
@@ -45,7 +47,8 @@ export function registerPtyIpc(deps: PtyIpcDeps): void {
     ptys,
     getApiLifecycle,
     bundledThemes,
-    bridgeModDir
+    bridgeModDir,
+    memoryModDir
   } = deps
   // Renderer asks for the PTY once the terminal element is mounted & sized.
   const ptyStart = (evt: Electron.IpcMainEvent): void => {
@@ -173,6 +176,8 @@ export function registerPtyIpc(deps: PtyIpcDeps): void {
     // The bridge mod (spec 2026-10-18 §1.2) — the install at start copied it out of
     // <resourcesPath>/mods into userData; a false here is a package that did not carry it.
     const bridgeMod = modSmokeCheck(bridgeModDir(), existsSync)
+    // The memory mod (memory phase 3) — installed the same way, into its own folder.
+    const memoryMod = modSmokeCheck(memoryModDir(), existsSync)
     // Memory (spec 2026-11-11 §2) — `node:sqlite` with FTS5 word and trigram indexes inside the
     // package. A PROBE folder, not userData: the smoke runs on the default profile, and its test
     // row must never land in the operator's memory file.
@@ -197,6 +202,7 @@ export function registerPtyIpc(deps: PtyIpcDeps): void {
         api,
         themes,
         bridgeMod,
+        memoryMod,
         memory
       }
     }

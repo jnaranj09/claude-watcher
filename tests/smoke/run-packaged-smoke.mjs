@@ -151,6 +151,7 @@ if (!ok) {
   console.error('[smoke] api:', JSON.stringify(report.main?.api ?? null))
   console.error('[smoke] themes:', JSON.stringify(report.main?.themes ?? null))
   console.error('[smoke] bridgeMod:', JSON.stringify(report.main?.bridgeMod ?? null))
+  console.error('[smoke] memoryMod:', JSON.stringify(report.main?.memoryMod ?? null))
   process.exit(1)
 }
 

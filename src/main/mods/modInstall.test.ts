@@ -3,7 +3,14 @@
 import { describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { BRIDGE_MOD_NAME, installMod, modSmokeCheck, modSourceDir, type ModFs } from './modInstall'
+import {
+  BRIDGE_MOD_NAME,
+  MEMORY_MOD_NAME,
+  installMod,
+  modSmokeCheck,
+  modSourceDir,
+  type ModFs
+} from './modInstall'
 
 const SRC = '/app/mods/watcher-bridge'
 const USER = '/data'
@@ -128,6 +135,30 @@ describe('installMod', () => {
   })
 })
 
+describe('installMod with the memory mod', () => {
+  it('installs the memory mod into its own folder beside the bridge mod', async () => {
+    const fs = fakeFs({
+      '/src/watcher-memory/.claude-plugin/plugin.json': '{"name":"watcher-memory"}',
+      '/src/watcher-memory/hooks/register.ts': 'm1'
+    })
+    const report = vi.fn()
+    const log = vi.fn<(l: string) => void>()
+    expect(
+      await installMod({
+        name: MEMORY_MOD_NAME,
+        sourceDir: '/src/watcher-memory',
+        userDataDir: '/data',
+        fs,
+        report,
+        log
+      })
+    ).toBe(join('/data', 'mods', 'watcher-memory'))
+    const written = fs.touched
+    expect(written.length).toBeGreaterThan(0)
+    expect(written.every((p) => p.startsWith(join('/data', 'mods', 'watcher-memory')))).toBe(true)
+  })
+})
+
 describe('modSourceDir', () => {
   it('reads <resourcesPath>/mods/watcher-bridge when packaged', () => {
     expect(
@@ -161,6 +192,21 @@ describe('modSmokeCheck', () => {
 })
 
 describe('the mod name', () => {
+  it('each shipped mod has its manifest name, its builder entry and its folder', () => {
+    const builderYml = readFileSync(join(__dirname, '../../../electron-builder.yml'), 'utf8')
+    for (const name of [BRIDGE_MOD_NAME, MEMORY_MOD_NAME]) {
+      expect(
+        (
+          JSON.parse(
+            readFileSync(join(__dirname, `../../mod/${name}/.claude-plugin/plugin.json`), 'utf8')
+          ) as { name: string }
+        ).name
+      ).toBe(name)
+      expect(builderYml).toContain(`from: src/mod/${name}`)
+      expect(builderYml).toContain(`to: mods/${name}`)
+    }
+  })
+
   it('matches the shipped plugin.json', () => {
     const manifest = JSON.parse(
       readFileSync(join(__dirname, '../../mod/watcher-bridge/.claude-plugin/plugin.json'), 'utf8')

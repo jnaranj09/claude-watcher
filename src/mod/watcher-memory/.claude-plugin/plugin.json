@@ -1,0 +1,8 @@
+{
+  "name": "watcher-memory",
+  "version": "1.0.0",
+  "description": "Gives a session Claude Watcher's memory while it runs: an index, items that match a prompt, keys saved for a folder, and /remember.",
+  "author": {
+    "name": "Claude Watcher"
+  }
+}

@@ -116,7 +116,8 @@ import { API_SPAWN_TIMEOUT_MS } from './api/apiContract'
 // Custom themes — the folder scanner (T5) and the apply lifecycle (T11), wired below.
 import { createThemeScanner, type ThemeScanner } from './themes/themeScanner'
 import { BUNDLED_THEME_IDS, bundledThemesDir } from './themes/bundledThemes'
-import { BRIDGE_MOD_NAME, installMod, modSourceDir, nodeModFs } from './mods/modInstall'
+import { modSourceDir, nodeModFs } from './mods/modInstall'
+import { installAppMods } from './mods/startMods'
 import { createSessionSetup } from './mods/sessionSetup'
 import { createContextHandlers, nodeContextFs } from './mods/contextHandlers'
 import { pushSessionSetupChanged, registerContextIpc } from './ipc/registerContextIpc'
@@ -850,6 +851,8 @@ const claudeVersionGate = createClaudeVersionGate({
 })
 /** The installed bridge mod folder; null until the install at start succeeds (or when it failed). */
 let bridgeModDir: string | null = null
+/** The installed memory mod folder; null until the install at start succeeds (or when it failed). */
+let memoryModDir: string | null = null
 function claudeVersionAllowsLaunch(): boolean {
   return claudeVersionGate.allowsInteractiveLaunch()
 }
@@ -939,22 +942,24 @@ app
     // A second instance is already exiting (UX-04): build nothing, bind nothing.
     if (!IS_PRIMARY_INSTANCE) return
 
-    // The bridge mod (spec 2026-10-18 §1.2): copied into userData now, awaited before the window
-    // opens, so no launch can race it. Never rejects; a failure leaves the dir null (fail open).
-    const bridgeModInstalled = installMod({
-      name: BRIDGE_MOD_NAME,
-      sourceDir: modSourceDir({
-        name: BRIDGE_MOD_NAME,
-        isPackaged: app.isPackaged,
-        resourcesPath: process.resourcesPath,
-        mainDir: __dirname
-      }),
+    // The bridge mod and the memory mod (spec 2026-10-18 §1.2, memory phase 3): copied into
+    // userData now, awaited before the window opens, so no launch can race them. Never rejects; a
+    // failed install leaves its dir null (fail open) and never stops the other.
+    const modsInstalled = installAppMods({
+      sourceDirOf: (name) =>
+        modSourceDir({
+          name,
+          isPackaged: app.isPackaged,
+          resourcesPath: process.resourcesPath,
+          mainDir: __dirname
+        }),
       userDataDir: app.getPath('userData'),
       fs: nodeModFs,
       report: storageHealth.reporterFor('bridge_mod'),
       log: (line) => console.warn(line)
-    }).then((dir) => {
-      bridgeModDir = dir
+    }).then((dirs) => {
+      bridgeModDir = dirs.bridge
+      memoryModDir = dirs.memory
     })
     fileHistory = createFileHistory({
       dir: join(app.getPath('userData'), FILE_HISTORY_DIR),
@@ -1000,7 +1005,8 @@ app
       ptys,
       getApiLifecycle: () => apiLifecycle,
       bundledThemes,
-      bridgeModDir: () => bridgeModDir
+      bridgeModDir: () => bridgeModDir,
+      memoryModDir: () => memoryModDir
     })
 
     // Story 2.4 — build the ONE app-global settings store AFTER app-ready (electron-store
@@ -1455,7 +1461,7 @@ app
     if (SMOKE) apiLifecycle.apply({ apiEnabled: true, apiPort: 0 })
     registerApiIpc()
 
-    await bridgeModInstalled
+    await modsInstalled
 
     // NOTE: there is NO hook registration step — not here, not per-launch. The hook block is
     // handed to each spawned `claude` via `--settings` from the app's own data dir

@@ -15,6 +15,7 @@ const passing = (): Record<string, unknown> => ({
     api: { pass: true },
     themes: { pass: true },
     bridgeMod: { pass: true },
+    memoryMod: { pass: true },
     memory: { pass: true }
   }
 })
@@ -69,13 +70,16 @@ describe('evaluateVerdict', () => {
     expect(evaluateVerdict(r, 'optional').ok).toBe(false)
   })
 
-  it.each(['api', 'themes', 'bridgeMod', 'memory'])('fails a main.%s miss in both modes', (key) => {
-    for (const mode of ['strict', 'optional'] as const) {
-      const r = mode === 'strict' ? passing() : noWebgl()
-      ;(r.main as Record<string, unknown>)[key] = { pass: false }
-      expect(evaluateVerdict(r, mode).ok).toBe(false)
+  it.each(['api', 'themes', 'bridgeMod', 'memoryMod', 'memory'])(
+    'fails a main.%s miss in both modes',
+    (key) => {
+      for (const mode of ['strict', 'optional'] as const) {
+        const r = mode === 'strict' ? passing() : noWebgl()
+        ;(r.main as Record<string, unknown>)[key] = { pass: false }
+        expect(evaluateVerdict(r, mode).ok).toBe(false)
+      }
     }
-  })
+  )
 
   it('fails the app error path in optional mode', () => {
     const r = { pass: false, error: 'boom', checks: {} }

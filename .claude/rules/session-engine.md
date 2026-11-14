@@ -51,7 +51,13 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   §5). A goal's `GOALS.md` is the other write into a project: the operator switches it on, then
   every change rewrites it, a session's `create_task` / `mark_task_done` included. Open in editor takes any absolute path, but never a program (an execute bit or a
   launcher type: `file_runnable`); History and Restore take only an absolute `.md` path
-  (`isInstructionPath`). `npm run test:mod` = `claude plugin validate` + `claude plugin test` (local only).
+  (`isInstructionPath`). A second mod, `src/mod/watcher-memory` (memory phase 3), ships and
+  installs the same way into `<userData>/mods/watcher-memory` (`mods/startMods.ts`
+  `installAppMods`: each install on its own, a failed one reports `bridge_mod` and logs
+  `code=mod_install_failed`, the other still installs); it hooks no event yet and no spawn passes it.
+  `src/mod/engine.d.ts` is the one ambient engine type file for both mods (not shipped).
+  The bridge mod's manifest and hooks module are pinned byte for byte (`tests/main/bridgeModPinned.test.ts`).
+  `npm run test:mod` = `claude plugin validate` + `claude plugin test` for both mods (local only).
   After a claude upgrade also run `npm run test:claude-drift` (local only): it checks that claude
   still describes an artifact watch as `hooks/backgroundTasks.ts` reads it.
 - **Goals (spec 2026-10-19):** a launch from tasks carries `goalLaunch` on the durable override
