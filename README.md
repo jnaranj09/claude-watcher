@@ -186,7 +186,9 @@ does not change the item. **Settings → Memory → Memory recall** (on by defau
 off for sessions started after the change and keeps the index a session gets at launch; it needs Claude 2.1.323 or newer, and the
 session's Context → **Memory** page says when it is not active and lists what memory gave. A
 matched item adds roughly 80 to 250 tokens to that prompt, at most about 800, and nothing when
-nothing matches.
+nothing matches. A session you resume from **Past sessions** (or **Resume conversation**) gets
+the matched items and the folder keys at once, but Claude keeps the index the conversation started
+with until its next `/compact` or `/clear`; until then its Context page shows no **Index:** line.
 
 **☰ → Memory** lists the items of the workspace you are in (and the global ones) on four pages,
 **Specifics**, **Facts**, **Episodes** and **Commands**: search, filter by folder, session, tag,

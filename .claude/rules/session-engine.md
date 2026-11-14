@@ -203,14 +203,22 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   An index ask main ANSWERS with a no (Memory off, the gate) clears the mod's index; only a failed
   ask keeps the last good one (P3-C22), so after Memory off and on in a running session the
   section and the folder keys come back at the next `/clear` or compaction, per-prompt recall at
-  once. Budgets: at most 3 items and 2,000 characters a prompt (each line ≤ 600), at use at most
-  5 folders a call, 10 keys and 1,500 characters, and 20,000 characters of recall and at-use
+  once. The mod asks for the index once per window, at the window's first request, and that ask
+  ignores the pause; whatever comes back (the index, a no, or a failure that keeps the last good
+  index of an earlier window, else none) holds until the next window (P3-C28). Budgets: at most
+  3 items and 2,000 characters a prompt (each line ≤ 600), at use at most 5 folders a call, 10
+  keys and 1,500 characters, and 20,000 characters of recall and at-use
   blocks a window; an item is given once per window. Matching cuts the prompt's first 2,000
   characters into 12 terms (`recallTerms.ts`); each term keeps its 200 newest rows (P3-C12); an
   item needs 2 terms or 1 exact one. The prompt text is used for the match and dropped. claude
   fixes a `session` section per conversation window, and a resumed conversation keeps its
-  recorded one (probed 2.1.323); a block is appended after the cached prefix and does not
-  invalidate the prompt cache (probed). `/remember` (no model turn; Windows line ends accepted,
+  recorded one (probed 2.1.323, and again on 2.1.325 through the app). So a resume
+  (`request.resume` → `recall.launched`) gets recall per prompt and at use at once, but its
+  index only after the next `/compact` or `/clear`: in the window it resumed into, main answers
+  the index ask yet records no ids and no `Index:` line, and at use withholds nothing for it
+  (P3-C28); a `/clear` rebind drops the resume (a new conversation). A block is appended after
+  the cached prefix and does not invalidate the prompt cache (probed). `/remember` (no model
+  turn; Windows line ends accepted,
   P3-C14) saves one `stated` operator item and refuses a non-operator origin, an empty or too
   long text, a control character and a secret (`hasSecret`). Every saved text a model reads goes
   through `wrapperSafe` (P3-C1: a `system-reminder` tag and the memory block marker are

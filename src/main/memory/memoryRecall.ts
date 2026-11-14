@@ -28,8 +28,9 @@ import { buildSessionIndex } from './sessionIndex'
 import { capped, parseRemember } from './rememberText'
 
 export interface MemoryRecall {
-  /** A spawn that hands the session the mod: the tasks its goal block lists, left out of its index. */
-  launched(sessionId: string, facts: { excludeTaskIds: readonly string[] }): void
+  /** A spawn that hands the session the mod: the tasks its goal block lists, left out of its
+   *  index, and whether it resumes a conversation (`claude --resume`). */
+  launched(sessionId: string, facts: { excludeTaskIds: readonly string[]; resume: boolean }): void
   index(grant: MemoryGrant, req: ModMemoryIndex): ModMemoryIndexAnswer
   recall(grant: MemoryGrant, req: ModMemoryRecall): ModMemoryTextAnswer
   atUse(grant: MemoryGrant, req: ModMemoryAtUse): ModMemoryTextAnswer
@@ -55,6 +56,8 @@ const RECALL_HEADER = `${MEMORY_BLOCK_MARKER} items that may match this prompt`
 const NOT_OK = { ok: false } as const
 const NOT_AVAILABLE = { ok: false, code: 'memory_not_available' } as const
 const NOTHING: ModMemoryTextAnswer = { ok: true, text: '' }
+/** The window a resumed spawn's mod process starts in (it counts from 0). */
+const RESUMED_WINDOW = 0
 
 const moreLine = (n: number): string => `${n} more; use memory_search`
 
@@ -84,6 +87,22 @@ export function createMemoryRecall(deps: {
   const recallChars = deps.recallChars ?? MEMORY_LIMITS.recallChars
   const windows = new Map<string, WindowState>()
   const launches = new Map<string, readonly string[]>()
+  /** Sessions still in the window a resume came back into (P3-C28). claude keeps the system
+   *  prompt recorded at the conversation's first request until it is compacted (probed on
+   *  2.1.325), so the index main answers there never reaches the model: it is not recorded as
+   *  given, and at use withholds nothing for it. The mod process of a resumed spawn counts
+   *  windows from 0; the first request of another window, or a `/clear` (a new conversation),
+   *  ends it. */
+  const resumed = new Set<string>()
+
+  /** Whether `sessionId` is still in the window its resume came back into; a request of any
+   *  other window ends that for good. */
+  function stillResumed(sessionId: string, window: number): boolean {
+    if (!resumed.has(sessionId)) return false
+    if (window === RESUMED_WINDOW) return true
+    resumed.delete(sessionId)
+    return false
+  }
 
   /** The session's state for `window`: a different window starts empty, an older one too: meant
    *  (P3-C16), since a mod process that restarts counts from 0 again for the same session. */
@@ -164,6 +183,7 @@ export function createMemoryRecall(deps: {
   return {
     launched(sessionId, facts) {
       launches.set(sessionId, [...facts.excludeTaskIds])
+      if (facts.resume) resumed.add(sessionId)
     },
 
     index(grant, req) {
@@ -172,13 +192,16 @@ export function createMemoryRecall(deps: {
         if (call === null) return NOT_OK
         const state = stateFor(call.sessionId, req.window)
         const { text, itemIds } = buildIndex(call)
-        state.indexed = new Set(itemIds)
+        // A resumed conversation does not hold this index: nothing of it counts as given.
+        const old = stillResumed(call.sessionId, req.window)
+        const given = old ? [] : itemIds
+        state.indexed = new Set(given)
         const folders = call.store.foldersWithSpecifics(
           call.scope,
-          itemIds,
+          given,
           MEMORY_LIMITS.indexFolders
         )
-        deps.activity.injected(call.sessionId, { chars: text.length, itemIds })
+        if (!old) deps.activity.injected(call.sessionId, { chars: text.length, itemIds })
         return { ok: true, text, folders }
       })
     },
@@ -280,6 +303,8 @@ export function createMemoryRecall(deps: {
       const launch = launches.get(oldSessionId)
       windows.delete(oldSessionId)
       launches.delete(oldSessionId)
+      // After `/clear` the conversation is new: it holds the index the mod sends next.
+      resumed.delete(oldSessionId)
       if (state !== undefined) windows.set(newSessionId, state)
       if (launch !== undefined) launches.set(newSessionId, launch)
     },
@@ -287,6 +312,7 @@ export function createMemoryRecall(deps: {
     forget(sessionId) {
       windows.delete(sessionId)
       launches.delete(sessionId)
+      resumed.delete(sessionId)
     }
   }
 

@@ -166,7 +166,12 @@ export interface LaunchIpcDeps {
    *  (memory/memoryLaunch.ts). Read at spawn time; `previousSessionId` as for goals. */
   memorySpawnExtras: (
     sessionId: string,
-    launch: { cwd: string; workspaceId: string; excludeTaskIds: readonly string[] },
+    launch: {
+      cwd: string
+      workspaceId: string
+      excludeTaskIds: readonly string[]
+      resume: boolean
+    },
     previousSessionId: string | null
   ) => MemorySpawnExtras
   /** The workspace a launch that names none lands in (main's active one, read at spawn). */

@@ -116,4 +116,19 @@ describe('claudeSpawnCommand', () => {
       ['mod_not_installed']
     ])
   })
+
+  it.each([true, false])(
+    'memory is told whether the spawn resumes a conversation (resume %s)',
+    (resume) => {
+      const asked: unknown[] = []
+      const d = deps({
+        memorySpawnExtras: (_id, launch) => {
+          asked.push(launch)
+          return { ...NO_MEMORY_EXTRAS, env: {} }
+        }
+      })
+      claudeSpawnCommand(d, request({ resume }))
+      expect(asked).toEqual([{ cwd: '/work/app', workspaceId: 'w1', excludeTaskIds: [], resume }])
+    }
+  )
 })

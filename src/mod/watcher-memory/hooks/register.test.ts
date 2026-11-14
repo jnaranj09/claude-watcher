@@ -620,3 +620,52 @@ test('when Memory comes back mid-window no section is added until the next windo
     [index(0), index(1)]
   ])
 })
+
+test("the window's first compose asks the index even while a missed recall pauses the mod", async ($, on) => {
+  const recallNever: Main = async (path, body, clock) =>
+    path === '/mod/memory/recall' ? NEVER(path, body, clock) : WELL(path, body, clock)
+  const { sent, clock } = world(on, ENV, recallNever)
+  await $.session.start(START)
+  const submitting = $.prompt.submit({ text: PROMPT, wait: false, origin: { kind: 'composer' } })
+  await clock.settle()
+  await clock.advance(250)
+  await submitting
+  const composed = await $.prompt.compose(COMPOSE)
+  expect([composed, sent]).toEqual([
+    { sections: [CORE, SECTION] },
+    [recall(0, 'composer'), index(0)]
+  ])
+})
+
+test("a failed first index ask is the window's answer: no section, no other ask in that window, the next window asks again", async ($, on) => {
+  const { sent, clock } = world(on, ENV, indexInTurn([{ status: 500, text: '' }]))
+  await $.session.start(START)
+  const first = await $.prompt.compose(COMPOSE)
+  await clock.advance(30_000)
+  const later = await $.prompt.compose(COMPOSE)
+  const askedInWindow = sent.length
+  await $.session.end(END_CLEAR)
+  const next = await $.prompt.compose(COMPOSE)
+  expect([first, later, askedInWindow, next, sent]).toEqual([
+    { sections: [CORE] },
+    { sections: [CORE] },
+    1,
+    { sections: [CORE, SECTION] },
+    [index(0), index(1)]
+  ])
+})
+
+test('a failed index ask in a later window keeps the earlier index for that whole window and asks nothing more in it', async ($, on) => {
+  const { sent, clock } = world(on, ENV, indexInTurn([GOOD_INDEX, { status: 500, text: '' }]))
+  await $.session.start(START)
+  await $.prompt.compose(COMPOSE)
+  await $.session.end(END_CLEAR)
+  const first = await $.prompt.compose(COMPOSE)
+  await clock.advance(30_000)
+  const later = await $.prompt.compose(COMPOSE)
+  expect([first, later, sent]).toEqual([
+    { sections: [CORE, SECTION] },
+    { sections: [CORE, SECTION] },
+    [index(0), index(1)]
+  ])
+})

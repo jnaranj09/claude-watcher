@@ -16,11 +16,13 @@
 // races the mod's own timer (`WAIT_MS`): a fetch has no timeout of its own (probed: a main that
 // answered after 6 s held the prompt 6 s), so the race is all that stands between a slow main and
 // the operator's prompt. A miss, a throw or an answer other than 200 pauses every call but
-// `/remember` for `PAUSE_MS`; nothing is retried. Time is read on `$.clock`, never `Date.now()`.
+// `/remember` and a window's one index ask for `PAUSE_MS`; nothing is retried. Time is read on
+// `$.clock`, never `Date.now()`.
 //
 // The window: main keeps what it already told a session per window (P3-C16: a window that
 // differs from the kept one resets those sets). The mod counts one more at each `/clear` and each
 // compaction of the main conversation, so a fresh conversation gets the index and items again.
+// A window's section is decided once, at its first compose, and never changes inside it.
 //
 // Prompt text and memory text are SENSITIVE: nothing here logs, throws or writes either.
 import type { Engine, Register } from 'claude-code'
@@ -49,8 +51,10 @@ import {
 /** Where main listens and its header; unset = off (not the app's session, or no config). */
 let link: Link | undefined
 let window = 0
-/** The index main gave for `window`, and the folders it holds keys for. */
-let cached: { window: number; text: string; folders: string[] } | undefined
+/** The last index main gave (in this window or an earlier one), and the folders it holds keys for. */
+let cached: { text: string; folders: string[] } | undefined
+/** The window whose section is decided: its first compose asked once, whatever came back. */
+let decided: number | undefined
 /** Folders already asked at use in this window (main had nothing more, or is being asked). */
 const asked = new Set<string>()
 /** Until this time (on `$.clock`) no call but `/remember` goes to main. */
@@ -118,15 +122,19 @@ export const register: Register = (on) => {
     if (link === undefined) return composed
     // A `/context` render (`analysis`) sends nothing to the model: it shows what is cached and
     // never spends the window's ask (nor starts a pause before the real request).
-    if (cached?.window !== window && !e.traits.includes('analysis')) {
-      const res = (await ask($, MOD_PATHS.index, indexBody(window), WAIT_MS.index)) ?? ''
+    // The window's first compose decides its section, once (P3-C28): claude records the system
+    // prompt at the window's first request, so a section added or changed later never reaches the
+    // model. That one ask ignores the pause (a missed recall just before it must not cost the
+    // window its index; the ask has its own 500 ms wait). A good answer is the section; main's no
+    // (Memory off, P3-C22) drops the index, empty rather than undefined so at use asks nothing
+    // either; a failed ask (timer, throw, non-200, garbage) keeps the last good index of an earlier
+    // window, else none. Either way no other index ask goes out until the next window.
+    if (decided !== window && !e.traits.includes('analysis')) {
+      decided = window
+      const res = (await ask($, MOD_PATHS.index, indexBody(window), WAIT_MS.index, true)) ?? ''
       const answer = readIndexAnswer(res)
-      if (answer !== undefined) cached = { window, ...answer }
-      // main said no (Memory off, P3-C22): drop the index for this window. A failed ask (timer,
-      // throw, non-200, garbage) keeps the last good one. Empty for the window, not undefined: no
-      // index ask per model call while Memory is off, and no section added mid-conversation when
-      // it comes back (that would change the system prompt); it returns at the next window's ask.
-      else if (isNotOk(res)) cached = { window, text: '', folders: [] }
+      if (answer !== undefined) cached = answer
+      else if (isNotOk(res)) cached = { text: '', folders: [] }
     }
     if (cached === undefined || cached.text === '') return composed
     return {

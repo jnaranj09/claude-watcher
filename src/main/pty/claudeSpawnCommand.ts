@@ -34,7 +34,12 @@ export interface ClaudeSpawnDeps {
   ) => GoalSpawnExtras
   memorySpawnExtras: (
     sessionId: string,
-    launch: { cwd: string; workspaceId: string; excludeTaskIds: readonly string[] },
+    launch: {
+      cwd: string
+      workspaceId: string
+      excludeTaskIds: readonly string[]
+      resume: boolean
+    },
     previousSessionId: string | null
   ) => MemorySpawnExtras
   activeWorkspaceId: () => string
@@ -96,7 +101,10 @@ export function claudeSpawnCommand(
   // claude's own auto memory, in pty/spawnExtras.ts.
   const extras = spawnExtras({
     goal,
-    memory: (target) => deps.memorySpawnExtras(sessionId, target, previousSessionId),
+    // A resume tells memory so (P3-C28): the conversation keeps the system prompt of its first
+    // request, so the index the mod sends in its first window never reaches the model.
+    memory: (target) =>
+      deps.memorySpawnExtras(sessionId, { ...target, resume: request.resume }, previousSessionId),
     launch: request.launch,
     activeWorkspaceId: deps.activeWorkspaceId,
     autoMemory: deps.claudeAutoMemory(),

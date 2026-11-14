@@ -179,7 +179,7 @@ describe('the memory mod’s contract with main', () => {
             log: () => undefined
           },
           sessionId,
-          { cwd: '/work/app', workspaceId: 'w1', excludeTaskIds: [] },
+          { cwd: '/work/app', workspaceId: 'w1', excludeTaskIds: [], resume: false },
           null
         )
         const link = parseConfig(readFileSync(out.env[CONFIG_ENV] ?? '', 'utf8'))

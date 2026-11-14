@@ -156,10 +156,73 @@ describe('index', () => {
 
   it('the index leaves out the tasks the launch said its goal block lists', () => {
     view = { goals: [], tasks: [task('t1', 'Ship the fix'), task('t2', 'Write the notes')] }
-    recall.launched('s1', { excludeTaskIds: ['t1'] })
+    recall.launched('s1', { excludeTaskIds: ['t1'], resume: false })
     const out = recall.index(grant, { version: 1, window: 0 })
     expect(out).toMatchObject({ ok: true, text: expect.stringContaining('Write the notes') })
     expect(out).toMatchObject({ text: expect.not.stringContaining('Ship the fix') })
+  })
+})
+
+// claude keeps the system prompt it recorded at a conversation's first request until it is
+// compacted (probed on 2.1.325: a resumed conversation quoted the index of its first launch), so
+// the index a resumed session gets in the window it came back into never reaches the model.
+describe('a resumed conversation', () => {
+  it("a resume's index is answered but not recorded, and names the folders whose keys it lists", () => {
+    const here = add(specific('api base', 'https://api.acme.test'), { folder: '/work/app' })
+    recall.launched('s1', { excludeTaskIds: [], resume: true })
+    const out = recall.index(grant, { version: 1, window: 0 })
+    expect(out).toEqual({
+      ok: true,
+      folders: ['/work/app'],
+      text: expect.stringContaining(`- api base (${DAY}) id=${here.id}`)
+    })
+    expect(injected).toEqual([])
+  })
+
+  it('at use in the window a resume came back into gives a key its index listed', () => {
+    const here = add(specific('api base', 'https://api.acme.test'), { folder: '/work/app' })
+    recall.launched('s1', { excludeTaskIds: [], resume: true })
+    recall.index(grant, { version: 1, window: 0 })
+    expect(recall.atUse(grant, { version: 1, window: 0, folders: ['/work/app'] })).toEqual({
+      ok: true,
+      text: `Memory (Claude Watcher): saved for /work/app\n- api base (${DAY}) id=${here.id}`
+    })
+  })
+
+  it('from the next window a resumed session records its index as any session', () => {
+    const here = add(specific('api base', 'https://api.acme.test'), { folder: '/work/app' })
+    recall.launched('s1', { excludeTaskIds: [], resume: true })
+    recall.index(grant, { version: 1, window: 0 })
+    const next = recall.index(grant, { version: 1, window: 1 })
+    expect(next).toMatchObject({ ok: true, folders: [] })
+    expect(injected).toEqual([['s1', { chars: expect.any(Number), itemIds: [here.id] }]])
+    expect(recall.atUse(grant, { version: 1, window: 1, folders: ['/work/app'] })).toEqual({
+      ok: true,
+      text: ''
+    })
+  })
+
+  it('a launch that is not a resume records its index', () => {
+    const here = add(specific('api base', 'https://api.acme.test'), { folder: '/work/app' })
+    recall.launched('s1', { excludeTaskIds: [], resume: false })
+    recall.index(grant, { version: 1, window: 0 })
+    expect(injected).toEqual([['s1', { chars: expect.any(Number), itemIds: [here.id] }]])
+  })
+
+  it('a /clear adoption starts a new conversation: the resume does not follow it', () => {
+    const here = add(specific('api base', 'https://api.acme.test'), { folder: '/work/app' })
+    recall.launched('s1', { excludeTaskIds: [], resume: true })
+    recall.rebind('s1', 's2')
+    recall.index({ sessionId: 's2' }, { version: 1, window: 0 })
+    expect(injected).toEqual([['s2', { chars: expect.any(Number), itemIds: [here.id] }]])
+  })
+
+  it('a forgotten resumed session records its index again', () => {
+    const here = add(specific('api base', 'https://api.acme.test'), { folder: '/work/app' })
+    recall.launched('s1', { excludeTaskIds: [], resume: true })
+    recall.forget('s1')
+    recall.index(grant, { version: 1, window: 0 })
+    expect(injected).toEqual([['s1', { chars: expect.any(Number), itemIds: [here.id] }]])
   })
 })
 
@@ -340,7 +403,7 @@ describe('recall', () => {
 
   it('the launch facts follow a /clear adoption', () => {
     view = { goals: [], tasks: [task('t1', 'Ship the fix'), task('t2', 'Write the notes')] }
-    recall.launched('s1', { excludeTaskIds: ['t1'] })
+    recall.launched('s1', { excludeTaskIds: ['t1'], resume: false })
     recall.rebind('s1', 's2')
     const out = recall.index({ sessionId: 's2' }, { version: 1, window: 0 })
     expect(out).toMatchObject({ ok: true, text: expect.stringContaining('Write the notes') })

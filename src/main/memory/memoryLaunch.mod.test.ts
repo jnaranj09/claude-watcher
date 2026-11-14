@@ -21,7 +21,7 @@ import {
 } from './memoryLaunch'
 
 const NOW = 1_762_800_000_000
-const launch = { cwd: '/work/app', workspaceId: 'w1', excludeTaskIds: ['t1'] }
+const launch = { cwd: '/work/app', workspaceId: 'w1', excludeTaskIds: ['t1'], resume: false }
 
 const dirs: string[] = []
 afterEach(() => {
@@ -45,7 +45,7 @@ function openStore(): MemoryStore {
 interface Seen {
   injected: unknown[]
   recallModes: [string, MemoryRecallMode][]
-  launchedCalls: [string, { excludeTaskIds: readonly string[] }][]
+  launchedCalls: [string, { excludeTaskIds: readonly string[]; resume: boolean }][]
   revoked: string[]
   removed: string[]
   lines: string[]
@@ -100,8 +100,14 @@ describe('memorySpawnExtras with the memory mod', () => {
       [],
       0,
       [['s1', { mode: 'mod' }]],
-      [['s1', { excludeTaskIds: ['t1'] }]]
+      [['s1', { excludeTaskIds: ['t1'], resume: false }]]
     ])
+  })
+
+  it('a mod spawn that resumes a conversation tells recall it is a resume', () => {
+    const { deps, seen } = setup({ recallMod: () => ({ dir: '/data/mods/watcher-memory' }) })
+    memorySpawnExtras(deps, 's1', { ...launch, resume: true }, null)
+    expect(seen.launchedCalls).toEqual([['s1', { excludeTaskIds: ['t1'], resume: true }]])
   })
 
   it('a skipped mod is phase 1 exactly, and the reason is kept for Context', () => {

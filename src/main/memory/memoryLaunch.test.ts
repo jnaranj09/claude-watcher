@@ -96,7 +96,7 @@ function spawnDeps(over: Partial<Omit<MemorySpawnDeps, 'tokens'>> = {}): MemoryS
   }
 }
 
-const launch = { cwd: '/work/acme', workspaceId: 'w1', excludeTaskIds: [] }
+const launch = { cwd: '/work/acme', workspaceId: 'w1', excludeTaskIds: [], resume: false }
 
 /** An open task made `createdAt` NOW, in `/work/acme` unless `over` says otherwise. */
 function openTask(

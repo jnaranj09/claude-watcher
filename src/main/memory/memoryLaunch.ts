@@ -106,7 +106,8 @@ export interface MemorySpawnDeps {
   activity: Pick<MemoryActivityLog, 'injected' | 'recallMode'>
   /** The memory mod or the reason not (`createMemoryModChoice`), asked once the config is written. */
   recallMod: () => MemoryRecallMod
-  /** A mod session's recall starts with nothing sent and the goal block's tasks left out. */
+  /** A mod session's recall starts with nothing sent, the goal block's tasks left out, and knows
+   *  whether the spawn resumes a conversation (`launch.resume`). */
   recall: Pick<MemoryRecall, 'launched'>
   /** Code-only log sink. */
   log: (line: string) => void
@@ -126,7 +127,7 @@ export interface MemorySpawnDeps {
 export function memorySpawnExtras(
   deps: MemorySpawnDeps,
   sessionId: string,
-  launch: { cwd: string; workspaceId: string; excludeTaskIds: readonly string[] },
+  launch: { cwd: string; workspaceId: string; excludeTaskIds: readonly string[]; resume: boolean },
   previousSessionId: string | null
 ): MemorySpawnExtras {
   try {
@@ -141,7 +142,10 @@ export function memorySpawnExtras(
     if (path === null) return noMemory()
     const mod = deps.recallMod()
     if ('dir' in mod) {
-      deps.recall.launched(sessionId, { excludeTaskIds: launch.excludeTaskIds })
+      deps.recall.launched(sessionId, {
+        excludeTaskIds: launch.excludeTaskIds,
+        resume: launch.resume
+      })
       deps.activity.recallMode(sessionId, { mode: 'mod' })
       return {
         appendPrompt: null,
