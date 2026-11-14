@@ -316,6 +316,25 @@ describe('hookServer — the goals MCP endpoint', () => {
     expect(res.status).toBe(400)
   })
 
+  it('a tool result that cannot become JSON is 500 with a code, never a hung request, and the server keeps serving', async () => {
+    const r = await start(true, {
+      handle: () => ({ jsonrpc: '2.0', id: 1, result: { n: 10n } })
+    })
+    const auth = { authorization: `Bearer ${r.token}` }
+    const failed = await send(
+      r.base,
+      GOALS_MCP_PATH,
+      'POST',
+      rpc('tools/call', { name: 'mark_task_done', arguments: { taskId: 'SECRET-ARG' } }),
+      auth
+    )
+    const hook = JSON.stringify({ session_id: 'a', hook_event_name: 'Stop' })
+    const next = await send(r.base, '/', 'POST', hook)
+    expect([failed.status, failed.body, next.status]).toEqual([500, '', 200])
+    expect(r.mcpLines).toEqual(['[claude-watcher][goals] route=mcp code=mcp_handler_error'])
+    expect(JSON.stringify([r.log.mock.calls, r.mcpLines])).not.toContain('SECRET-ARG')
+  })
+
   it('a handler that throws is 500 with a code, and the server keeps serving', async () => {
     const r = await start(true, {
       handle: () => {
