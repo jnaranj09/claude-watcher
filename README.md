@@ -182,10 +182,10 @@ date or goal, edit, pin, mark stale, see **History** and restore a version, or d
 saved from a session has **Open source**, which shows the words it was taken from. An item is
 global or belongs to one workspace. Each record in **Past sessions** has a **Memory:** line (what
 was saved, `nothing new`, `failed`, `saving…` or `off`) and the session's episode under it. The
-**Context** button of a session has a **Memory** page: what the session got at launch, what
-recall gave it while it ran (**With a prompt** / **With a file**), what it read, what it saved and
-what was dropped; a session that runs without recall for a reason you did not choose (an older
-claude, or the app could not set up its mod) says so there.
+**Context** button of a session has a **Memory** page: the memory index the session got
+(**Index:** its tokens and items), what recall gave it while it ran (**With a prompt** / **With a
+file**), what it read, what it saved and what was dropped; a session that runs without recall for
+a reason you did not choose (an older claude, or the app could not set up its mod) says so there.
 
 What it costs: each save is a headless `claude -p` call (a long session can take a few) on your
 own Claude account and login, with the model you choose (**Sonnet** by default), each call capped

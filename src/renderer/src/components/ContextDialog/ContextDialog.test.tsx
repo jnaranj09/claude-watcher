@@ -428,8 +428,9 @@ describe('ContextDialog — the Memory page', () => {
       recall: null
     })
     expect(memory.activity).toHaveBeenCalledWith(SID)
+    // A session with no recall mode (memory phase 1 style) gets the same labelled line.
     expect(screen.getByTestId('context-memory-injected')).toHaveTextContent(
-      '1,250 tokens · 12 items'
+      /^Index: 1,250 tokens · 12 items$/
     )
   })
 

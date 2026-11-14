@@ -50,6 +50,13 @@ describe('DROP_REASON_COPY', () => {
 
 // Memory phase 3: how recall gave an item, and why a session runs without recall.
 describe('recall copy', () => {
+  it('labels the first Injected line as the index the session got', () => {
+    expect([CONTEXT_COPY.injectedSummary(1250, 12), CONTEXT_COPY.injectedSummary(10, 1)]).toEqual([
+      'Index: 1,250 tokens · 12 items',
+      'Index: 10 tokens · 1 item'
+    ])
+  })
+
   it('names how an item was given', () => {
     expect([CONTEXT_COPY.withPrompt, CONTEXT_COPY.withFile]).toEqual([
       'With a prompt',

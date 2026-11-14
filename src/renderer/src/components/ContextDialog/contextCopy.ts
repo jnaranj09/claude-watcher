@@ -62,8 +62,9 @@ export const CONTEXT_COPY = {
   nothingPulled: 'Nothing pulled.',
   nothingSaved: 'Nothing saved.',
   nothingDropped: 'Nothing dropped.',
+  /** The index the session got (at launch, or the mod's last index ask), not recall's rows. */
   injectedSummary: (tokens: number, items: number) =>
-    `${tokens.toLocaleString('en-US')} tokens · ${items.toLocaleString('en-US')} ${items === 1 ? 'item' : 'items'}`,
+    `Index: ${tokens.toLocaleString('en-US')} tokens · ${items.toLocaleString('en-US')} ${items === 1 ? 'item' : 'items'}`,
   empty: (what: string) => `Claude listed no ${what}.`
 } as const
 

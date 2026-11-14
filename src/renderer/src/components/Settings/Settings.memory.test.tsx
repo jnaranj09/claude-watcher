@@ -133,13 +133,14 @@ describe('Settings → Memory — saving from a session', () => {
 
 // Memory phase 3: recall while a session runs, the first row shown only while Memory is on.
 describe('Settings → Memory — Memory recall', () => {
-  async function openMemory(memoryEnabled: boolean): Promise<{ setCalls: unknown[] }> {
+  async function openMemory(
+    memoryEnabled: boolean,
+    memoryRecallEnabled = true
+  ): Promise<{ setCalls: unknown[] }> {
     const user = userEvent.setup()
     const stub = stubSettings()
     stubThemes()
-    settingsStore
-      .getState()
-      .hydrate({ ...DEFAULT_SETTINGS, memoryEnabled, memoryRecallEnabled: true })
+    settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, memoryEnabled, memoryRecallEnabled })
     renderPanel()
     await user.click(screen.getByRole('button', { name: 'Memory' }))
     return stub
@@ -190,5 +191,20 @@ describe('Settings → Memory — Memory recall', () => {
     await flush(3)
     expect(screen.getByRole('switch', { name: 'Memory recall' })).toBeChecked()
     expect(dialogToast('settings')?.title).toBe('Could not save memory recall.')
+  })
+
+  it('shows recall off when main says it is off', async () => {
+    await openMemory(true, false)
+    expect(screen.getByRole('switch', { name: 'Memory recall' })).not.toBeChecked()
+  })
+
+  it('flips the switch at once, before main answers', async () => {
+    const user = userEvent.setup()
+    stubSettings(() => new Promise(() => {}))
+    stubThemes()
+    renderPanel()
+    await user.click(screen.getByRole('button', { name: 'Memory' }))
+    await user.click(screen.getByRole('switch', { name: 'Memory recall' }))
+    expect(screen.getByRole('switch', { name: 'Memory recall' })).not.toBeChecked()
   })
 })

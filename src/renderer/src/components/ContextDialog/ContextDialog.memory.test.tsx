@@ -56,7 +56,9 @@ describe('ContextDialog — the Memory page, what recall gave a session', () => 
   it('lists a recalled item under Injected, with how it was given', async () => {
     await openMemoryPage(RECALLED)
     const injected = within(await screen.findByTestId('context-memory-injected-section'))
-    expect(injected.getByTestId('context-memory-injected')).toHaveTextContent('120 tokens · 1 item')
+    expect(injected.getByTestId('context-memory-injected')).toHaveTextContent(
+      /^Index: 120 tokens · 1 item$/
+    )
     expect(injected.getAllByTestId('context-memory-entry').map((row) => row.textContent)).toEqual([
       expect.stringContaining('With a prompt'),
       expect.stringContaining('With a file')
@@ -75,6 +77,35 @@ describe('ContextDialog — the Memory page, what recall gave a session', () => 
     await openMemoryPage({ ...RECALLED, recall: { mode: 'launch', reason: 'claude_too_old' } })
     expect(await screen.findByTestId('context-memory-recall-off')).toHaveTextContent(
       'Update claude to 2.1.323 or newer for memory recall in this session.'
+    )
+  })
+
+  it('the recall notice is an info Callout, not a warning or an error', async () => {
+    await openMemoryPage({ ...RECALLED, recall: { mode: 'launch', reason: 'claude_too_old' } })
+    expect(await screen.findByTestId('context-memory-recall-off')).toHaveAttribute(
+      'data-callout-tone',
+      'info'
+    )
+  })
+
+  it('with no index but recalled items, lists the items and does not say nothing was injected', async () => {
+    await openMemoryPage({ ...RECALLED, injected: null })
+    const injected = within(await screen.findByTestId('context-memory-injected-section'))
+    expect({
+      rows: injected.getAllByTestId('context-memory-entry').map((row) => row.textContent),
+      nothing: injected.queryByText('Nothing injected.'),
+      summary: injected.queryByTestId('context-memory-injected')
+    }).toEqual({
+      rows: [expect.stringContaining('With a prompt'), expect.stringContaining('With a file')],
+      nothing: null,
+      summary: null
+    })
+  })
+
+  it('with no index and nothing recalled, says nothing was injected', async () => {
+    await openMemoryPage({ ...RECALLED, injected: null, entries: [] })
+    expect(await screen.findByTestId('context-memory-injected-section')).toHaveTextContent(
+      /^InjectedNothing injected\.$/
     )
   })
 

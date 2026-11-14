@@ -116,7 +116,7 @@ export const MEMORY_TERMS = {
   checkpoint: 'Memory checkpoint',
   saveTasks: 'Save open work as tasks',
   model: 'Memory model',
-  /** Recall while a session runs (memory phase 3): the Settings switch and the Context notice. */
+  /** Recall while a session runs (memory phase 3): the Settings switch's label. */
   recall: 'Memory recall'
 } as const
 

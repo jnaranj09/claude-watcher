@@ -162,7 +162,8 @@ const LIST_OF: Readonly<
   injected: 'injected'
 }
 
-/** What this session was given at launch and by recall while it ran, then what it pulled, what it
+/** What this session was given (the index it got, labelled `Index:`, then one row per item recall
+ *  gave while it ran; `Nothing injected.` only when it got neither), then what it pulled, what it
  *  saved and what extraction dropped, each entry under exactly one of them. `at` is when the answer
  *  came, the "now" its times are measured from. A row names the tool, how recall gave the item, or
  *  for a drop the reason in plain words; it never needs an item id (a task report has none). Above
@@ -209,6 +210,8 @@ export function MemoryPage({
     </section>
   )
   const recall = activity.recall
+  // `Nothing injected.` only when the session got no index AND recall gave it nothing (P3-C26).
+  const recalled = rowsOf('injected')
   return (
     <div className={styles.sections}>
       {notice}
@@ -221,15 +224,20 @@ export function MemoryPage({
       ) : null}
       <section data-testid="context-memory-injected-section">
         <h4 className={styles.section}>{CONTEXT_COPY.injected}</h4>
-        <p className={styles.empty} data-testid="context-memory-injected">
-          {activity.injected === null
-            ? CONTEXT_COPY.nothingInjected
-            : CONTEXT_COPY.injectedSummary(
-                activity.injected.tokens,
-                activity.injected.itemIds.length
-              )}
-        </p>
-        {rowsOf('injected')}
+        {activity.injected !== null ? (
+          <p className={styles.empty} data-testid="context-memory-injected">
+            {CONTEXT_COPY.injectedSummary(
+              activity.injected.tokens,
+              activity.injected.itemIds.length
+            )}
+          </p>
+        ) : null}
+        {recalled ??
+          (activity.injected === null ? (
+            <p className={styles.empty} data-testid="context-memory-injected">
+              {CONTEXT_COPY.nothingInjected}
+            </p>
+          ) : null)}
       </section>
       {entries('pulled', CONTEXT_COPY.pulled, CONTEXT_COPY.nothingPulled)}
       {entries('saved', CONTEXT_COPY.saved, CONTEXT_COPY.nothingSaved)}
