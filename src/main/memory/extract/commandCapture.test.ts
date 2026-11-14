@@ -119,4 +119,10 @@ describe('captureCommands', () => {
   ])('leaves out %s', (_n, lines) => {
     expect(captureCommands(lines)).toEqual([])
   })
+
+  // 12
+  it('leaves out a command that holds a private tag', () => {
+    const lines = [bash('p', { command: 'echo "<private>Acme</private>" > note.txt' }), done('p')]
+    expect(captureCommands(lines)).toEqual([])
+  })
 })

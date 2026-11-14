@@ -174,6 +174,13 @@ and how many tasks (**Show**, offered only when something went to memory, opens 
 start shows a toast only when it fails. A session with no name or with fewer than two prompts
 gets no toast, and one that never got a prompt ends quietly.
 
+**Keeping text out of memory.** Wrap text in `<private>` and `</private>` and Memory never
+reads it: a save does not send it to the model, recall does not match on it, and a Bash
+command or a `/remember` line that holds the tag is not saved. The tag works in any case and
+anywhere in the session: in what you type, in what Claude writes, in a tool call and in a
+tool's result. An opening tag with no closing one hides the rest of that text. Claude itself
+still reads the text: the tag is a rule for Memory, not for the session (see Known limits).
+
 **Open work becomes tasks.** Work a session leaves open becomes a task in **Goals**, with how to
 check it (`Check:`). A later session sees the folder's open tasks and can report what it found;
 a task it reports done shows **Reported done by "…"** and stays open: only you close a task
@@ -259,6 +266,11 @@ Known limits:
   short value, a token split over two lines, a password after a prefixed flag and a space
   (`--db-password V`), a password quoted on its own after `-u user:`, `mysql -pPASS`, and token
   kinds it has no pattern for. It also replaces some harmless text that looks like a secret.
+- `<private>` covers only the text between the tags. What Claude repeats outside them, puts
+  into a tool call or reads back from a tool with no tags around it is read like any other
+  text; Claude's own memory tools and the Memory dialog's forms save what they are given. A
+  file that shows an opening `<private>` with no closing tag (documentation, source code)
+  hides the rest of that tool result from a save.
 - A value written right before a dotted or hyphenated continuation (`1.2` in `1.2.34`) is
   dropped on purpose: a cut version or address is worse than none.
 - A value inside the cut middle of a very long tool result is not saved.

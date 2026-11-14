@@ -215,7 +215,7 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   keys and 1,500 characters, and 20,000 characters of recall and at-use
   blocks a window, never passed (a block that would pass it is not given, and its items stay
   ungiven: M13); an item is given once per window. Matching cuts the prompt's first 2,000
-  characters into 12 terms (`recallTerms.ts`); each term keeps its 200 newest rows (P3-C12); an
+  characters, its `<private>` spans left out, into 12 terms (`recallTerms.ts`); each term keeps its 200 newest rows (P3-C12); an
   item needs 2 terms or 1 exact one. The prompt text is used for the match and dropped. claude
   fixes a `session` section per conversation window, and a resumed conversation keeps its
   recorded one (probed 2.1.323, and again on 2.1.325 through the app). So a resume
@@ -226,7 +226,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   the cached prefix and does not invalidate the prompt cache (probed). `/remember` (no model
   turn; Windows line ends accepted,
   P3-C14) saves one `stated` operator item and refuses a non-operator origin, an empty or too
-  long text, a control character and a secret (`hasSecret`). Every saved text a model reads goes
+  long text, a control character and a secret (`hasSecret`) or a `<private>` tag (`holdsPrivate`,
+  answered as a secret). Every saved text a model reads goes
   through `wrapperSafe` (P3-C1: a `system-reminder` tag and the memory block marker are
   neutralised; on the joined text and on each composed line, P3-C15).
   claude's own auto memory is a separate setting (`settings.claudeAutoMemory`, owner 2026-11-12:
@@ -271,8 +272,10 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   The transcript is found by its id (`locateTranscript`, D1), never by a hook's `transcript_path`,
   read once per job from the row's byte offset (`transcriptReader.ts`, at most
   `EXTRACT_LIMITS.readBytesPerJob`), cleaned (`sliceCleaner.ts`: no thinking, web, MCP,
-  subagent and other agents' results without their text (P3-R3), secrets replaced,
-  `secretScan.ts`); what memory itself told the session (a block that starts
+  subagent and other agents' results without their text (P3-R3), `<private>` spans replaced by
+  the secret mark first (`privateSpans.ts`: any case, an unclosed tag takes the rest of that text;
+  operator and claude text, tool arguments and results; a Bash command that holds the tag is not
+  captured), secrets replaced, `secretScan.ts`); what memory itself told the session (a block that starts
   `Memory (Claude Watcher):`, a system-reminder) is never operator text, and a typed prompt or a
   tool result that holds the marker anywhere (any case or spacing) is not kept as evidence
   (P3-R2, P3-C5, P3-C8, P3-C9); the slice is then cut into chunks; a job of

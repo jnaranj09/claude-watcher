@@ -1,9 +1,10 @@
 // The Bash commands that worked in a slice (addendum "Commands"), read from the raw lines with no
 // model: a `Bash` call whose result is not an error and was not interrupted. A command that only
 // started (`run_in_background`), spans lines, is empty, is over MEMORY_LIMITS.commandText or holds
-// a secret is left out. The keys are `unknown` in the shared schema (D40) and narrowed here.
+// a secret or a private tag (`privateSpans.ts`) is left out. The keys are `unknown` in the shared schema (D40) and narrowed here.
 // SENSITIVE: command text is never logged; nothing here logs.
 import { MEMORY_LIMITS } from '../../../shared/schemas/memory'
+import { holdsPrivate } from '../privateSpans'
 import { hasSecret } from './secretScan'
 import type { ReadLine } from './transcriptReader'
 
@@ -34,7 +35,8 @@ function keeps(call: Call): boolean {
     text !== '' &&
     !/[\r\n]/.test(text) &&
     text.length <= MEMORY_LIMITS.commandText &&
-    !hasSecret(text)
+    !hasSecret(text) &&
+    !holdsPrivate(text)
   )
 }
 

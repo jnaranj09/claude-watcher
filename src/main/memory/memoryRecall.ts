@@ -4,8 +4,9 @@
 // keeps what this window was already told (the index's ids and the ids given since), so nothing is
 // given twice in a window, and how many characters the window got, so recall stops at its budget.
 // Every block starts with MEMORY_BLOCK_MARKER, so the slice cleaner never takes it as evidence;
-// every saved text in it goes through `oneLine` (P3-C1). Memory text and prompt text are
-// sensitive: this module logs `code=` only, and the activity log gets ids and counts.
+// every saved text in it goes through `oneLine` (P3-C1). A `<private>` span of the prompt is cut
+// (to a space, `privateSpans.ts`) before the terms; the mod sends the text as typed. Memory text and
+// prompt text are sensitive: this module logs `code=` only, and the activity log gets ids and counts.
 import type { GoalsView } from '../../shared/schemas/goal'
 import { MEMORY_ERROR, MEMORY_LIMITS, type MemoryRow } from '../../shared/schemas/memory'
 import type {
@@ -22,6 +23,7 @@ import type { MemoryActivityLog } from './memoryActivity'
 import { sessionItemMeta, type MemoryCall } from './memoryGate'
 import { MEMORY_LIVE_RULES, MEMORY_RULES_OF_USE, pinnedLine, specificLine } from './memoryIndex'
 import type { MemoryGrant } from './memoryTools'
+import { cutPrivate } from './privateSpans'
 import { MEMORY_BLOCK_MARKER, oneLine } from './promptText'
 import { recallTerms } from './recallTerms'
 import { buildSessionIndex } from './sessionIndex'
@@ -226,7 +228,7 @@ export function createMemoryRecall(deps: {
         const call = deps.gate(grant)
         if (call === null) return NOT_OK
         const state = stateFor(call.sessionId, req.window)
-        const terms = recallTerms(req.text)
+        const terms = recallTerms(cutPrivate(req.text, ' '))
         if (!deps.operatorOrigins.has(req.origin) || terms.length === 0) return NOTHING
         if (state.chars >= windowChars) return NOTHING
         const items = call.store.recall(

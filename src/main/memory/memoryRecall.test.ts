@@ -472,6 +472,23 @@ describe('recall', () => {
       text: expect.stringContaining('staging port: 9281')
     })
   })
+
+  // 14 (Review Focus 2 is its second half)
+  it('a private span in a prompt is not matched on, closed or cut off by the prompt cut', () => {
+    const item = add(specific('staging port', '9281'))
+    const ask = (text: string, window: number): unknown =>
+      recall.recall(grant, { version: 1, window, origin: 'composer', text })
+    expect(ask('is <private>the staging port 9281</private> fine?', 0)).toEqual({
+      ok: true,
+      text: ''
+    })
+    // The closing tag fell past the 2,000 characters the mod sends: the rest is still private.
+    expect(ask('fine? <private>the staging port 9281 and more', 1)).toEqual({ ok: true, text: '' })
+    expect(ask('which staging port? <private>client Acme</private>', 2)).toEqual({
+      ok: true,
+      text: `Memory (Claude Watcher): items that may match this prompt\n- staging port: 9281 (seen ${DAY}, inferred) id=${item.id}`
+    })
+  })
 })
 
 describe('at use', () => {

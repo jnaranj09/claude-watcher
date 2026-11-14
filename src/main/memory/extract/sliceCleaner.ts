@@ -2,12 +2,14 @@
 // D2–D5): only `user` and `assistant` lines that are not a sidechain, meta or compact summary; an
 // operator prompt only when claude did not write it (D3); no thinking; results of web, MCP,
 // subagent and other agents' tools kept without their text (D4, P3-R3); every text with its
-// secrets taken out, then capped (D5); entries numbered on from the session's count.
+// private spans (`privateSpans.ts`) and its secrets taken out, then capped (D5); entries numbered
+// on from the session's count.
 //
 // What memory itself told the session is never evidence (P3-R2): its blocks are their own
 // `attachment` lines (left out above); in a typed prompt each text part is judged alone, every
 // system-reminder span is cut and a text still holding `MEMORY_BLOCK_MARKER` is dropped whole;
-// a result that holds the marker anywhere is not kept (P3-C8).
+// a result that holds the marker anywhere is not kept (P3-C8). A private span is cut before a
+// typed part is judged, so a prompt that starts with `<private>` is still the operator's.
 //
 // The shared line schema leaves the keys read here `unknown` (D40, so the interrupt watcher never
 // loses a line to them); this file narrows each where it reads it and skips a part or a line whose
@@ -16,10 +18,12 @@ import {
   CUT_END,
   CUT_MIDDLE,
   EXTRACT_LIMITS,
-  RESULT_NOT_KEPT
+  RESULT_NOT_KEPT,
+  SECRET_MARK
 } from '../../../shared/schemas/memoryExtract'
 import type { TranscriptEntry } from '../../../shared/schemas/transcriptEntry'
 import { INTERRUPT_MARKERS } from '../../hooks/transcriptSignal'
+import { cutPrivate } from '../privateSpans'
 import { MEMORY_BLOCK_MARKER } from '../promptText'
 import { cutSpans, spanTag } from '../tagSpans'
 import { redactSecrets } from './secretScan'
@@ -91,10 +95,15 @@ function cutMiddle(text: string, max: number, head: number, tail: number): strin
     : text.slice(0, head) + CUT_MIDDLE + text.slice(text.length - tail)
 }
 
-/** Secrets first, then the cap: a cut never leaves part of a secret that no pattern matches. */
+/** Private spans first, because a secret pattern can eat an opening tag and the text after it
+ *  would then be read; then secrets. Each span becomes the secret mark. */
+const scrub = (text: string): string => redactSecrets(cutPrivate(text, SECRET_MARK))
+
+/** Private spans, then secrets (`scrub`), then the cap: a cut never leaves part of a secret that
+ *  no pattern matches. */
 const cleanText = (text: string): string =>
   cutMiddle(
-    redactSecrets(text),
+    scrub(text),
     EXTRACT_LIMITS.textChars,
     EXTRACT_LIMITS.textHeadChars,
     EXTRACT_LIMITS.textTailChars
@@ -102,14 +111,14 @@ const cleanText = (text: string): string =>
 
 const cleanResult = (text: string): string =>
   cutMiddle(
-    redactSecrets(text),
+    scrub(text),
     EXTRACT_LIMITS.resultChars,
     EXTRACT_LIMITS.resultHeadChars,
     EXTRACT_LIMITS.resultTailChars
   )
 
 function cleanArgs(input: unknown): string {
-  const args = redactSecrets(JSON.stringify(input ?? null))
+  const args = scrub(JSON.stringify(input ?? null))
   return args.length <= EXTRACT_LIMITS.toolArgsChars
     ? args
     : args.slice(0, EXTRACT_LIMITS.toolArgsChars) + CUT_END
@@ -178,9 +187,13 @@ function userDrafts(
     typeof content === 'string'
       ? [content]
       : parts.filter((p) => p.type === 'text').map((p) => p.text ?? '')
-  // P3-R2: each text part is judged alone (M7: a part claude tagged never joins a typed one), then
-  // every system-reminder span is cut, and a text still holding memory's marker is not the operator's.
-  const text = cutReminders(texts.filter((t) => !LEADING_TAG.test(t.trim())).join(''))
+  // P3-R2: each text part is judged alone, on its text with the private spans cut (M7: a part
+  // claude tagged never joins a typed one), then the joined text's private spans and every
+  // system-reminder span are cut, and a text still holding memory's marker is not the operator's.
+  // `cleanText` scrubs once more, which also catches a private tag that only formed when a
+  // reminder span was cut out of its middle.
+  const typed = texts.filter((t) => !LEADING_TAG.test(cutPrivate(t, SECRET_MARK).trim()))
+  const text = cutReminders(cutPrivate(typed.join(''), SECRET_MARK))
   const drafts: Draft[] = []
   if (isOperatorText(entry, text) && !holdsMarker(text)) {
     drafts.push({

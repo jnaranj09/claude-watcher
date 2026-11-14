@@ -719,6 +719,101 @@ describe('the P3-R2 cuts on a 2 MB text', () => {
   })
 })
 
+describe('private spans are never read by a save', () => {
+  // 1
+  it('a span is replaced by the secret mark in a prompt, a claude text, tool arguments and a result', () => {
+    const { entries } = cleanSlice(
+      [
+        prompt('the client is <private>Acme Corp</private>, port 9281'),
+        said('I will note <private>Acme Corp</private> and go on'),
+        call('t1', 'Bash', { command: 'echo "<private>Acme Corp</private>" > note.txt' }),
+        result('t1', 'wrote <private>Acme Corp</private> to note.txt')
+      ],
+      0
+    )
+    expect(kinds(entries)).toEqual([
+      `operator:the client is ${SECRET_MARK}, port 9281`,
+      `claude:I will note ${SECRET_MARK} and go on`,
+      `tool:{"command":"echo \\"${SECRET_MARK}\\" > note.txt"}`,
+      `result:wrote ${SECRET_MARK} to note.txt`
+    ])
+  })
+  // 2
+  it('a prompt that starts with a span is still the operator’s, and counts as a prompt', () => {
+    const out = cleanSlice(
+      [prompt('<private>the client is Acme</private> fix the build on port 9281')],
+      0
+    )
+    expect(kinds(out.entries)).toEqual([`operator:${SECRET_MARK} fix the build on port 9281`])
+    expect(out.prompts).toBe(1)
+  })
+  // 3
+  it('a prompt that is only a span is an operator entry that holds the mark alone', () => {
+    expect(kinds(cleanSlice([prompt('<private>nothing to see</private>')], 0).entries)).toEqual([
+      `operator:${SECRET_MARK}`
+    ])
+  })
+  // 4
+  it('an opening tag that never closes hides the rest of that text', () => {
+    expect(
+      kinds(cleanSlice([prompt('deploy it <private>the key is under the mat')], 0).entries)
+    ).toEqual([`operator:deploy it ${SECRET_MARK}`])
+  })
+  // 5
+  it('nested spans and tags in another case or spacing are cut whole; a closing tag alone is cut', () => {
+    const text = 'a<private>b<private>c</private>d</private>e< PRIVATE >f</ Private>g</private>h'
+    expect(kinds(cleanSlice([prompt(text)], 0).entries)).toEqual([
+      `operator:a${SECRET_MARK}e${SECRET_MARK}gh`
+    ])
+  })
+  // 6
+  it('a longer tag name is not the private tag', () => {
+    expect(kinds(cleanSlice([prompt('a <private-key> b <privately> c')], 0).entries)).toEqual([
+      'operator:a <private-key> b <privately> c'
+    ])
+  })
+  // 7
+  it('a span split over two text parts is cut across them', () => {
+    expect(
+      kinds(cleanSlice([parts('deploy <private>the client', ' is Acme</private> now')], 0).entries)
+    ).toEqual([`operator:deploy ${SECRET_MARK} now`])
+  })
+  // 8
+  it('private is cut before secrets, so a secret pattern never eats an opening tag', () => {
+    expect(kinds(cleanSlice([said('token=<private>abc def ghi')], 0).entries)).toEqual([
+      `claude:token=${SECRET_MARK}`
+    ])
+  })
+  // 9 (Review Focus 1)
+  it('an unclosed tag in one tool result hides the rest of that result only', () => {
+    const { entries } = cleanSlice(
+      [
+        call('t1', 'Read', { file_path: '/work/app/notes.md' }),
+        result('t1', 'line one\n<private>\nline three'),
+        said('the port is 9281')
+      ],
+      0
+    )
+    expect(kinds(entries).slice(1)).toEqual([
+      `result:line one\n${SECRET_MARK}`,
+      'claude:the port is 9281'
+    ])
+  })
+  // 10
+  it('text on both sides of a span never joins into a value nobody wrote', () => {
+    const [entry] = cleanSlice([said('92<private>x</private>81')], 0).entries
+    expect(entry?.text).toBe(`92${SECRET_MARK}81`)
+  })
+  // 11
+  it.each([
+    ['an opening private tag with no >', hostile('<private', '')],
+    ['closed private spans repeated', hostile('x<private>y</private>', '')],
+    ['a < and spaces', '<' + ' '.repeat(TWO_MB)]
+  ])('a claude text of %s takes well under a second', (_name, text) => {
+    expect(msOf(() => cleanSlice([said(text)], 0))).toBeLessThan(1000)
+  })
+})
+
 describe('isNonEvidenceTool', () => {
   it("holds exactly the web, subagent, MCP resource and other agents' tools", () => {
     expect([...NON_EVIDENCE_TOOLS].sort()).toEqual([

@@ -122,4 +122,17 @@ describe('parseRemember', () => {
       code: 'remember_secret'
     })
   })
+
+  // 13
+  it('a text that holds a private tag is refused as a secret is', () => {
+    expect([
+      parseRemember('db host = <private>10.0.0.5</private>'),
+      parseRemember('wrap it in <private> next time'),
+      parseRemember('private notes = /srv/acme/notes')
+    ]).toEqual([
+      { ok: false, code: 'remember_secret' },
+      { ok: false, code: 'remember_secret' },
+      { ok: true, text: { kind: 'specific', key: 'private notes', value: '/srv/acme/notes' } }
+    ])
+  })
 })

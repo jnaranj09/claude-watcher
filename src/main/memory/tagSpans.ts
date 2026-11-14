@@ -1,5 +1,5 @@
 // The one tag reader and span cutter for memory's text: the slice cleaner cuts `system-reminder`
-// spans with it. Pure, no I/O, no log (the text is the operator's conversation).
+// spans with it, and `privateSpans.ts` the private tag. Pure, no I/O, no log (the text is the operator's conversation).
 
 /** A `<name>` tag, opening or closing (a `/` among the spaces after `<`, capture group 1), in any
  *  case, with or without its `>`: the name is not followed by a name character, so `<names` is no
