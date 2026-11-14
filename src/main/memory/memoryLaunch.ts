@@ -13,7 +13,9 @@
 // The memory server's tokens are its own (`createSessionTokens`), so a memory bearer opens nothing
 // on `/mcp/goals` and a goals bearer nothing on `/mcp/memory`. Its config files share the goals
 // server's `<userData>/mcp/` folder, and the goals instance's one start sweep clears both, so this
-// instance has no `clearStale` (a second sweep could only delete live files).
+// instance has no `clearStale` (a second sweep could only delete live files). The same tokens open
+// the `watcher-memory` mod's routes (`modMemoryWiring.ts`), built here so no caller can pair them
+// with another server's tokens.
 //
 // The `/clear` rebind and the card drop live in `window/cardState.ts`; a removed past record
 // forgets the session's save and marks its items and commands `Session deleted`
@@ -36,6 +38,7 @@ import {
   type MemoryGrant,
   type MemorySessionMeta
 } from './memoryTools'
+import { createModMemory, type ModMemory } from './modMemoryWiring'
 import { buildSessionIndex } from './sessionIndex'
 
 const AREA = 'memory'
@@ -131,8 +134,9 @@ export function memorySpawnExtras(
   }
 }
 
-/** The memory MCP server: its tokens, its config files and its endpoint (`MEMORY_MCP_PATH`). */
-export interface MemoryMcp {
+/** The memory MCP server: its tokens, its config files, its endpoint (`MEMORY_MCP_PATH`), and the
+ *  `watcher-memory` mod's recall service and routes behind the same tokens (`modMemoryWiring.ts`). */
+export interface MemoryMcp extends ModMemory {
   tokens: SessionTokens<MemoryGrant>
   /** No `clearStale`: the goals instance's start sweep clears this server's files too. */
   configs: Pick<McpConfigs, 'write' | 'rebind' | 'remove'>
@@ -145,6 +149,8 @@ export function createMemoryMcp(
     dir: () => string
     /** Storage health's `memory` reporter: a refused config write shows in `StorageNotice`. */
     report: (code: StorageProblemCode) => void
+    /** Recall also records what it injected. */
+    activity: Pick<MemoryActivityLog, 'injected' | 'record'>
   }
 ): MemoryMcp {
   const tokens = createSessionTokens<MemoryGrant>()
@@ -164,7 +170,8 @@ export function createMemoryMcp(
       serverName: MEMORY_MCP_SERVER_NAME,
       area: AREA,
       log: deps.log
-    })
+    }),
+    ...createModMemory({ ...deps, tokens })
   }
 }
 

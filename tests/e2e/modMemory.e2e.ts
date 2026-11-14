@@ -5,13 +5,26 @@
 import { E2E_PROFILE } from '../../src/main/profile'
 import { test, expect } from './fixtures'
 
+const post = (path: string): Promise<Response> =>
+  fetch(`http://127.0.0.1:${E2E_PROFILE.hookPort}${path}`, { method: 'POST', body: '{}' })
+
 test('the memory mod routes are served by the app: no bearer is 401, an unknown one is 404', async ({
   page
 }) => {
-  // The fixture's `page` is the app's own window, so the window feed (and its hook listener) is up.
-  await expect(page.locator('body')).toBeVisible()
-  const post = (path: string): Promise<Response> =>
-    fetch(`http://127.0.0.1:${E2E_PROFILE.hookPort}${path}`, { method: 'POST', body: '{}' })
+  // The window feed starts the hook listener once the window is shown (the engine-started signal
+  // is the empty board), and the bind is async: wait until the listener answers at all (a refused
+  // connection rejects) before reading any status.
+  await expect(page.locator('[data-testid="empty-board"]')).toBeVisible()
+  await expect
+    .poll(
+      () =>
+        post('/mod/memory/nope').then(
+          (res) => res.status,
+          () => 0
+        ),
+      { timeout: 15000 }
+    )
+    .not.toBe(0)
   expect([
     (await post('/mod/memory/index')).status,
     (await post('/mod/memory/recall')).status,

@@ -55,6 +55,15 @@ describe('createMemoryGate', () => {
     expect([before, after]).toEqual(['s1', null])
   })
 
+  it('reads the setting on every call, so Memory switched on again opens the next request', () => {
+    let on = false
+    const check = gate({ enabled: () => on })
+    const before = check({ sessionId: 's1' })
+    on = true
+    const after = check({ sessionId: 's1' })?.sessionId ?? null
+    expect([before, after]).toEqual([null, 's1'])
+  })
+
   it('answers null while the store is missing', () => {
     expect(gate({ store: () => null })({ sessionId: 's1' })).toBeNull()
   })

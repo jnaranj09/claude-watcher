@@ -68,8 +68,6 @@ import type { McpConfigs } from '../goals/mcp/mcpConfigFile'
 import { appMcpRoutes, type McpEndpoint } from '../mcp/mcpEndpoint'
 import type { MemoryMcp } from '../memory/memoryLaunch'
 import type { MemoryActivityLog } from '../memory/memoryActivity'
-import type { MemoryRecall } from '../memory/memoryRecall'
-import { modMemoryRoutes } from '../memory/modMemoryRoutes'
 import type { MemoryCommands } from '../memory/memoryCommands'
 import type { Extractor } from '../memory/extract/extractor'
 import type { MemoryStore } from '../memory/memoryStore'
@@ -199,9 +197,10 @@ export interface WatchFeedDeps {
     configs: McpConfigs
     endpoint: McpEndpoint<Grant>
   }
-  /** Memory (spec 2026-11-11): the memory server's tokens, config files and endpoint (each
-   *  window's hook listener serves it), the activity record, and the store (null while memory is
-   *  off), all of which follow a card on `/clear`. */
+  /** Memory (spec 2026-11-11): the memory server's tokens, config files, endpoint and the
+   *  `watcher-memory` mod's recall and routes (each window's hook listener serves the endpoint and
+   *  the routes), the activity record, and the store (null while memory is off), all of which
+   *  follow a card on `/clear`. */
   memoryMcp: MemoryMcp
   memoryActivity: MemoryActivityLog
   getMemoryStore: () => MemoryStore | null
@@ -209,10 +208,6 @@ export interface WatchFeedDeps {
   /** Saving memory from sessions (memory phase 2): a launched session's `Stop`, its end (archive,
    *  `/clear`) and its delete reach it here (`memorySavePoints.ts`); its save follows a `/clear`. */
   extractor: Pick<Extractor, 'stop' | 'ended' | 'forget' | 'rebind'>
-  /** Memory recall (memory phase 3): what each session's conversation window was told; each
-   *  window's hook listener serves the `watcher-memory` mod's routes from it, and it follows a
-   *  card on `/clear` and goes with it. */
-  memoryRecall: MemoryRecall
 }
 
 export interface WatchFeed {
@@ -251,8 +246,7 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
     memoryActivity,
     getMemoryStore,
     getMemoryCommands,
-    extractor,
-    memoryRecall
+    extractor
   } = deps
 
   // Transcript watchers — per-window handles, disposed in teardownWatchFeed so no fs watch
@@ -541,7 +535,7 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       memoryTokens: memoryMcp.tokens,
       memoryConfigs: memoryMcp.configs,
       memoryActivity,
-      memoryRecall,
+      memoryRecall: memoryMcp.recall,
       memoryStore: getMemoryStore(),
       memoryCommands: getMemoryCommands(),
       memoryExtract: extractor,
@@ -988,13 +982,9 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       mcpRoutes: appMcpRoutes({ goals: goalMcp.endpoint, memory: memoryMcp.endpoint }, (line) =>
         console.warn(line)
       ),
-      // The `watcher-memory` mod's routes (`/mod/memory/*`), behind the memory server's tokens.
-      tokenRoutes: modMemoryRoutes({
-        tokens: memoryMcp.tokens,
-        recall: memoryRecall,
-        now: Date.now,
-        log: (line) => console.warn(line)
-      }),
+      // The `watcher-memory` mod's routes (`/mod/memory/*`), behind the memory server's tokens
+      // (memory/modMemoryWiring.ts).
+      tokenRoutes: memoryMcp.modRoutes,
       log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`),
       // SEC-6 / UX-05 — only a bind THIS process made lets a spawn carry `--settings`.
       onListening: () => serverHealth.hookBound(),
