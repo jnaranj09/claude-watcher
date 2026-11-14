@@ -5,7 +5,9 @@
 // only: no `+ New`, no pin, and the right column is the read-only EpisodeForm. The list comes from
 // main a page at a time (useMemoryList); an open item is read whole (`window.memory.get`) and read
 // again whenever main says memory changed, without touching the draft being typed (the form keeps
-// its own state, keyed by the item).
+// its own state, keyed by the item). A specific main marks as holding the same value as another
+// one draws `Same value` in its row, and its form names the others (MemoryTwins; a click opens one,
+// listed or not).
 import { useEffect, useLayoutEffect, useRef, useState, type JSX, type ReactNode } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { MemoryGetResult } from '../../../../shared/ipc/contract'
@@ -32,6 +34,7 @@ import { EpisodeForm } from './EpisodeForm'
 import { MemoryFilters } from './MemoryFilters'
 import { MemoryForm } from './MemoryForm'
 import { MemoryHistory } from './MemoryHistory'
+import { MemoryTwins } from './MemoryTwins'
 import { MEMORY_COPY, memoryErrorCopy } from './memoryCopy'
 import { toMemoryFilters } from './memoryFilterMap'
 import { useMemoryList } from './useMemoryList'
@@ -129,7 +132,9 @@ export function MemoryPage({
     }
   }, [selectedId, reads])
 
-  const item = detail !== null && detail.item.id === selectedId ? detail.item : null
+  // The detail of the selected item, so its twins come from the same read as `item`.
+  const open = detail !== null && detail.item.id === selectedId ? detail : null
+  const item = open?.item ?? null
 
   // An aria-modal dialog must take focus on mount: the ✕ is the mount-stable target (the search
   // box is not drawn on an empty page).
@@ -226,6 +231,7 @@ export function MemoryPage({
           onDeleted={deleted}
           onChanged={refresh}
           onHistory={() => {}}
+          sameValue={null}
         />
       )
     }
@@ -258,6 +264,14 @@ export function MemoryPage({
           onDeleted={deleted}
           onChanged={refresh}
           onHistory={() => setHistoryOf(item.id)}
+          sameValue={
+            <MemoryTwins
+              twins={open?.twins ?? []}
+              more={open?.twinsMore ?? 0}
+              now={now}
+              onOpen={(id) => actions.select(id)}
+            />
+          }
         />
       )
     }
@@ -358,6 +372,9 @@ export function MemoryPage({
                     )}
                     {r.state === 'stale' && (
                       <WorkspaceLabel name={MEMORY_COPY.stale} tone="orphan" />
+                    )}
+                    {list.twinIds.has(r.id) && (
+                      <WorkspaceLabel name={MEMORY_COPY.sameValue} tone="orphan" />
                     )}
                   </span>
                 </span>

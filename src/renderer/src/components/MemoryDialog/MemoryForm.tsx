@@ -1,14 +1,15 @@
 // Memory — one item's form (spec 2026-11-11 memory §8, mockup option B): `Key` + `Value` (a
 // specific) or `Title` + `Body` (a fact), `Check`, explicit `Save`. An open item adds the action
 // row `[History] [Mark stale | Mark active]`, plus `[Open source]` when extraction kept where it
-// came from, then what main stamped, read-only: `Basis`, `Last seen`, then the lines it shares with
+// came from, then `Same value as` when main found other specifics with the same value
+// (`sameValue`, MemoryTwins), then what main stamped, read-only: `Basis`, `Last seen`, then the lines it shares with
 // an episode (MemoryItemParts: `Origin session` with `Session deleted`, `Folder`, `Tags`,
 // `Workspace`), and, while `Open source` is on, the stored quote in History's frame (PICK look 3;
 // nothing reads the transcript at view time, addendum D31). The footer is `[Delete] [Save]`. The
 // pin is on the row, never here (owner). A New form adds a `Global` switch: off, it is saved in the
 // scope's workspace. Keyed by the item, so a selection change remounts it with a fresh draft, and a
 // read of the same item (main's push) keeps the draft.
-import { useEffect, useId, useRef, useState, type FormEvent, type JSX } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type JSX, type ReactNode } from 'react'
 import {
   MemoryCreateSchema,
   MemoryEditSchema,
@@ -36,6 +37,8 @@ export interface MemoryFormProps {
   /** Main took a change that is not a save (the state): read the list and the item again. */
   onChanged: () => void
   onHistory: () => void
+  /** `Same value as` (MemoryTwins) for an open specific; null for the New form. */
+  sameValue: ReactNode
 }
 
 function headOf(item: MemoryItem): string {
@@ -53,7 +56,8 @@ export function MemoryForm({
   onSaved,
   onDeleted,
   onChanged,
-  onHistory
+  onHistory,
+  sameValue
 }: MemoryFormProps): JSX.Element {
   const { actions } = useManageDialogContext()
   const globalId = useId()
@@ -185,6 +189,7 @@ export function MemoryForm({
             )}
           </div>
 
+          {sameValue}
           <ManageDialog.Label>{MEMORY_COPY.basis}</ManageDialog.Label>
           <p className={styles.value} data-testid="memory-form-basis">
             {item.basis}

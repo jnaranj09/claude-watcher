@@ -11,6 +11,8 @@
 // never hides the other values it could be changed to. The same page says whether the scope holds
 // anything at all, which the empty page needs (`Nothing saved yet` must not stand over stale items
 // that `Show stale` hides).
+//
+// `twinIds` are the rows main marks as holding the same value as another specific (`Same value`).
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { MEMORY_LIMITS, type MemoryRow } from '../../../../shared/schemas/memory'
 import type { MemoryFilters } from '../../../../shared/memory/filterFields'
@@ -38,6 +40,8 @@ export interface MemoryList {
   sessionNames: readonly string[]
   /** The scope holds at least one item of this kind, stale or not, whatever the search. */
   anySaved: boolean
+  /** The loaded rows main marks as holding the same value as another specific. */
+  twinIds: ReadonlySet<string>
 }
 
 const PAGE = MEMORY_LIMITS.listLimit
@@ -46,19 +50,22 @@ interface Loaded {
   key: string
   rows: readonly MemoryRow[]
   total: number
+  twinIds: readonly string[]
   failed: boolean
 }
 
 async function loadPages(q: MemoryListQuery, pages: number): Promise<Omit<Loaded, 'key'>> {
   const rows: MemoryRow[] = []
+  const twinIds: string[] = []
   let total = 0
   for (let page = 0; page < pages; page += 1) {
     const answer = await window.memory.list({ ...q, offset: page * PAGE, limit: PAGE })
     rows.push(...answer.rows)
+    twinIds.push(...answer.twinIds)
     total = answer.total
     if (rows.length >= total) break
   }
-  return { rows, total, failed: false }
+  return { rows, total, twinIds, failed: false }
 }
 
 function distinct(values: readonly (string | null)[]): string[] {
@@ -91,7 +98,7 @@ export function useMemoryList(q: MemoryListQuery): MemoryList {
       })
       .catch(() => {
         console.warn('[claude-watcher][memory] code=memory_list_failed')
-        if (live) setLoaded({ key, rows: [], total: 0, failed: true })
+        if (live) setLoaded({ key, rows: [], total: 0, twinIds: [], failed: true })
       })
     return () => {
       live = false
@@ -134,6 +141,7 @@ export function useMemoryList(q: MemoryListQuery): MemoryList {
     reload: () => setGeneration((n) => n + 1),
     folders: distinct([...facets, ...rows].map((r) => r.folder)),
     sessionNames: distinct([...facets, ...rows].map((r) => r.sessionName)),
-    anySaved: facets.length > 0 || rows.length > 0
+    anySaved: facets.length > 0 || rows.length > 0,
+    twinIds: new Set(loaded?.twinIds ?? [])
   }
 }

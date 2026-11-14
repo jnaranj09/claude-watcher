@@ -158,7 +158,11 @@ variant="toolbar"` + magnifier, 32px like the board's) + the same `Filter` butto
   Folder, Session, Tag, Updated, Goal, Session deleted), folder / session / goal pick ONE value
   (`single`, radio rows that close: main filters by one), filters per page, never persisted.
 - Memory's pages: `Specifics` and `Facts` edit; an item a save kept with its quote has
-  `Open source` in its action row (the quote opens under the read-only lines). `Episodes` is written
+  `Open source` in its action row (the quote opens under the read-only lines). A specific main marks
+  as holding the same value as another one (`twinIds`) draws `Same value` in its row's meta line
+  (the `Stale` pill) and, in its form under the action row, `Same value as`: one ghost `sm` Button
+  per twin (its key, `title` `Open <key>`, its age beside it; a click opens it), `<n> more` past
+  five, and one hint. No toast, count or Callout flags it. `Episodes` is written
   by saves only: no `+ New`, no pin, a read-only form (`EpisodeForm`: `Title`, `Body`,
   `[Mark stale]`, `[Past sessions]` while the session's record is listed, `Ended`; no `History`,
   no `Save`; the footer is `Delete` only). `Commands` lists one workspace's commands that worked

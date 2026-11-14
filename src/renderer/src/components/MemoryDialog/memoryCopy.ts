@@ -55,9 +55,19 @@ export const MEMORY_COPY = {
   /** Mark stale / Mark active took: the button says so in place (its label then flips). */
   marked: '✓ Saved',
   stale: 'Stale',
+  /** The row marker of a specific that holds the same value as another one. */
+  sameValue: 'Same value',
+  /** The form's label over the other items that hold the same value. */
+  sameValueAs: 'Same value as',
+  /** The hint under them. */
+  sameValueHint: 'If one of them is out of date, mark it stale.',
   pickVersion: 'Pick a version to compare it with the text now.',
   currentVersion: 'This is the text now.',
   reason: (why: string): string => `Reason: ${why}`,
+  /** Twins past the five the form names: `2 more`. */
+  moreTwins: (n: number): string => `${n} more`,
+  /** A twin button's tooltip: what a click does, and the key in full. */
+  openTwin: (key: string): string => `Open ${key}`,
   /** How many times a command ran: `1 run`, `3 runs`. */
   runs: (n: number): string => (n === 1 ? '1 run' : `${n} runs`),
   /** A History version's age and who wrote it: `2 d ago, by Claude`. */

@@ -206,8 +206,11 @@ no **Index:** line.
 **☰ → Memory** lists the items of the workspace you are in (and the global ones) on four pages,
 **Specifics**, **Facts**, **Episodes** and **Commands**: search, filter by folder, session, tag,
 date or goal, edit, pin, mark stale, see **History** and restore a version, or delete. An item
-saved from a session has **Open source**, which shows the words it was taken from. An item is
-global or belongs to one workspace. Each record in **Past sessions** has a **Memory:** line (what
+saved from a session has **Open source**, which shows the words it was taken from. A specific
+that holds the same exact value (at least 4 characters with a digit, `_`, `/` or `.`) as another
+one in the same folder and workspace is marked **Same value**; open it to see the other one under
+**Same value as**, and mark the outdated one stale. The app changes neither. An item is global or
+belongs to one workspace. Each record in **Past sessions** has a **Memory:** line (what
 was saved, `nothing new`, `failed`, `saving…` or `off`) and the session's episode under it. The
 **Context** button of a session has a **Memory** page: the memory index the session got
 (**Index:** its tokens and items), what recall gave it while it ran (**With a prompt** / **With a
@@ -274,8 +277,12 @@ Known limits:
 - A value written right before a dotted or hyphenated continuation (`1.2` in `1.2.34`) is
   dropped on purpose: a cut version or address is worse than none.
 - A value inside the cut middle of a very long tool result is not saved.
-- Claude restating a saved value under another key can still be saved as a new item, and a
-  recalled value Claude restates can end up in a new task's title.
+- Claude restating a saved value under another key can still be saved as a new item (the
+  Memory dialog marks the two **Same value** when the value is exact), and a recalled value
+  Claude restates can end up in a new task's title.
+- **Same value** also marks two different things that share a value (two ports that are both
+  `8080` in one folder), and it cannot be dismissed. It compares items of one folder only: a
+  value saved again from another folder is not marked.
 - A resumed turn you stop with Esc sends no turn end, so its text is saved only after a later
   resume.
 - A conversation switched with `/resume` inside claude is saved at the next start.

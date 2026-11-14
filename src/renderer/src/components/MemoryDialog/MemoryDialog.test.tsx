@@ -16,9 +16,12 @@ import {
   MEMORY_NOW,
   factItem,
   installMemoryBridge,
+  rowOf,
   specificItem,
   type MemoryBridge
 } from '../../test/memoryBridge'
+
+const DAY = 86_400_000
 
 let bridge: MemoryBridge
 let unmount: (() => void) | undefined
@@ -354,5 +357,91 @@ describe('MemoryDialog — Open source', () => {
       normalizeWhitespace: false
     })
     expect(screen.queryAllByRole('link')).toHaveLength(0)
+  })
+})
+
+describe('MemoryDialog — same value', () => {
+  const pair = (): void => {
+    bridge = installMemoryBridge([
+      specificItem(),
+      specificItem({ id: 'm2', key: 'port of the api' })
+    ])
+    bridge.twins = {
+      m1: [{ id: 'm2', key: 'port of the api', updatedAt: MEMORY_NOW - 9 * DAY }],
+      m2: [{ id: 'm1', key: 'API port', updatedAt: MEMORY_NOW - 2 * DAY }]
+    }
+  }
+  const twins = (): HTMLElement => screen.getByTestId('memory-twins')
+
+  // 1
+  it('a row whose value another specific holds shows Same value; one with no twin does not', async () => {
+    pair()
+    bridge.items.push(specificItem({ id: 'm3', key: 'web port', value: '9444' }))
+    await open()
+    expect(within(row('API port')).getByText('Same value')).toBeVisible()
+    expect(within(row('port of the api')).getByText('Same value')).toBeVisible()
+    expect(within(row('web port')).queryByText('Same value')).not.toBeInTheDocument()
+  })
+  // 2
+  it('the open item names its twin with its age, and says what to do', async () => {
+    pair()
+    await open()
+    await userEvent.click(row('API port'))
+    expect(await screen.findByText('Same value as')).toBeVisible()
+    const other = within(twins()).getByRole('button', { name: 'port of the api' })
+    expect(other).toHaveAttribute('title', 'Open port of the api')
+    expect(twins()).toHaveTextContent('9 d ago')
+    expect(screen.getByText('If one of them is out of date, mark it stale.')).toBeVisible()
+  })
+  // 3
+  it('a click on a twin opens it in the form', async () => {
+    pair()
+    await open()
+    await userEvent.click(row('API port'))
+    await userEvent.click(await within(twins()).findByRole('button', { name: 'port of the api' }))
+    expect(bridge.get).toHaveBeenLastCalledWith('m2')
+    expect(await screen.findByDisplayValue('port of the api')).toBeVisible()
+    expect(within(twins()).getByRole('button', { name: 'API port' })).toBeVisible()
+  })
+  // 4
+  it('twins past the five named are counted', async () => {
+    bridge = installMemoryBridge([specificItem()])
+    bridge.twins = {
+      m1: ['b', 'c', 'd', 'e', 'f', 'g', 'h'].map((k) => ({
+        id: `t-${k}`,
+        key: `port ${k}`,
+        updatedAt: MEMORY_NOW - DAY
+      }))
+    }
+    await open()
+    await userEvent.click(row('API port'))
+    expect(await within(twins()).findAllByRole('button')).toHaveLength(5)
+    expect(twins()).toHaveTextContent('2 more')
+  })
+  // 5
+  it('an item with no twin, a fact and the New form show no Same value as', async () => {
+    bridge = installMemoryBridge([specificItem(), factItem()])
+    await open()
+    await userEvent.click(row('API port'))
+    expect(await screen.findByTestId('memory-form-basis')).toBeVisible()
+    expect(screen.queryByText('Same value as')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByTestId('memory-new'))
+    expect(screen.queryByText('Same value as')).not.toBeInTheDocument()
+  })
+  // 6 (Review Focus 3)
+  it('a twin the list does not show still opens', async () => {
+    pair()
+    bridge.list.mockImplementation((req) =>
+      Promise.resolve({
+        rows: bridge.items.filter((i) => i.id === 'm1' && i.kind === req.kind).map(rowOf),
+        total: 1,
+        twinIds: ['m1']
+      })
+    )
+    await open()
+    expect(screen.queryByRole('button', { name: /^port of the api/ })).not.toBeInTheDocument()
+    await userEvent.click(row('API port'))
+    await userEvent.click(await within(twins()).findByRole('button', { name: 'port of the api' }))
+    expect(await screen.findByDisplayValue('port of the api')).toBeVisible()
   })
 })
