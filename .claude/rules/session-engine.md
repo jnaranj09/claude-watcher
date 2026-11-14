@@ -296,8 +296,10 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   tool call supports is dropped (`claude_only`, P3-R1). A save updates a fact only when it brings a
   new exact value (a token of at least 4 characters with a digit, `_`, `/` or `.`,
   `memory/exactTerms.ts`) that stands in the entry its quote was found in; a reworded or renamed
-  fact, or one whose only new value is shorter (`Node 22`, port `80`), is edited by hand
-  (`claude_only`, P3-C6, P3-C11). Only a quote found in a tool result or in
+  fact, an operator's prose correction, or one whose only new value is shorter (`Node 22`, port
+  `80`), is edited by hand (`no_new_value`, `No new exact value`: its quote is a sighting, so not
+  `claude_only`; P3-C6, P3-C11, P3-C30). Drop reasons live only in the session's activity (RAM)
+  and the `memory_candidates_dropped` log line. Only a quote found in a tool result or in
   the operator's text moves an item's (a `none`) or a task's (an update) last-seen date; claude
   repeating what memory told it moves nothing (R48). A save never closes, pins or deletes: open
   work becomes a task (`settings.memorySaveTasks`) and a session only flags one (`task_report`).

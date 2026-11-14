@@ -76,7 +76,8 @@ export const DROP_REASON_COPY: Readonly<Record<DropReason, string>> = {
   invalid: 'Not valid',
   operator_item: 'You wrote that item',
   tasks_off: 'Tasks are off',
-  claude_only: 'Only Claude said it'
+  claude_only: 'Only Claude said it',
+  no_new_value: 'No new exact value'
 }
 
 /** Why a session runs without recall, when the operator did not choose it (memory phase 3).

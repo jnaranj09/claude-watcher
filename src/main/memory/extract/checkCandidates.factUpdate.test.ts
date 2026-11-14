@@ -1,6 +1,8 @@
 // P3-C6: a fact update is kept only when its new body brings an exact value (a token with a digit,
 // `_`, `/` or `.`) the old body lacks, and every such value stands whole in the entry its quote was
-// found in. Every path that ends in a fact update: asked for, D17 (an add), R11 (a none).
+// found in. Every path that ends in a fact update: asked for, D17 (an add), R11 (a none). Its
+// quote stands in a tool result or the operator's text here (else P3-R1 drops it as `claude_only`
+// first), so such a drop is `no_new_value` (P3-C30).
 // Synthetic text.
 import { describe, expect, it } from 'vitest'
 import type { ExtractCandidate } from '../../../shared/schemas/memoryExtract'
@@ -28,14 +30,14 @@ const factCand = (
 
 describe('checkCandidates: a fact update needs a new exact value its evidence holds (P3-C6)', () => {
   it.each(PATHS)(
-    'P3-C6: %s that only rewords the fact, quoting an unrelated tool result, is dropped as claude_only',
+    'P3-C6: %s that only rewords the fact, quoting an unrelated tool result, is dropped as no_new_value',
     (_, over) => {
       const reworded = 'Every deploy starts from release/v2.3, on port 9280.'
       expect(
         check([factCand(over, reworded, 'api listening on http://127.0.0.1:9281')], {
           items: ITEMS
         })
-      ).toEqual({ kept: [], dropped: ['claude_only'] })
+      ).toEqual({ kept: [], dropped: ['no_new_value'] })
     }
   )
 
@@ -63,7 +65,7 @@ describe('checkCandidates: a fact update needs a new exact value its evidence ho
   )
 
   it.each(PATHS)(
-    "P3-C6: %s whose new value stands only in claude's own text is dropped as claude_only",
+    "P3-C6: %s whose new value stands only in claude's own text is dropped as no_new_value",
     (_, over) => {
       const body = 'Deploys run from release/v2.4 on port 9280.'
       const entries = [...ENTRIES, entry(4, 'claude', 'From now on deploys use release/v2.4.')]
@@ -72,17 +74,17 @@ describe('checkCandidates: a fact update needs a new exact value its evidence ho
           items: ITEMS,
           entries
         })
-      ).toEqual({ kept: [], dropped: ['claude_only'] })
+      ).toEqual({ kept: [], dropped: ['no_new_value'] })
     }
   )
 
   it.each(PATHS)(
-    'P3-C6: %s with two new values, one missing from its evidence entry, is dropped as claude_only',
+    'P3-C6: %s with two new values, one missing from its evidence entry, is dropped as no_new_value',
     (_, over) => {
       const body = 'Deploys run from release/v2.4 on port 9300.'
       expect(
         check([factCand(over, body, SWITCHED)], { items: ITEMS, entries: WITH_RESULT })
-      ).toEqual({ kept: [], dropped: ['claude_only'] })
+      ).toEqual({ kept: [], dropped: ['no_new_value'] })
     }
   )
 
@@ -118,7 +120,7 @@ describe('checkCandidates: a fact update needs a new exact value its evidence ho
           entries
         }
       )
-    ).toEqual({ kept: [], dropped: ['claude_only'] })
+    ).toEqual({ kept: [], dropped: ['no_new_value'] })
   })
 
   it('P3-C6: a new value the quoted entry holds only inside a longer token is dropped', () => {
@@ -129,7 +131,7 @@ describe('checkCandidates: a fact update needs a new exact value its evidence ho
         items: ITEMS,
         entries: [...ENTRIES, entry(4, 'result', line)]
       })
-    ).toEqual({ kept: [], dropped: ['claude_only'] })
+    ).toEqual({ kept: [], dropped: ['no_new_value'] })
   })
 
   it('P3-C6: a value that differs from the old one only in case is not new', () => {
@@ -140,7 +142,7 @@ describe('checkCandidates: a fact update needs a new exact value its evidence ho
         items: ITEMS,
         entries: [...ENTRIES, entry(4, 'result', line)]
       })
-    ).toEqual({ kept: [], dropped: ['claude_only'] })
+    ).toEqual({ kept: [], dropped: ['no_new_value'] })
   })
 
   it('P3-C6: a new path alone (no digit, `_` or `.`) that its evidence lacks is dropped', () => {
@@ -153,16 +155,16 @@ describe('checkCandidates: a fact update needs a new exact value its evidence ho
         ],
         { items, entries: [...ENTRIES, entry(4, 'result', line)] }
       )
-    ).toEqual({ kept: [], dropped: ['claude_only'] })
+    ).toEqual({ kept: [], dropped: ['no_new_value'] })
   })
 
-  it('P3-C11: an update that only renames the fact, body unchanged, is dropped as claude_only', () => {
+  it('P3-C11: an update that only renames the fact, body unchanged, is dropped as no_new_value', () => {
     expect(
       check([factCand({ action: 'update', id: 'f-1', head: 'Release flow' }, OLD, SWITCHED)], {
         items: ITEMS,
         entries: WITH_RESULT
       })
-    ).toEqual({ kept: [], dropped: ['claude_only'] })
+    ).toEqual({ kept: [], dropped: ['no_new_value'] })
   })
 
   it('P3-C11: a short new value (under 4 characters) its evidence holds does not update a fact', () => {
@@ -173,7 +175,17 @@ describe('checkCandidates: a fact update needs a new exact value its evidence ho
         items,
         entries: [...ENTRIES, entry(4, 'result', line)]
       })
-    ).toEqual({ kept: [], dropped: ['claude_only'] })
+    ).toEqual({ kept: [], dropped: ['no_new_value'] })
+  })
+
+  it("P3-C30: the operator's prose correction it quotes, with no new exact value, is dropped as no_new_value", () => {
+    const line = 'correction: the deploy uses pnpm now, not npm'
+    expect(
+      check(
+        [factCand({ action: 'update', id: 'f-1' }, 'Deploys use pnpm, from release/v2.3.', line)],
+        { items: ITEMS, entries: [...ENTRIES, entry(4, 'operator', line)] }
+      )
+    ).toEqual({ kept: [], dropped: ['no_new_value'] })
   })
 
   it('P3-C6: a new fact with no exact value is still added', () => {

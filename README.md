@@ -165,8 +165,9 @@ what is new in the session's transcript and proposes what to keep; the app keeps
 when the quote it gives is found in the transcript, and drops the rest (Context → **Memory**
 lists what was dropped and why, while the session is on the board). A save updates a fact only
 when it brings a new exact value (at least 4 characters with a digit, `_`, `/` or `.`) that the
-session saw; a reworded or renamed fact, or one whose only new value is shorter (`Node 22`, port
-`80`), is edited by hand. When a
+session saw; a reworded or renamed fact, a correction you type in prose, or one whose only new
+value is shorter (`Node 22`, port `80`), is edited by hand (Context lists it as **No new exact
+value**). When a
 session ends, a toast says how its save went: **Memory saved from "…"** with what went to memory
 and how many tasks (**Show**, offered only when something went to memory, opens Memory on that session),
 **Nothing new to remember**, or **Could not save memory**. A save at a checkpoint or at the next

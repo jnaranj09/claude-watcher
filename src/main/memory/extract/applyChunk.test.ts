@@ -342,7 +342,7 @@ describe('items', () => {
         operatorWrote: () => false
       }
     )
-    expect(checked).toEqual({ kept: [], dropped: ['claude_only'] })
+    expect(checked).toEqual({ kept: [], dropped: ['no_new_value'] })
     const out = applyChunk(
       { ...deps, now: () => NOW + 500 },
       write({ kept: checked.kept, entries })

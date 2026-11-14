@@ -218,7 +218,10 @@ export const DROP_REASONS = [
   'invalid',
   'operator_item',
   'tasks_off',
-  'claude_only'
+  'claude_only',
+  // A fact update whose quote is a sighting (a tool result, the operator's text) but whose new body
+  // brings no new exact value that entry holds (P3-C6, P3-C30).
+  'no_new_value'
 ] as const
 export type DropReason = (typeof DROP_REASONS)[number]
 

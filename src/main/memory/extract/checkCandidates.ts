@@ -282,9 +282,11 @@ function bringsSeenValue(oldBody: string, newBody: string, at: CleanEntry | unde
 }
 
 /** Steps 2 to 5 for one candidate whose shape passed. After D16, an item update whose evidence is
- *  no sighting is dropped (`claude_only`, P3-R1), and so is a fact update that brings no new exact
- *  value its evidence entry holds (P3-C6: a fact's body is never looked for in its quote, so a
- *  reworded fact is edited by hand); an inferred add or none is kept. */
+ *  no sighting is dropped (`claude_only`, P3-R1), and a fact update that brings no new exact
+ *  value its evidence entry holds is dropped as `no_new_value` (P3-C6, P3-C30: its quote is a
+ *  sighting, so "only Claude said it" would be false; a fact's body is never looked for in its
+ *  quote, so a reworded fact, or an operator's prose correction, is edited by hand); an inferred
+ *  add or none is kept. */
 function checkOne(c: ExtractCandidate, s: Shaped, ctx: Ctx): Checked | DropReason {
   if (s.kind === 'task' && !ctx.tasksOn) return 'tasks_off'
   if ([c.head, c.body, c.check, c.evidence].some((v) => v !== null && hasSecret(v))) return 'secret'
@@ -314,11 +316,11 @@ function checkOne(c: ExtractCandidate, s: Shaped, ctx: Ctx): Checked | DropReaso
   // P3-R1: an update (asked for, or made by D17 or R11) only claude's own text or a tool call
   // supports never rewrites a saved item.
   if (reconciled.action === 'update' && !isSighting(found.basis)) return 'claude_only'
-  // P3-C6: the same paths, for a fact.
+  // P3-C6: the same paths, for a fact (a sighting by now, so its own reason, P3-C30).
   if (reconciled.action === 'update' && s.text.kind === 'fact') {
     const oldBody = ctx.items.find((item) => item.id === reconciled.id)?.body ?? ''
     const at = ctx.entries.find((e) => e.entryId === found.entryId)
-    if (!bringsSeenValue(oldBody, s.text.body, at)) return 'claude_only'
+    if (!bringsSeenValue(oldBody, s.text.body, at)) return 'no_new_value'
   }
   return { kind: 'item', ...reconciled, text: s.text, check: s.check, basis: found.basis, source }
 }
