@@ -92,7 +92,28 @@ describe('parseRemember', () => {
   })
 
   it('a text the memory text schema refuses is invalid', () => {
-    expect(parseRemember('one\r\ntwo')).toEqual({ ok: false, code: 'remember_invalid' })
+    expect(parseRemember('one\u0007two')).toEqual({ ok: false, code: 'remember_invalid' })
+  })
+
+  it('P3-C14: Windows line ends are saved as line breaks', () => {
+    expect(parseRemember('one\r\ntwo\r\n')).toEqual({
+      ok: true,
+      text: { kind: 'fact', title: 'one', body: 'one\ntwo' }
+    })
+  })
+
+  it('P3-C14: a lone carriage return is saved as a line break', () => {
+    expect(parseRemember('one\rtwo')).toEqual({
+      ok: true,
+      text: { kind: 'fact', title: 'one', body: 'one\ntwo' }
+    })
+  })
+
+  it('the title is the first line trimmed, before it is cut', () => {
+    expect(parseRemember(`${'a'.repeat(118)}     \nb`)).toMatchObject({
+      ok: true,
+      text: { kind: 'fact', title: 'a'.repeat(118) }
+    })
   })
 
   it('a text the secret scan matches is refused before it is split', () => {

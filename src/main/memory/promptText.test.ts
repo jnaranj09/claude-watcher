@@ -1,6 +1,8 @@
 // Saved text as a model reads it: one line, or a block whose every line is indented. Every line
 // break Unicode counts ends a line; every other control character becomes a space.
 import { describe, expect, it } from 'vitest'
+import { TranscriptEntrySchema } from '../../shared/schemas/transcriptEntry'
+import { cleanSlice } from './extract/sliceCleaner'
 import { indentedBlock, oneLine, wrapperSafe } from './promptText'
 
 /** Tag forms the slice cleaner cuts (`sliceCleaner.test.ts`, P3-C7): each must be neutralised. */
@@ -113,5 +115,53 @@ describe('wrapperSafe (P3-C1)', () => {
     expect(
       ['<system-reminders>', '< system reminder>', '<<', 'system-reminder>'].map(wrapperSafe)
     ).toEqual(['\u2039system-reminders>', '< system reminder>', '<<', 'system-reminder>'])
+  })
+})
+
+/** The texts the slice cleaner keeps of one typed prompt: its own reminder-tag cut and marker
+ *  check, not a copy of them. A prompt it keeps whole holds no tag and no marker. */
+const cleanerKeeps = (text: string): string[] =>
+  cleanSlice(
+    [
+      {
+        entry: TranscriptEntrySchema.parse({
+          type: 'user',
+          uuid: 'u-1',
+          promptSource: 'typed',
+          message: { content: text }
+        }),
+        end: 1
+      }
+    ],
+    0
+  ).entries.map((e) => e.text)
+
+/** Saved bodies whose tag or marker is split over two lines, in forms the cleaner folds. */
+const SPLIT_BODIES = [
+  'done <\n/system-reminder>',
+  'done < /\n SYSTEM-Reminder >',
+  'Memory (Claude\nWatcher): x',
+  'mem\u200bory ( CLAUDE\n watcher ) : x',
+  'Memory (Claude Watcher)\n: x'
+]
+
+describe('indentedBlock across lines (P3-C15)', () => {
+  it('a tag split over two lines is neutralised before the lines are indented', () => {
+    expect(indentedBlock('done <\n/system-reminder>')).toEqual([
+      '  done \u2039',
+      '  /system-reminder>'
+    ])
+  })
+
+  it('a marker split over two lines is neutralised before the lines are indented', () => {
+    expect(indentedBlock('Memory (Claude\nWatcher): x')).toEqual([
+      '  Memory (Claude',
+      '  Watcher)\uA789 x'
+    ])
+  })
+
+  it('the slice cleaner finds no tag and no marker in a body block of any split form', () => {
+    const blocks = SPLIT_BODIES.map((body) => ['body:', ...indentedBlock(body)].join('\n'))
+    expect(blocks.map(cleanerKeeps)).toEqual(blocks.map((block) => [block]))
   })
 })

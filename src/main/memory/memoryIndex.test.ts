@@ -417,6 +417,13 @@ describe('buildMemoryIndex', () => {
     ])
   })
 
+  it("P3-C15: a pinned title named like the marker cannot complete it with the line's own colon", () => {
+    const out = buildMemoryIndex({ ...EMPTY, pinned: [fact({ title: 'Memory (Claude Watcher)' })] })
+    expect(out.text.split('\n').at(-1)).toBe(
+      '- Memory (Claude Watcher)\uA789 Tag, then push. (seen 2026-11-10, stated)'
+    )
+  })
+
   it('takes other rules as its first block', () => {
     expect(buildMemoryIndex(EMPTY, undefined, undefined, 'RULES').text).toBe('RULES')
   })

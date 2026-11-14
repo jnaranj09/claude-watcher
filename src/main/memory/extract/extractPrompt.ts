@@ -61,7 +61,7 @@ const quoted = (text: string): string =>
  *  for no entries. Item and task lines carry id, kind and head only (never an item's body). Every
  *  free text is one line (a note, a folder, a head and a title through `oneLine`, the session name
  *  as a JSON string with U+0085, U+2028 and U+2029 escaped), so none of it can start a line of its
- *  own. */
+ *  own; each goes through `wrapperSafe` (P3-C1, P3-C15 for the name). */
 export function buildExtractInput(input: {
   final: boolean
   sessionName: string
@@ -72,7 +72,7 @@ export function buildExtractInput(input: {
   tasks: readonly ScopeTask[]
   entries: readonly CleanEntry[]
 }): string {
-  const name = quoted(input.sessionName)
+  const name = quoted(wrapperSafe(input.sessionName))
   return [
     input.final
       ? 'This is the end of the session. Return its episode too.'

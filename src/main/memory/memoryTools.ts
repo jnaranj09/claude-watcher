@@ -21,7 +21,8 @@
 // Saved text cannot pass for a field of the result (`promptText.ts`): every one-line field (a
 // key, a title, a source quote, a command, a session or tag name) is printed on one line, and a
 // fact's or an episode's body comes last, after `body:`, each of its lines indented. Neither can
-// pose as a system-reminder tag or the memory block marker (P3-C1).
+// pose as a system-reminder tag or the memory block marker (P3-C1), and the whole result goes
+// through `wrapperSafe` once more, so a field's own punctuation cannot complete one (P3-C15).
 import { z } from 'zod'
 import { MemoryFiltersSchema, memoryFilterJsonSchema } from '../../shared/memory/filterFields'
 import { TASK_REPORT_EVIDENCE_MAX, TaskReportSchema } from '../../shared/schemas/goal'
@@ -46,7 +47,7 @@ import type { MemoryCommands } from './memoryCommands'
 import type { MemoryNames } from './memoryNames'
 import { createMemoryGate, sessionItemMeta, type MemoryCall } from './memoryGate'
 import type { FilterContext, MemoryStore } from './memoryStore'
-import { indentedBlock, oneLine } from './promptText'
+import { indentedBlock, oneLine, wrapperSafe } from './promptText'
 
 export type MemoryGrant = { sessionId: string }
 
@@ -274,7 +275,13 @@ const DEFS: Record<MemoryToolName, McpToolDef> = {
 }
 
 const refused = (code: string): McpToolOutcome => ({ kind: 'result', text: code, isError: true })
-const ok = (text: string): McpToolOutcome => ({ kind: 'result', text, isError: false })
+/** Every result goes through `wrapperSafe` whole (P3-C15): a field's own `: ` or the line after it
+ *  can never complete a tag or the marker a saved text starts. */
+const ok = (text: string): McpToolOutcome => ({
+  kind: 'result',
+  text: wrapperSafe(text),
+  isError: false
+})
 /** The model reads the sentence; the endpoint logs the code. */
 const notAvailable = (): McpToolOutcome => ({
   kind: 'result',

@@ -83,8 +83,12 @@ export function oneLine(text: string): string {
   return wrapperSafe(linesOf(text).join(' '))
 }
 
-/** A multi-line saved text set apart as a block: each of its lines through `wrapperSafe`, then
- *  indented by two spaces, so no line of it starts where a field (`basis:`) or a heading starts. */
+/** A multi-line saved text set apart as a block: its lines joined by `\n` through `wrapperSafe`
+ *  (P3-C15: a tag or a marker split over two lines is caught), then split again and each indented
+ *  by two spaces, so no line of it starts where a field (`basis:`) or a heading starts.
+ *  `wrapperSafe` never adds or removes a `\n`, and the indent adds only spaces its patterns span. */
 export function indentedBlock(text: string): string[] {
-  return linesOf(text).map((line) => `  ${wrapperSafe(line)}`)
+  return wrapperSafe(linesOf(text).join('\n'))
+    .split('\n')
+    .map((line) => `  ${line}`)
 }

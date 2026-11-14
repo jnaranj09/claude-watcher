@@ -3,13 +3,15 @@
 // open tasks of the session's folder, the specifics saved for it and its recent sessions
 // (episodes). It states dates, not facts: memory is a record of what was seen. Every saved text
 // is put on one line (`oneLine`), so none can start a line of its own (a heading, a rule), pose as
-// a system-reminder tag or forge the memory block marker (P3-C1). Memory text is sensitive: this
-// module logs nothing.
+// a system-reminder tag or forge the memory block marker (P3-C1). The pinned line, the one line
+// that puts `: ` right after a saved text, goes through `wrapperSafe` once more, so that `: ` can
+// never complete the marker (P3-C15); the other lines put ` (` or ` · ` after saved text, which
+// cannot. Memory text is sensitive: this module logs nothing.
 import { MEMORY_LIMITS, type MemoryItem, type MemoryRow } from '../../shared/schemas/memory'
 import { formatDay, localDaysBetween } from './formatDay'
 import type { EpisodeRow } from './memoryRows'
 import type { IndexTask } from './memoryTasks'
-import { MEMORY_BLOCK_MARKER, oneLine } from './promptText'
+import { MEMORY_BLOCK_MARKER, oneLine, wrapperSafe } from './promptText'
 
 /** Read by a model: change a word only on purpose. */
 export const MEMORY_RULES_OF_USE = [
@@ -38,12 +40,14 @@ const FOLDER_HEADING = '## Specifics for this folder'
 const EPISODES_HEADING = '## Recent sessions'
 
 /** A pinned item: its head, its text, the day it was seen and its basis, then its check and a
- *  deleted session. */
+ *  deleted session. The composed line goes through `wrapperSafe` (P3-C15). */
 export function pinnedLine(item: MemoryItem): string {
   const [head, text] = item.kind === 'specific' ? [item.key, item.value] : [item.title, item.body]
   const check = item.check === null ? '' : ` · check: ${oneLine(item.check)}`
   const deleted = item.originDeletedAt === null ? '' : ' · session deleted'
-  return `- ${oneLine(head)}: ${oneLine(text)} (seen ${formatDay(item.lastSeenAt)}, ${item.basis})${check}${deleted}`
+  return wrapperSafe(
+    `- ${oneLine(head)}: ${oneLine(text)} (seen ${formatDay(item.lastSeenAt)}, ${item.basis})${check}${deleted}`
+  )
 }
 
 /** A specific of the folder: its head, the day it was last written and its id. */
