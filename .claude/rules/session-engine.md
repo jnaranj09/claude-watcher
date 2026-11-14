@@ -71,7 +71,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `tests/main/memoryModBounds.guard.test.ts` reads every file the installer ships from the mod
   folder (its `ships` rule) and bounds what it may hook and call (each hook inline, each `on(…)`
   but `command.run` ending in `.catch(…)`, `ask`'s path a `MOD_PATHS` member, one fetch); a
-  shipped file that is neither scanned `.ts` nor `plugin.json` / `hooks.json` fails it; it is a
+  shipped file that is neither scanned `.ts` nor `plugin.json` / `hooks.json` fails it, and those
+  two are pinned to their exact content (no command hook, `mcpServers` or `hooks` key); it is a
   tripwire for honest mistakes, not a sandbox (P3-C25, P3-C27): review of the mod's files is the
   control.
   `src/mod/engine.d.ts` is the one ambient engine type file for both mods (not shipped).
@@ -201,7 +202,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   differs from the one main keeps (a late one from an older window too, P3-C16) resets what main
   remembers the session was told (the index's ids, the ids given since, at most 500, and the
   characters given). The mod races each call: 500 ms (index), 250 ms (recall), 250 ms (at use),
-  3,000 ms (`/remember`); a miss or a failed call pauses every call but `/remember` for 30 s.
+  3,000 ms (`/remember`); a miss or a failed call pauses every call but `/remember` and a window's one index ask (below)
+  for 30 s.
   An index ask main ANSWERS with a no (Memory off, the gate) clears the mod's index; only a failed
   ask keeps the last good one (P3-C22). So a window that began while Memory was off keeps no
   section and no folder keys after Memory is back on: they come back at the next window (the next

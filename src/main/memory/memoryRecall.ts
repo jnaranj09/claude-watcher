@@ -317,6 +317,7 @@ export function createMemoryRecall(deps: {
       windows.delete(oldSessionId)
       launches.delete(oldSessionId)
       // After `/clear` the conversation is new: it holds the index the mod sends next.
+      // Dropping it under the old id only frees memory: no ask comes under that id again.
       resumed.delete(oldSessionId)
       if (state !== undefined) windows.set(newSessionId, state)
       if (launch !== undefined) launches.set(newSessionId, launch)

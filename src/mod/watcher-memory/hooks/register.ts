@@ -57,7 +57,8 @@ let cached: { text: string; folders: string[] } | undefined
 let decided: number | undefined
 /** Folders already asked at use in this window (main had nothing more, or is being asked). */
 const asked = new Set<string>()
-/** Until this time (on `$.clock`) no call but `/remember` goes to main. */
+/** Until this time (on `$.clock`) no call goes to main but `/remember` and a window's one index
+ *  ask, which ignores the pause (P3-C28). */
 let pausedUntil = 0
 
 /** POSTs `body` to main's `path` and answers its text, or undefined: off, paused, or main did not
