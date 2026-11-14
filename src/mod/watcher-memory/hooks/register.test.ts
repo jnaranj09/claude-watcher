@@ -598,3 +598,25 @@ test("a /context render asks nothing and leaves the window's ask to the next req
     [index(0)]
   ])
 })
+
+test('while Memory is off the later composes of the same window ask nothing', async ($, on) => {
+  const { sent } = world(on, ENV, indexInTurn([MEMORY_OFF]))
+  await $.session.start(START)
+  await $.prompt.compose(COMPOSE)
+  const again = await $.prompt.compose(COMPOSE)
+  expect([again, sent]).toEqual([{ sections: [CORE] }, [index(0)]])
+})
+
+test('when Memory comes back mid-window no section is added until the next window', async ($, on) => {
+  const { sent } = world(on, ENV, indexInTurn([MEMORY_OFF, GOOD_INDEX, GOOD_INDEX]))
+  await $.session.start(START)
+  await $.prompt.compose(COMPOSE)
+  const sameWindow = await $.prompt.compose(COMPOSE)
+  await $.session.end(END_CLEAR)
+  const nextWindow = await $.prompt.compose(COMPOSE)
+  expect([sameWindow, nextWindow, sent]).toEqual([
+    { sections: [CORE] },
+    { sections: [CORE, SECTION] },
+    [index(0), index(1)]
+  ])
+})

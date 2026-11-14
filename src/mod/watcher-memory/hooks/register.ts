@@ -123,7 +123,9 @@ export const register: Register = (on) => {
       const answer = readIndexAnswer(res)
       if (answer !== undefined) cached = { window, ...answer }
       // main said no (Memory off, P3-C22): drop the index for this window. A failed ask (timer,
-      // throw, non-200, garbage) keeps the last good one.
+      // throw, non-200, garbage) keeps the last good one. Empty for the window, not undefined: no
+      // index ask per model call while Memory is off, and no section added mid-conversation when
+      // it comes back (that would change the system prompt); it returns at the next window's ask.
       else if (isNotOk(res)) cached = { window, text: '', folders: [] }
     }
     if (cached === undefined || cached.text === '') return composed

@@ -207,12 +207,14 @@ describe('the memory mod protocol', () => {
         '{"ok":false}',
         '{"ok":false,"code":"x"}',
         '{"ok":true,"text":""}',
+        '{}',
+        '{"ok":"no"}',
         'not json',
         '[]',
         '',
         'null'
       ].map(isNotOk)
-    ).toEqual([true, true, false, false, false, false, false])
+    ).toEqual([true, true, false, false, false, false, false, false, false])
   })
 
   it('rememberBody cuts the text to 8,000 characters', () => {
