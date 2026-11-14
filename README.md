@@ -273,7 +273,8 @@ Known limits:
   into a tool call or reads back from a tool with no tags around it is read like any other
   text; Claude's own memory tools and the Memory dialog's forms save what they are given. A
   file that shows an opening `<private>` with no closing tag (documentation, source code)
-  hides the rest of that tool result from a save.
+  hides the rest of that tool result from a save. Text inside the tag that Claude's own reply
+  splits over two text parts is cut only in the first part; the rest is read.
 - A value written right before a dotted or hyphenated continuation (`1.2` in `1.2.34`) is
   dropped on purpose: a cut version or address is worse than none.
 - A value inside the cut middle of a very long tool result is not saved.

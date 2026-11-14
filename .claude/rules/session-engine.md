@@ -274,8 +274,9 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `EXTRACT_LIMITS.readBytesPerJob`), cleaned (`sliceCleaner.ts`: no thinking, web, MCP,
   subagent and other agents' results without their text (P3-R3), `<private>` spans replaced by
   the secret mark first (`privateSpans.ts`: any case, an unclosed tag takes the rest of that text;
-  operator and claude text, tool arguments and results; a Bash command that holds the tag is not
-  captured), secrets replaced, `secretScan.ts`); what memory itself told the session (a block that starts
+  operator and claude text, tool arguments and results; each claude text part is cut alone, so a
+  span claude splits over two parts is cut only in the first; a Bash command that holds the
+  tag is not captured), secrets replaced, `secretScan.ts`); what memory itself told the session (a block that starts
   `Memory (Claude Watcher):`, a system-reminder) is never operator text, and a typed prompt or a
   tool result that holds the marker anywhere (any case or spacing) is not kept as evidence
   (P3-R2, P3-C5, P3-C8, P3-C9); the slice is then cut into chunks; a job of

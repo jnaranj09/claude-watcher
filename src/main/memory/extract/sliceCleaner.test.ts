@@ -812,6 +812,24 @@ describe('private spans are never read by a save', () => {
   ])('a claude text of %s takes well under a second', (_name, text) => {
     expect(msOf(() => cleanSlice([said(text)], 0))).toBeLessThan(1000)
   })
+  // 15 — a known limit, pinned as it is today, not a goal: each of claude's text
+  // parts is cleaned alone, so a span claude splits over two parts is cut only in the first.
+  it('known limit: a span split over two of claude’s text parts is cut only in the first part', () => {
+    const line = rl({
+      type: 'assistant',
+      uuid: 'a-split',
+      message: {
+        content: [
+          { type: 'text', text: 'I will note <private>the client' },
+          { type: 'text', text: ' is Acme</private> and go on' }
+        ]
+      }
+    })
+    expect(kinds(cleanSlice([line], 0).entries)).toEqual([
+      `claude:I will note ${SECRET_MARK}`,
+      'claude: is Acme and go on'
+    ])
+  })
 })
 
 describe('isNonEvidenceTool', () => {
