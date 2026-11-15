@@ -166,10 +166,18 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `task_not_found`), the index block (`memory/memoryIndex.ts`: rules of use; pinned items newest
   first, which may pass the cap but never `MEMORY_LIMITS.indexCeilingChars` (the block rides one
   argv string; the rest are counted, `<n> more pinned`); then, capped at
-  `MEMORY_LIMITS.indexChars` and filled in this order, the folder's open tasks (minus the ones
-  the goal block lists, `GoalSpawnExtras.taskIds`), its specifics and its recent sessions (by
-  the day the session ended), the tasks left out counted in `<n> more open tasks …; see Goals`
-  and the rest in `<n> more; use memory_search`; every saved text on one line,
+  `MEMORY_LIMITS.indexChars`, the folder's open tasks (minus the ones the goal block lists,
+  `GoalSpawnExtras.taskIds`), the active specifics and facts in eight groups, each item under the
+  first reason it shares with the session (`KEY_REASONS`: task, goal, folder, folders above,
+  whole workspace = no folder, goal or tags, template, tags, folders below; `contextItems`), each
+  with a heading that says why and a count line for its rest, and its recent sessions (by the day
+  the session ended): groups get 6 lines each, then recent sessions, then all groups but template
+  and tags take more; tasks left out are counted in `<n> more open tasks …; see Goals`, the rest
+  in `<n> more; use memory_search`. A key's line (`memory/memoryKeyLine.ts`, at use too): its
+  value whole up to 24 characters, else cut with its length, or `value not shown` (a secret
+  pattern, a secret word in the key, a `<private>` tag); a fact its title and length; `check`
+  and `session deleted` marks; the id's first 8 characters (whole on a clash). A launch without
+  the mod has no template or tags group. Every saved text on one line,
   `memory/promptText.ts`, with a system-reminder tag and the memory block marker neutralised (P3-C1); a tool result prints a fact or episode body last, each line indented) and
   the env `CLAUDE_WATCHER_MEMORY=1` (for the operator's own hooks). Once the config file is
   written, one choice per spawn (`mods/memoryModSpawn.ts` `createMemoryModChoice`, read live:
@@ -214,7 +222,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   3 items and 2,000 characters a prompt (each line ≤ 600), at use at most 5 folders a call, 10
   keys and 1,500 characters, and 20,000 characters of recall and at-use
   blocks a window, never passed (a block that would pass it is not given, and its items stay
-  ungiven: M13); an item is given once per window. Matching cuts the prompt's first 2,000
+  ungiven: M13); an item is given once per window, and recall skips a key the window's section
+  showed whole while its text is unchanged. Matching cuts the prompt's first 2,000
   characters, its `<private>` spans left out, into 12 terms (`recallTerms.ts`); each term keeps its 200 newest rows (P3-C12); an
   item needs 2 terms or 1 exact one. The prompt text is used for the match and dropped. claude
   fixes a `session` section per conversation window, and a resumed conversation keeps its
@@ -244,7 +253,9 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   is 404. Memory tokens are their own store (`mcp/sessionTokens.ts`): neither server's bearer
   opens the other's path. Its config files share `<userData>/mcp/`, and the goals start sweep
   clears both. A tool sees the calling LIVE session's workspace plus global items (no tool takes
-  a workspace id; an item outside answers `memory_not_found`); a save is `inferred`, origin
+  a workspace id; an item outside answers `memory_not_found`; an id of 8 or more characters that
+  is no whole id is taken as an id's start inside that scope, and two matches answer
+  `memory_id_ambiguous`); a save is `inferred`, origin
   `agent` + that session; an update appends a version, never overwrites. An item's basis is its
   current text's: an edit takes it from the evidence extraction gives with it (and keeps where
   that text came from, `source_*`), else from the writer (agent or extract → `inferred`, operator
@@ -252,7 +263,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   brings it back, and a state or pin change keeps it. An episode is never pinned. Memory off, no store or
   session not live → `Memory is not available.` (logged as `code=memory_not_available`: an error
   outcome may carry a log `code`, which the endpoint logs instead of its text). `/clear` moves
-  the token, the file, the activity record (kept in RAM; Context's `Memory` page reads it through
+  the token, the file, the activity record (kept in RAM, ids and counts only, the section's
+  `groups` included; Context's `Memory` page reads it through
   `memory:activity`, with or without the mod's report, and lists again on `memory:changed`, which
   a store change and an activity change both push: `memoryStartup.ts`) and the origin of the items the session
   saved, the commands it ran and its save state (`window/cardState.ts`; the items last, guarded:

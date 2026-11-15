@@ -154,7 +154,12 @@ Sessions the app starts can keep things across sessions, in the app's own memory
 Claude saves and finds items with its own memory tools (search, read, browse, save, update, mark
 stale). It can never delete or pin an item; only you can. Every item keeps its date, where it
 came from (session, folder, tags) and its earlier versions, and a new session starts with a short
-index: your pinned items, then the open tasks, specifics and recent sessions of its folder.
+index: your pinned items, the open tasks of its folder, then the specifics and facts it shares a
+context with, in groups that say why: saved for its tasks, for its goal, in its folder, in the
+folders above, for every session of the workspace (saved with no folder, goal or tags), from the
+same template, with the same tags, in the folders below; then its recent sessions. Each value is
+shown, cut at 24 characters (Claude reads the rest with its memory tools); a fact shows its title;
+a value that looks like a secret, or whose key names one (`password`, `token`, …), is not shown.
 Memory is a record of what was seen and when, so Claude gives the date with what it takes from
 it.
 
@@ -275,6 +280,10 @@ Known limits:
   file that shows an opening `<private>` with no closing tag (documentation, source code)
   hides the rest of that tool result from a save. Text inside the tag that Claude's own reply
   splits over two text parts is cut only in the first part; the rest is read.
+- The index hides a value only when it matches a secret pattern or its key holds a secret word:
+  a secret under a harmless key that matches no pattern shows its first 24 characters.
+- A value that changes while a conversation runs stays as the index listed it until the
+  conversation's next window (`/clear`, `/compact`).
 - A value written right before a dotted or hyphenated continuation (`1.2` in `1.2.34`) is
   dropped on purpose: a cut version or address is worse than none.
 - A value inside the cut middle of a very long tool result is not saved.
