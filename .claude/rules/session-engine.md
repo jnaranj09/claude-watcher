@@ -161,7 +161,9 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   Reopen) calls `memorySpawnExtras` (`memory/memoryLaunch.ts`), all or nothing: with `settings.memoryEnabled`
   (read at each spawn), the hook port ours (SEC-6) and the database open, the session gets its
   own bearer token, a `--mcp-config` file for `claude-watcher-memory`, the seven tools in
-  `--allowedTools` (search, get, browse, save, update, mark stale, `task_report`: no delete, no
+  `--allowedTools` (search, get (one id, or up to 10 ids in one call,
+  `MEMORY_LIMITS.getIds`; a miss among several ids is a line of the result), browse, save, update, mark stale,
+  `task_report`: no delete, no
   pin, no task closed; `task_report` only flags a task of the session's workspace, else
   `task_not_found`), the index block (`memory/memoryIndex.ts`: rules of use; pinned items newest
   first, which may pass the cap but never `MEMORY_LIMITS.indexCeilingChars` (the block rides one

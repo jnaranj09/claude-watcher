@@ -162,7 +162,7 @@ describe('MEMORY_RULES_OF_USE', () => {
         "- The lists below hold items saved for this session's tasks, goal, folder, template and tags, and items saved for every session of this workspace. Each heading says why its items are listed.",
         '- Before you write or run an exact value (a port, path, version, command, id) that you have not read in this session, look for it in the lists below. If its value ends with "…", read the whole value with memory_get first.',
         '- A line marked "value not shown", "fact" or "check" holds more than it shows. Read that item with memory_get before you use it.',
-        '- A line "<n> more" counts items that are not listed. Find them with memory_search (kind: specific, fact, episode, command; filters: folder, session, tags, since, until, goal) and read one with memory_get.',
+        '- A line "<n> more" counts items that are not listed. Find them with memory_search (kind: specific, fact, episode, command; filters: folder, session, tags, since, until, goal) and read items with memory_get (one id, or up to 10 ids in one call).',
         '- A task below is open work that was seen on the date shown. Do not say it is still pending before you ran its check or the operator said so. After you checked, call task_report with what you saw.',
         '- A task with no check: ask the operator once, in one line, only when the topic comes up.',
         '- "reported done, not confirmed" means a session saw it done and the operator has not closed it. Do not call it pending.'
@@ -660,7 +660,7 @@ describe('buildMemoryIndex: keys in groups by reason', () => {
       "- The lists below hold items saved for this session's tasks, goal, folder, template and tags, and items saved for every session of this workspace. Each heading says why its items are listed.",
       '- Before you write or run an exact value (a port, path, version, command, id) that you have not read in this session, look for it in the lists below. If its value ends with "…", read the whole value with memory_get first.',
       '- A line marked "value not shown", "fact" or "check" holds more than it shows. Read that item with memory_get before you use it.',
-      '- A line "<n> more" counts items that are not listed. Find them with memory_search (kind: specific, fact, episode, command; filters: folder, session, tags, since, until, goal) and read one with memory_get.'
+      '- A line "<n> more" counts items that are not listed. Find them with memory_search (kind: specific, fact, episode, command; filters: folder, session, tags, since, until, goal) and read items with memory_get (one id, or up to 10 ids in one call).'
     ])
   })
 

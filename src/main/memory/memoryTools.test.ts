@@ -209,7 +209,7 @@ describe('memory tools: input schema drift', () => {
   const SPECIFIC = { kind: 'specific', key: 'k', value: 'v' }
   const FACT = { kind: 'fact', title: 't', body: 'b' }
   const BASES: Record<string, Record<string, unknown>[]> = {
-    memory_get: [{ id: 'm1' }],
+    memory_get: [{ id: 'm1' }, { ids: ['m1'] }],
     memory_browse: [{ by: 'kind' }],
     memory_save: [
       { ...SPECIFIC, scope: 'global' },

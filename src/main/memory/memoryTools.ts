@@ -13,7 +13,9 @@
 // they are stamped here (a save is `inferred`, origin `agent` + the calling session).
 //
 // An id is the whole id, or its first `MEMORY_LIMITS.shortIdChars` (or more) characters as a key
-// line prints it, looked up inside the same scope (`visible`).
+// line prints it, looked up inside the same scope (`find`, `visible`). `memory_get` takes one `id`
+// or up to `MEMORY_LIMITS.getIds` `ids`, never both; with `ids` a miss is a line of the result, not
+// a refusal, so one bad id never hides the others.
 //
 // A refusal is a short code (`memory_not_found`, `memory_id_ambiguous`, `store_write_failed`,
 // `memory_read_failed`, `task_not_found`).
@@ -127,7 +129,16 @@ const CommandSearchArgsSchema = z
   })
   .strict()
 const SearchArgsSchema = z.union([CommandSearchArgsSchema, ItemSearchArgsSchema])
-const GetArgsSchema = z.object({ id: IdSchema, withSource: z.boolean().optional() }).strict()
+/** Exactly one of `id` and `ids` (1 to `MEMORY_LIMITS.getIds`). */
+const GetArgsSchema = z.union([
+  z.object({ id: IdSchema, withSource: z.boolean().optional() }).strict(),
+  z
+    .object({
+      ids: z.array(IdSchema).min(1).max(MEMORY_LIMITS.getIds),
+      withSource: z.boolean().optional()
+    })
+    .strict()
+])
 const BrowseArgsSchema = z.object({ by: z.enum(BROWSE_BY) }).strict()
 const SAVE_EXTRA = { check: CheckSchema.optional(), scope: ScopeSchema }
 const UPDATE_EXTRA = { id: IdSchema, check: CheckSchema.optional(), reason: ReasonSchema }
@@ -206,11 +217,20 @@ const DEFS: Record<MemoryToolName, McpToolDef> = {
   memory_get: {
     name: 'memory_get',
     description:
-      'Read one memory item by id: its text, check, basis, last-seen date, session, tags and state. withSource true adds the words of the session it was taken from, when it has them.',
+      'Read memory items by id: for each, its text, check, basis, last-seen date, session, tags and state. Give id for one item, or ids for up to 10 in one call. withSource true adds the words of the session an item was taken from, when it has them.',
     inputSchema: {
       type: 'object',
-      properties: { id: ID_PROPERTY, withSource: { type: 'boolean' } },
-      required: ['id'],
+      properties: {
+        id: ID_PROPERTY,
+        ids: {
+          type: 'array',
+          items: { type: 'string' },
+          minItems: 1,
+          maxItems: MEMORY_LIMITS.getIds,
+          description: 'Item ids, as listed.'
+        },
+        withSource: { type: 'boolean' }
+      },
       additionalProperties: false
     }
   },
@@ -283,7 +303,7 @@ const DEFS: Record<MemoryToolName, McpToolDef> = {
 const refused = (code: string): McpToolOutcome => ({ kind: 'result', text: code, isError: true })
 /** Every result goes through `wrapperSafe` whole (P3-C15): a field's own `: ` or the line after it
  *  can never complete a tag or the marker a saved text starts. */
-const ok = (text: string): McpToolOutcome => ({
+const ok = (text: string): McpToolOutcome & { kind: 'result' } => ({
   kind: 'result',
   text: wrapperSafe(text),
   isError: false
@@ -307,9 +327,13 @@ interface Call extends MemoryCall {
   tagNames(ids: readonly string[]): string
   /** The item when it exists and is in the session's scope, by its whole id or, failing that, by
    *  the first `MEMORY_LIMITS.shortIdChars` (or more) characters of it; else `memory_not_found`, or
-   *  `memory_id_ambiguous` when two items in scope start that way. */
+   *  `memory_id_ambiguous` when two items in scope start that way, as a value. */
+  find(id: string): MemoryItem | IdMiss
+  /** `find`, with a miss thrown as its code. */
   visible(id: string): MemoryItem
 }
+
+type IdMiss = typeof MEMORY_ERROR.notFound | typeof ID_AMBIGUOUS
 
 /** The head lines of `memory_get` (an episode adds the day its session ended), and the body
  *  block that ends the result: a fact or episode body keeps its lines, each indented, after every
@@ -431,32 +455,47 @@ export function createMemoryTools(deps: {
     )
   }
 
+  /** One item's lines as `memory_get` prints them, its body last; the read is one `pulled` entry. */
+  function readItem(item: MemoryItem, withSource: boolean, c: Call): string[] {
+    c.record('pulled', 'memory_get', item.id)
+    const source =
+      withSource && item.source !== null ? [`source: ${oneLine(item.source.quote)}`] : []
+    const { head, body } = itemText(item)
+    return [
+      ...head,
+      `basis: ${item.basis}`,
+      ...source,
+      `seen: ${formatDay(item.lastSeenAt)}`,
+      ...(item.check === null ? [] : [`check: ${oneLine(item.check)}`]),
+      `session: ${item.meta.sessionName === null ? NO_VALUE : oneLine(item.meta.sessionName)}`,
+      `tags: ${c.tagNames(item.meta.tagIds)}`,
+      `state: ${item.state}`,
+      ...(item.originDeletedAt === null
+        ? []
+        : [`session deleted: ${formatDay(item.originDeletedAt)}`]),
+      ...body
+    ]
+  }
+
+  /** One `id`: the item's lines. Several `ids`: one block per id in the order asked (a repeat is
+   *  read once), each starting `item <id>`; a miss is the one line `item <id>: <code>` and the
+   *  others are still read. The call is an error only when no id was read. */
   function get(args: unknown, c: Call): McpToolOutcome {
     const parsed = GetArgsSchema.safeParse(args)
     if (!parsed.success) return { kind: 'invalid_params' }
-    const item = c.visible(parsed.data.id)
-    c.record('pulled', 'memory_get', item.id)
-    const source =
-      parsed.data.withSource === true && item.source !== null
-        ? [`source: ${oneLine(item.source.quote)}`]
-        : []
-    const { head, body } = itemText(item)
-    return ok(
-      [
-        ...head,
-        `basis: ${item.basis}`,
-        ...source,
-        `seen: ${formatDay(item.lastSeenAt)}`,
-        ...(item.check === null ? [] : [`check: ${oneLine(item.check)}`]),
-        `session: ${item.meta.sessionName === null ? NO_VALUE : oneLine(item.meta.sessionName)}`,
-        `tags: ${c.tagNames(item.meta.tagIds)}`,
-        `state: ${item.state}`,
-        ...(item.originDeletedAt === null
-          ? []
-          : [`session deleted: ${formatDay(item.originDeletedAt)}`]),
-        ...body
-      ].join('\n')
-    )
+    const withSource = parsed.data.withSource === true
+    if ('id' in parsed.data) {
+      return ok(readItem(c.visible(parsed.data.id), withSource, c).join('\n'))
+    }
+    let read = 0
+    const blocks = [...new Set(parsed.data.ids)].map((id) => {
+      const asked = `item ${oneLine(id)}`
+      const found = c.find(id)
+      if (typeof found === 'string') return `${asked}: ${found}`
+      read += 1
+      return [asked, ...readItem(found, withSource, c)].join('\n')
+    })
+    return { ...ok(blocks.join('\n\n')), isError: read === 0 }
   }
 
   /** A session's own report on a task of its workspace: stamped here, never from the input. A done
@@ -556,7 +595,7 @@ export function createMemoryTools(deps: {
   function open(grant: MemoryGrant): Call | null {
     const gated = gate(grant)
     if (gated === null) return null
-    const { store, session } = gated
+    const { store, session, scope } = gated
     const { workspaceId } = session
     return {
       ...gated,
@@ -574,19 +613,25 @@ export function createMemoryTools(deps: {
           reason: null
         }),
       tagNames,
+      find,
       visible: (id) => {
-        const whole = store.get(id)
-        if (whole !== null && (whole.workspaceId === workspaceId || whole.workspaceId === null)) {
-          return whole
-        }
-        if (id.length < MEMORY_LIMITS.shortIdChars) throw new Error(MEMORY_ERROR.notFound)
-        // The start is looked up inside the session's scope (in SQL), so a match is visible.
-        const [first, second] = store.idsStarting(gated.scope, id, 2)
-        if (second !== undefined) throw new Error(ID_AMBIGUOUS)
-        const found = first === undefined ? null : store.get(first)
-        if (found === null) throw new Error(MEMORY_ERROR.notFound)
+        const found = find(id)
+        if (typeof found === 'string') throw new Error(found)
         return found
       }
+    }
+
+    function find(id: string): MemoryItem | IdMiss {
+      const whole = store.get(id)
+      if (whole !== null && (whole.workspaceId === workspaceId || whole.workspaceId === null)) {
+        return whole
+      }
+      if (id.length < MEMORY_LIMITS.shortIdChars) return MEMORY_ERROR.notFound
+      // The start is looked up inside the session's scope (in SQL), so a match is visible.
+      const [first, second] = store.idsStarting(scope, id, 2)
+      if (second !== undefined) return ID_AMBIGUOUS
+      const found = first === undefined ? null : store.get(first)
+      return found ?? MEMORY_ERROR.notFound
     }
   }
 

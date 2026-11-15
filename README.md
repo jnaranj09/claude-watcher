@@ -152,12 +152,13 @@ Sessions the app starts can keep things across sessions, in the app's own memory
   best-effort secret removal as everything saved; see Known limits).
 
 Claude saves and finds items with its own memory tools (search, read, browse, save, update, mark
-stale). It can never delete or pin an item; only you can. Every item keeps its date, where it
-came from (session, folder, tags) and its earlier versions, and a new session starts with a short
-index: your pinned items, the open tasks of its folder, then the specifics and facts it shares a
-context with, in groups that say why: saved for its tasks, for its goal, in its folder, in the
-folders above, for every session of the workspace (saved with no folder, goal or tags), from the
-same template, with the same tags, in the folders below; then its recent sessions. Each value is
+stale); one read takes a single item or up to 10 at once. It can never delete or pin an item;
+only you can. Every item keeps its date, where it came from (session, folder, tags) and its
+earlier versions, and a new session starts with a short index: your pinned items, the open tasks
+of its folder, then the specifics and facts it shares a context with, in groups that say why:
+saved for its tasks, for its goal, in its folder, in the folders above, for every session of the
+workspace (saved with no folder, goal or tags), from the same template, with the same tags, in
+the folders below; then its recent sessions. Each value is
 shown, cut at 24 characters (Claude reads the rest with its memory tools); a fact shows its title;
 a value that looks like a secret, or whose key names one (`password`, `token`, …), is not shown.
 Memory is a record of what was seen and when, so Claude gives the date with what it takes from

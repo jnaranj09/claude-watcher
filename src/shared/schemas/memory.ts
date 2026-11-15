@@ -66,6 +66,8 @@ export const MEMORY_LIMITS = {
   inlineValueChars: 24,
   /** The start of an id a key line prints, and that the tools accept for the whole id. */
   shortIdChars: 8,
+  /** Ids one `memory_get` call reads. */
+  getIds: 10,
   /** Lines each reason of the index gets in its first pass. */
   indexReasonShare: 6,
   /** Rows the context read hands over per reason (more than the cap can list). */

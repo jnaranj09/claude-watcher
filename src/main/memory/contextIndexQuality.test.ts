@@ -187,7 +187,7 @@ describe('what the memory section lists per session context', () => {
   it('no section passes the cap, and the largest is pinned', () => {
     const sizes = NAMES.map((name) => sectionFor(name).text.length)
     expect(Math.max(...sizes)).toBeLessThanOrEqual(MEMORY_LIMITS.indexChars)
-    expect(Math.max(...sizes)).toBe(5999)
+    expect(Math.max(...sizes)).toBe(5986)
   })
 
   it('no item is listed twice in one section', () => {

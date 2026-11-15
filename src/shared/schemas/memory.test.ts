@@ -61,6 +61,7 @@ describe('memory text limits', () => {
       twinsShown: 5,
       inlineValueChars: 24,
       shortIdChars: 8,
+      getIds: 10,
       indexReasonShare: 6,
       indexReasonRows: 40,
       contextFolder: 4096,
