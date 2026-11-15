@@ -146,6 +146,54 @@ export const EpisodeListRow = StoredRow.transform(
   (r: Stored): EpisodeRow => ({ ...listRowOf(r), endedAt: r.ended_at ?? r.updated_at })
 ).pipe(MemoryRowSchema.extend({ endedAt: z.number() }))
 
+/** A specific or a fact as one key line reads it (`memoryKeyLine.ts`): its head and its current
+ *  text, the day it was last seen, its basis, whether it has a check (never the check's text) and
+ *  whether its session was deleted. */
+export type KeyRow = {
+  id: string
+  kind: 'specific' | 'fact'
+  head: string
+  body: string
+  folder: string | null
+  lastSeenAt: number
+  updatedAt: number
+  basis: 'observed' | 'stated' | 'inferred'
+  hasCheck: boolean
+  originDeletedAt: number | null
+}
+
+const KeyRowSchema = z
+  .object({
+    id: z.string().min(1),
+    // An episode is never a key: its row fails here.
+    kind: z.enum(MEMORY_ITEM_KINDS).pipe(z.enum(['specific', 'fact'])),
+    head: z.string(),
+    body: z.string(),
+    folder: z.string().min(1).nullable(),
+    lastSeenAt: z.number(),
+    updatedAt: z.number(),
+    basis: z.enum(MEMORY_BASES),
+    hasCheck: z.boolean(),
+    originDeletedAt: z.number().nullable()
+  })
+  .strict() satisfies z.ZodType<KeyRow, unknown>
+
+/** A `selectItems()` specific or fact row as one key line's fields; an episode fails the row. */
+export const KeyListRow = StoredRow.transform(
+  (r: Stored): z.input<typeof KeyRowSchema> => ({
+    id: r.id,
+    kind: r.kind,
+    head: r.head,
+    body: r.body,
+    folder: r.folder,
+    lastSeenAt: r.last_seen_at,
+    updatedAt: r.updated_at,
+    basis: r.basis,
+    hasCheck: r.check_text !== null,
+    originDeletedAt: r.origin_deleted_at
+  })
+).pipe(KeyRowSchema)
+
 /** Newest end first, for episodes (`EpisodeRow.endedAt`). */
 export const NEWEST_ENDED_FIRST = 'COALESCE(item.ended_at, item.updated_at) DESC, item.rid DESC'
 

@@ -1,5 +1,6 @@
 // The read side of the memory store (spec 2026-11-11 memory §2, §3): search, browse and the rows
-// of a session's memory index. Every read narrows by scope in SQL. A search narrows by scope and
+// of a session's memory index (its keys grouped by the first reason they share with the session,
+// spec 2026-11-14 memory context index §1). Every read narrows by scope in SQL. A search narrows by scope and
 // app metadata first (`filterSql.ts`), then ranks by the word index, then adds what only the
 // trigram index finds. The reads extraction needs (memory phase 2: the scope shown to the model,
 // the specifics a session saved without a source, who wrote an item's current text) live here
@@ -11,8 +12,11 @@ import { z } from 'zod'
 import type { MemoryTwin } from '../../shared/ipc/contract'
 import { MEMORY_FILTER_FIELDS, type MemoryFilters } from '../../shared/memory/filterFields'
 import {
+  KEY_REASONS,
   MEMORY_ITEM_KINDS,
+  MEMORY_LIMITS,
   MEMORY_WRITERS,
+  type KeyReason,
   type MemoryItem,
   type MemoryItemKind,
   type MemoryRow,
@@ -32,11 +36,13 @@ import {
   CURRENT_JOIN,
   EpisodeListRow,
   ItemRow,
+  KeyListRow,
   ListRow,
   NEWEST_ENDED_FIRST,
   NEWEST_FIRST,
   selectItems,
-  type EpisodeRow
+  type EpisodeRow,
+  type KeyRow
 } from './memoryRows'
 import { twinIds, twinsOf, type TwinCandidate } from './memoryTwins'
 import type { RecallTerm } from './recallTerms'
@@ -248,6 +254,151 @@ export function indexItems(
     episodesHere,
     more: count(db, inScope) - pinned.length - specificsHere.length - episodesHere.length
   }
+}
+
+/** What a session shares with the items its index lists (spec 2026-11-14 memory context index
+ *  §1). A field it lacks (`''`, null, an empty list) matches nothing. */
+export type SessionContext = {
+  folder: string
+  taskIds: readonly string[]
+  goalId: string | null
+  templateId: string | null
+  tagIds: readonly string[]
+}
+export type ContextGroup = { reason: KeyReason; rows: KeyRow[]; total: number }
+
+const NEVER: SqlClause = { sql: '0', params: [] }
+
+/** `item.meta`'s `listPath` shares one of `ids` (each a parameter). */
+function sharesId(listPath: string, ids: readonly string[]): SqlClause {
+  if (ids.length === 0) return NEVER
+  const match = inList('shared.value', ids)
+  return {
+    sql: `EXISTS (SELECT 1 FROM json_each(item.meta, '${listPath}') AS shared WHERE ${match.sql})`,
+    params: match.params
+  }
+}
+
+/** `item.meta`'s `path` equals `id`; a null id matches nothing. */
+function metaIs(path: string, id: string | null): SqlClause {
+  return id === null ? NEVER : { sql: `json_extract(item.meta, '${path}') = ?`, params: [id] }
+}
+
+/** The test of each reason, in `KEY_REASONS` order: a row takes the first that holds. */
+function reasonTests(ctx: SessionContext): Record<KeyReason, SqlClause> {
+  const hasFolder = ctx.folder !== ''
+  // `folderAtOrUnder` ignores a trailing slash on the session's folder; this does on both sides.
+  const here: SqlClause = hasFolder
+    ? {
+        sql: "rtrim(item.folder, '/') = ?",
+        params: [ctx.folder.replace(/\/+$/, '')]
+      }
+    : NEVER
+  return {
+    task: sharesId('$.taskIds', ctx.taskIds),
+    goal: metaIs('$.goalId', ctx.goalId),
+    folder: here,
+    folder_above: hasFolder ? folderAbove('item.folder', ctx.folder) : NEVER,
+    workspace: {
+      sql: `item.folder IS NULL AND json_extract(item.meta, '$.goalId') IS NULL
+        AND json_array_length(item.meta, '$.tagIds') = 0`,
+      params: []
+    },
+    template: metaIs('$.templateId', ctx.templateId),
+    tags: sharesId('$.tagIds', ctx.tagIds),
+    folder_below: hasFolder ? folderAtOrUnder('item.folder', ctx.folder) : NEVER
+  }
+}
+
+const ReasonRow = z.object({ id: z.string(), reason: z.enum(KEY_REASONS), total: z.number() })
+
+/**
+ * The active, unpinned specifics and facts in scope (the workspace and global items), each under
+ * the FIRST reason of `KEY_REASONS` it shares with `ctx`; a row that shares none is left out.
+ * Inside a reason: a deleted session's item last; with a goal, an item saved under another goal
+ * after the others; the operator's own first; in `tags`, more shared tags first; then newest.
+ * Per reason its first `perReason` rows and its `total`; only reasons that have rows, in order.
+ */
+export function contextItems(
+  db: MemoryDb,
+  workspaceId: string,
+  ctx: SessionContext,
+  perReason: number
+): ContextGroup[] {
+  const where = and([scopeClause({ workspaceId, includeGlobal: true }), ACTIVE, RECALLABLE])
+  const tests = reasonTests(ctx)
+  const reasonCase = KEY_REASONS.map((r) => ({
+    sql: `WHEN ${tests[r].sql} THEN '${r}'`,
+    params: tests[r].params
+  }))
+  const otherGoal: SqlClause =
+    ctx.goalId === null
+      ? NEVER
+      : {
+          sql: `(json_extract(item.meta, '$.goalId') IS NOT NULL
+            AND json_extract(item.meta, '$.goalId') <> ?)`,
+          params: [ctx.goalId]
+        }
+  const sharedTags: SqlClause =
+    ctx.tagIds.length === 0
+      ? NEVER
+      : {
+          sql: `(SELECT COUNT(DISTINCT shared.value) FROM json_each(item.meta, '$.tagIds') AS shared
+            WHERE ${inList('shared.value', ctx.tagIds).sql})`,
+          params: [...ctx.tagIds]
+        }
+  const ranked = db.all(
+    `WITH placed AS (
+       SELECT item.id AS id, item.rid AS rid, item.updated_at AS updated_at,
+         CASE ${reasonCase.map((c) => c.sql).join(' ')} END AS reason,
+         item.origin_deleted_at IS NOT NULL AS deleted,
+         ${otherGoal.sql} AS other_goal,
+         item.origin_by <> 'operator' AS not_operator,
+         ${sharedTags.sql} AS shared_tags
+       FROM item WHERE ${where.sql}
+     ), numbered AS (
+       SELECT id, reason,
+         ROW_NUMBER() OVER (PARTITION BY reason ORDER BY deleted, other_goal, not_operator,
+           CASE WHEN reason = 'tags' THEN shared_tags ELSE 0 END DESC, updated_at DESC, rid DESC)
+           AS pos,
+         COUNT(*) OVER (PARTITION BY reason) AS total
+       FROM placed WHERE reason IS NOT NULL
+     )
+     SELECT id, reason, total FROM numbered WHERE pos <= ? ORDER BY reason, pos`,
+    ReasonRow,
+    [
+      ...reasonCase.flatMap((c) => c.params),
+      ...otherGoal.params,
+      ...sharedTags.params,
+      ...where.params,
+      perReason
+    ]
+  )
+  const ids = ranked.map((r) => r.id)
+  const rows = db.all(`${selectItems()} WHERE ${inList('item.id', ids).sql}`, KeyListRow, ids)
+  const byId = new Map(rows.map((row) => [row.id, row]))
+  return KEY_REASONS.flatMap((reason) => {
+    const mine = ranked.filter((r) => r.reason === reason)
+    const first = mine[0]
+    if (first === undefined) return []
+    return [{ reason, rows: mine.flatMap((r) => byId.get(r.id) ?? []), total: first.total }]
+  })
+}
+
+const StartRow = z.object({ start: z.string() })
+
+/** The first `MEMORY_LIMITS.shortIdChars` characters two or more items in scope share (any
+ *  state, any kind): a key line prints such an item's whole id. */
+export function shortIdClashes(db: MemoryDb, workspaceId: string): string[] {
+  const where = scopeClause({ workspaceId, includeGlobal: true })
+  return db
+    .all(
+      `SELECT substr(item.id, 1, ?) AS start FROM item WHERE ${where.sql}
+       GROUP BY 1 HAVING COUNT(*) > 1 ORDER BY 1`,
+      StartRow,
+      [MEMORY_LIMITS.shortIdChars, ...where.params]
+    )
+    .map((r) => r.start)
 }
 
 const ScopeRow = z.object({

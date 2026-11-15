@@ -18,6 +18,7 @@ import type { MemoryTwin } from '../../shared/ipc/contract'
 import {
   MEMORY_BASES,
   MEMORY_ERROR,
+  MEMORY_LIMITS,
   MemoryVersionSchema,
   type MemoryItem,
   type MemoryItemKind,
@@ -36,18 +37,22 @@ import { CountRow, ItemRow, selectItems, type EpisodeRow } from './memoryRows'
 import {
   agentSpecificsNoSource,
   browseItems,
+  contextItems,
   extractScope,
   folderSpecifics,
   indexItems,
   recallItems,
   searchItems,
+  shortIdClashes,
   specificFolders,
   twinIdsInScope,
   twinsOfItem,
   writerOfCurrent,
   type BrowseBy,
+  type ContextGroup,
   type MemoryScope,
-  type MemorySearchInput
+  type MemorySearchInput,
+  type SessionContext
 } from './memorySearch'
 
 export type { FilterContext } from './filterSql'
@@ -119,6 +124,13 @@ export interface MemoryStore {
     episodesHere: EpisodeRow[]
     more: number
   }
+  /** The index's keys (spec 2026-11-14 memory context index §1): the active, unpinned specifics
+   *  and facts of the workspace and global, each under the first reason it shares with `ctx`, per
+   *  reason its first `MEMORY_LIMITS.indexReasonRows` and its total. */
+  contextRows(workspaceId: string, ctx: SessionContext): ContextGroup[]
+  /** The id starts (`MEMORY_LIMITS.shortIdChars`) two or more items of the workspace and global
+   *  share. */
+  shortIdClashes(workspaceId: string): string[]
   /** Recall (phase 3 addendum §6): the active, unpinned specifics and facts in scope, not in
    *  `excludeIds`, that two distinct terms or one exact term match (one FTS5 phrase per term, its
    *  newest 200 rows),
@@ -476,6 +488,11 @@ export function createMemoryStore(deps: {
     browse: (scope, by) => read(() => browseItems(db, scope, by)),
 
     indexRows: (workspaceId, folder) => read(() => indexItems(db, workspaceId, folder)),
+
+    contextRows: (workspaceId, ctx) =>
+      read(() => contextItems(db, workspaceId, ctx, MEMORY_LIMITS.indexReasonRows)),
+
+    shortIdClashes: (workspaceId) => read(() => shortIdClashes(db, workspaceId)),
 
     recall: (scope, terms, excludeIds, limit) =>
       read(() => recallItems(db, scope, terms, excludeIds, limit)),

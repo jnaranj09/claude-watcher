@@ -61,8 +61,33 @@ export const MEMORY_LIMITS = {
   /** A `/remember` text on the wire. */
   rememberChars: 8000,
   /** Twins the dialog names for one item; the rest are counted. */
-  twinsShown: 5
+  twinsShown: 5,
+  /** A value a key line shows whole; a longer one is cut here, by character. */
+  inlineValueChars: 24,
+  /** The start of an id a key line prints, and that the tools accept for the whole id. */
+  shortIdChars: 8,
+  /** Lines each reason of the index gets in its first pass. */
+  indexReasonShare: 6,
+  /** Rows the context read hands over per reason (more than the cap can list). */
+  indexReasonRows: 40
 } as const
+
+/** Why the index lists a key: the first of these an item shares with the session, in this order
+ *  (spec 2026-11-14 memory context index §1). Read by `memorySearch.ts` and the index's headings. */
+export const KEY_REASONS = [
+  'task',
+  'goal',
+  'folder',
+  'folder_above',
+  'workspace',
+  'template',
+  'tags',
+  'folder_below'
+] as const
+export type KeyReason = (typeof KEY_REASONS)[number]
+/** Every group the index records for Context: pinned items, the key reasons, recent sessions. */
+export const INDEX_REASONS = ['pinned', ...KEY_REASONS, 'episode'] as const
+export type IndexReason = (typeof INDEX_REASONS)[number]
 
 /** Codes the memory store throws (the renderer maps them to copy, never the message).
  *  `notFound` / `versionNotFound` are refusals; `readFailed` is a read the database failed (the

@@ -57,7 +57,11 @@ describe('memory text limits', () => {
       indexFolders: 200,
       windowItems: 500,
       rememberChars: 8000,
-      twinsShown: 5
+      twinsShown: 5,
+      inlineValueChars: 24,
+      shortIdChars: 8,
+      indexReasonShare: 6,
+      indexReasonRows: 40
     })
   })
 
