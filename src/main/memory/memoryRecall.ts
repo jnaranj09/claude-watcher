@@ -10,8 +10,10 @@
 // gave (`told`). At each operator prompt that block comes first (§6): at most
 // `MEMORY_LIMITS.freshRows` key lines that are new or changed since the build, or that a changed
 // task, goal, template or tag set (or a workspace move, said in one line) newly relates; never a
-// key this same session saved or updated last. The usual prompt costs one count
-// (`changedSince`); the full selection runs only when something changed. No model call, no wait.
+// key this same session saved or updated last. A prompt costs one count (`changedSince` since
+// `built.at`); the full selection runs only when that count or the context says something
+// changed, and once it has told everything (or found nothing to tell) `built` moves to that
+// prompt, so the following prompts cost the count again. No model call, no wait.
 // Every block starts with MEMORY_BLOCK_MARKER, so the slice cleaner never takes it as evidence;
 // every saved text in it goes through `oneLine` (P3-C1). A `<private>` span of the prompt is cut
 // (to a space, `privateSpans.ts`) before the terms; the mod sends the text as typed. Memory text and
@@ -69,9 +71,9 @@ interface WindowState {
   whole: Map<string, number>
   /** The id starts two items share (a key line then prints the whole id); null until needed. */
   clashes: ReadonlySet<string> | null
-  /** When the window's section was built and for what; null in a resumed window, or before the
-   *  index was asked. `at` never moves; the workspace and context follow what the "saved or
-   *  changed" block told. */
+  /** Since when, and for which workspace and context, the window was told its keys: set when the
+   *  section is built (null in a resumed window, or before the index was asked), then moved by a
+   *  selection that told everything it found, or found nothing to tell. */
   built: { at: number; workspaceId: string; context: SessionContext } | null
   /** Id → the change date the "saved or changed" block gave it with. */
   told: Map<string, number>
@@ -114,6 +116,9 @@ type FreshPart = {
   moved: boolean
   /** The live workspace and context, when the answer moves `built` to them. */
   rebuilt: { workspaceId: string; context: SessionContext } | null
+  /** Where `built.at` moves once every key of `rows` was given: no key qualified that is not in
+   *  `rows` (none was cut by `MEMORY_LIMITS.freshRows`). null = it stays. */
+  checked: number | null
 }
 
 /** `line` cut to `max` characters with `… id=<id>` kept at the end; never half of a surrogate
@@ -253,6 +258,9 @@ export function createMemoryRecall(deps: {
   function freshPart(call: MemoryCall, state: WindowState): FreshPart | null {
     const { built } = state
     if (built === null) return null
+    // Taken before the count and the selection, one millisecond back: a change made in the same
+    // millisecond after them is still after the mark, so it is counted next time.
+    const mark = Math.max(built.at, deps.now() - 1)
     const live = { workspaceId: call.session.workspaceId, context: sessionContext(call.session) }
     const moved = live.workspaceId !== built.workspaceId
     const changed = changedReasons(built.context, live.context)
@@ -271,18 +279,22 @@ export function createMemoryRecall(deps: {
         )
       )
     const own = picked.length === 0 ? [] : deps.activity.get(call.sessionId).entries
-    const rows = picked
-      .filter(
-        (row) =>
-          !own.some(
-            (e) =>
-              e.itemId === row.id &&
-              (e.action === 'saved' || e.action === 'updated') &&
-              e.at >= row.updatedAt
-          )
-      )
-      .slice(0, MEMORY_LIMITS.freshRows)
-    if (rows.length === 0 && !moved) return null
+    const qualified = picked.filter(
+      (row) =>
+        !own.some(
+          (e) =>
+            e.itemId === row.id &&
+            (e.action === 'saved' || e.action === 'updated') &&
+            e.at >= row.updatedAt
+        )
+    )
+    const rows = qualified.slice(0, MEMORY_LIMITS.freshRows)
+    if (rows.length === 0 && !moved) {
+      // Nothing to tell for this change: the next prompts cost the count again (spec §6: the
+      // full selection runs only when something changed).
+      state.built = { at: mark, workspaceId: live.workspaceId, context: live.context }
+      return null
+    }
     const clashes = new Set(call.store.shortIdClashes(live.workspaceId))
     return {
       head: [FRESH_HEADER, ...(moved ? [MOVED_LINE] : [])],
@@ -291,7 +303,8 @@ export function createMemoryRecall(deps: {
         return { id: row.id, updatedAt: row.updatedAt, line: text, whole }
       }),
       moved,
-      rebuilt: moved || changed.size > 0 ? live : null
+      rebuilt: moved || changed.size > 0 ? live : null,
+      checked: qualified.length === rows.length ? mark : null
     }
   }
 
@@ -503,8 +516,10 @@ export function createMemoryRecall(deps: {
       if (row.whole) state.whole.set(row.id, row.updatedAt)
       else state.whole.delete(row.id)
     }
-    if (fresh.rebuilt !== null && state.built !== null) {
-      state.built = { ...state.built, ...fresh.rebuilt }
+    if (state.built === null) return
+    if (fresh.rebuilt !== null) state.built = { ...state.built, ...fresh.rebuilt }
+    if (fresh.checked !== null && fresh.rows.every((row) => given.includes(row.id))) {
+      state.built = { ...state.built, at: fresh.checked }
     }
   }
 

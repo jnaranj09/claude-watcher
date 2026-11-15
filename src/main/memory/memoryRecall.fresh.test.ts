@@ -28,7 +28,9 @@ let session: MemorySessionMeta
 let activity: MemoryActivityLog
 let recall: MemoryRecall
 
-function build(over: { windowChars?: number; recallChars?: number } = {}): MemoryRecall {
+function build(
+  over: { windowChars?: number; recallChars?: number; now?: () => number } = {}
+): MemoryRecall {
   return createMemoryRecall({
     gate: createMemoryGate({
       enabled: () => true,
@@ -312,5 +314,69 @@ describe('the saved or changed block', () => {
       { at: NOW, action: 'injected', tool: 'prompt', itemId: b.id, reason: null },
       { at: NOW, action: 'injected', tool: 'prompt', itemId: a.id, reason: null }
     ])
+  })
+})
+
+describe('what the saved or changed block costs', () => {
+  /** Recall on the store's clock and its section built; a prompt comes one millisecond after the
+   *  last change; `runs` counts the selections after the section. */
+  function counted(): { prompt: (text?: string) => string; runs: () => number } {
+    recall = build({ now: () => clock })
+    index()
+    const rows = vi.spyOn(store, 'contextRows')
+    return {
+      prompt: (text = 'hello there') => {
+        clock += 1
+        return recallText(text)
+      },
+      runs: () => rows.mock.calls.length
+    }
+  }
+
+  it('one save elsewhere in the workspace runs the selection once, then the count again', () => {
+    add(specific('api port', '9281'))
+    const { prompt, runs } = counted()
+    expect(prompt()).toBe('')
+    expect(runs()).toBe(0)
+    later('other key', '1', { folder: '/other' })
+    expect(prompt()).toBe('')
+    expect(runs()).toBe(1)
+    expect(prompt()).toBe('')
+    expect(prompt('ok')).toBe('')
+    expect(runs()).toBe(1)
+    const fresh = later('new port', '7001')
+    expect(prompt()).toBe(`${FRESH_HEADER}\n${line('new port', '7001', fresh.id)}`)
+    expect(runs()).toBe(2)
+    expect(prompt()).toBe('')
+    expect(runs()).toBe(2)
+  })
+
+  it('a key saved in the same millisecond as a prompt, after it, comes with the next one', () => {
+    const { prompt } = counted()
+    later('other key', '1', { folder: '/other' })
+    expect(prompt()).toBe('')
+    const same = add(specific('same ms', '5'))
+    expect(prompt()).toBe(`${FRESH_HEADER}\n${line('same ms', '5', same.id)}`)
+  })
+
+  it('a context change that relates no key runs the selection once', () => {
+    const { prompt, runs } = counted()
+    session = { ...session, tagIds: ['t9'] }
+    expect(prompt()).toBe('')
+    expect(prompt()).toBe('')
+    expect(runs()).toBe(1)
+  })
+
+  it('keys left out by the five-line cap still come with the next prompt', () => {
+    const { prompt, runs } = counted()
+    for (let i = 0; i < 7; i++) later(`folder key ${i}`, `${i}`)
+    expect(prompt().split('\n')).toHaveLength(6)
+    expect(prompt().split('\n')).toEqual([
+      FRESH_HEADER,
+      line('folder key 1', '1', 'm2'),
+      line('folder key 0', '0', 'm1')
+    ])
+    expect(prompt()).toBe('')
+    expect(runs()).toBe(2)
   })
 })

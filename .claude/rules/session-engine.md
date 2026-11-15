@@ -232,12 +232,14 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   lines left out first): keys the session's selection (`contextRows`) lists that changed after
   the window's section was built and were not given with that change, and, when its tasks, goal,
   template or tags changed, keys of those reasons the window was not told; a workspace move adds
-  `This session moved to another workspace. …` and lists the new context. A window remembers when
-  its section was built and for which workspace and context (`built`, moved to the live ones
-  once a block told them) and each key's change it gave (`told`); never a key this same session
-  saved or updated last (its activity record). The usual prompt costs one count
-  (`changedSince`); no model call. A resumed window (no `built`) and a session without the mod get
-  none of it. Matching cuts the prompt's first 2,000
+  `This session moved to another workspace. …` and lists the new context. A window remembers
+  since when and for which workspace and context it was told its keys (`built`: set when the
+  section is built, then moved to the prompt by a selection that told everything it found or
+  found nothing to tell) and each key's change it gave (`told`); never a key this same session
+  saved or updated last (its activity record, newest 200 entries). A prompt costs one count
+  (`changedSince` since `built.at`); the selection runs once per change in scope or in the
+  context, then the count again (ruling C6); no model call. A resumed window (no `built`) and a
+  session without the mod get none of it. Matching cuts the prompt's first 2,000
   characters, its `<private>` spans left out, into 12 terms (`recallTerms.ts`); each term keeps its 200 newest rows (P3-C12); an
   item needs 2 terms or 1 exact one. The prompt text is used for the match and dropped. claude
   fixes a `session` section per conversation window, and a resumed conversation keeps its
