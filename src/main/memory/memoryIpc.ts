@@ -5,7 +5,18 @@
 // `operator` and no session, an edit or a state change carries no reason.
 //
 // No scope check on get/edit/setState/setPinned/remove/restore: the operator's dialog may open any
-// item it listed. `list` passes the dialog's workspace scope, and "here" (the folder filter) means
+// item it listed.
+//
+// An item's context (spec 2026-11-14 memory context index §8): `create` requires a folder, a goal
+// and tags (each may be none) and stamps them, with no session name, template or tasks; `edit`
+// takes only the changed fields, or null to leave them all. Before any write, every goal and tag id
+// the item does not hold yet must exist and fit its scope (`MemoryNames.contextFits`: a goal of
+// the item's workspace, never on a global item; tags global or of that workspace), else
+// `memory_context_invalid`; a stored id that is gone is kept. A folder is stored without its
+// trailing slashes. An edit with a context runs in one `store.batch`: `setContext`, then the text
+// edit, skipped when the text and check are the item's own, so a Save that changes only the
+// context adds no version and moves no date. This handler is the only caller of `setContext`: no
+// tool and no save from a session writes an item's context. `list` passes the dialog's workspace scope, and "here" (the folder filter) means
 // nothing for the operator (`sessionFolder: null`).
 //
 // The `Same value` flag (`memoryTwins.ts`) rides on two answers: `list` adds `twinIds`, the ids of
@@ -46,25 +57,53 @@ import {
   MemorySetStateSchema,
   MEMORY_LIMITS,
   type MemoryActivity,
-  type MemoryItem
+  type MemoryContextPatch,
+  type MemoryItem,
+  type MemoryText
 } from '../../shared/schemas/memory'
 import type {
   MemoryCommandsResult,
   MemoryGetResult,
   MemoryListResult
 } from '../../shared/ipc/contract'
+import { trimmedFolder } from './folderMatch'
 import type { MemoryActivityLog } from './memoryActivity'
 import type { MemoryCommands } from './memoryCommands'
 import type { MemoryNames } from './memoryNames'
 import type { MemoryStore } from './memoryStore'
 
-const NO_META: MemoryItem['meta'] = {
-  folder: null,
-  sessionName: null,
-  tagIds: [],
-  templateId: null,
-  goalId: null,
-  taskIds: []
+/** A folder without its trailing slashes (`/` stays), or no folder. */
+function storedFolder(folder: string | null): string | null {
+  return folder === null ? null : trimmedFolder(folder)
+}
+
+/** The patch with its folder trimmed as a create stores it. */
+function storedPatch(patch: MemoryContextPatch): MemoryContextPatch {
+  return patch.folder === undefined ? patch : { ...patch, folder: storedFolder(patch.folder) }
+}
+
+/** The ids of `patch` the item does not hold yet: only those are checked, so a stored goal or tag
+ *  that is gone stays (the form neither draws nor drops it). */
+function newIds(
+  item: MemoryItem,
+  patch: MemoryContextPatch
+): { goalId: string | null; tagIds: string[] } {
+  const goalId =
+    patch.goalId === undefined || patch.goalId === item.meta.goalId ? null : patch.goalId
+  const held = new Set(item.meta.tagIds)
+  return { goalId, tagIds: (patch.tagIds ?? []).filter((id) => !held.has(id)) }
+}
+
+/** The request's text and check are the item's own: a Save that changed only the context. */
+function sameText(item: MemoryItem, text: MemoryText, check: string | null): boolean {
+  if (item.check !== check) return false
+  if (item.kind === 'specific' && text.kind === 'specific') {
+    return item.key === text.key && item.value === text.value
+  }
+  if (item.kind === 'fact' && text.kind === 'fact') {
+    return item.title === text.title && item.body === text.body
+  }
+  return false
 }
 
 export interface MemoryIpcHandlers {
@@ -143,19 +182,46 @@ export function createMemoryIpcHandlers(deps: {
     },
     create(raw) {
       const req = MemoryCreateSchema.parse(raw)
-      return requireStore().add({
+      const store = requireStore()
+      const { context } = req
+      if (!names.contextFits(req.workspaceId, context)) {
+        throw new Error(MEMORY_ERROR.contextInvalid)
+      }
+      return store.add({
         text: req.text,
         workspaceId: req.workspaceId,
         check: req.check,
         basis: 'stated',
         origin: { by: 'operator', sessionId: null },
-        meta: NO_META,
+        meta: {
+          folder: storedFolder(context.folder),
+          goalId: context.goalId,
+          tagIds: context.tagIds,
+          sessionName: null,
+          templateId: null,
+          taskIds: []
+        },
         source: null
       })
     },
     edit(raw) {
       const req = MemoryEditSchema.parse(raw)
-      return requireStore().edit(req.id, { text: req.text, check: req.check }, 'operator', null)
+      const store = requireStore()
+      const { context } = req
+      if (context === null) {
+        return store.edit(req.id, { text: req.text, check: req.check }, 'operator', null)
+      }
+      const item = store.get(req.id)
+      if (item === null) throw new Error(MEMORY_ERROR.notFound)
+      if (!names.contextFits(item.workspaceId, newIds(item, context))) {
+        throw new Error(MEMORY_ERROR.contextInvalid)
+      }
+      return store.batch(() => {
+        const placed = store.setContext(req.id, storedPatch(context))
+        // A Save that changed only the context writes no version and moves no date.
+        if (sameText(item, req.text, req.check)) return placed
+        return store.edit(req.id, { text: req.text, check: req.check }, 'operator', null)
+      })
     },
     setState(raw) {
       const req = MemorySetStateSchema.parse(raw)

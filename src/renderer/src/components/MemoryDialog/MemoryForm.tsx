@@ -83,13 +83,19 @@ export function MemoryForm({
       ? MemoryCreateSchema.safeParse({
           workspaceId: global ? null : workspaceId,
           text: draftText,
-          check: checkValue
+          check: checkValue,
+          context: { folder: null, goalId: null, tagIds: [] }
         })
       : null
   const edit =
     item === null
       ? null
-      : MemoryEditSchema.safeParse({ id: item.id, text: draftText, check: checkValue })
+      : MemoryEditSchema.safeParse({
+          id: item.id,
+          text: draftText,
+          check: checkValue,
+          context: null
+        })
   const issuePath = (create ?? edit)?.error?.issues[0]?.path ?? []
   // A text field's issue sits under `text` (`['text', 'value']`); `check` sits at the top.
   const field = String(issuePath[0] === 'text' ? issuePath[1] : issuePath[0])

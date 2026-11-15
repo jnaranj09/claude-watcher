@@ -55,4 +55,22 @@ describe('memoryNameLookups', () => {
     expect(names.goalName('g2')).toBe('ship V2')
     expect(names.goalName('gone')).toBeNull()
   })
+
+  it('contextFits takes a goal of the workspace and tags of the workspace or global', () => {
+    expect(names.contextFits('w1', { goalId: 'g1', tagIds: ['t1', 't2'] })).toBe(true)
+    expect(names.contextFits('w1', { goalId: null, tagIds: [] })).toBe(true)
+  })
+
+  it("contextFits refuses another workspace's goal or tag, and an id that is gone", () => {
+    expect(names.contextFits('w1', { goalId: 'g2', tagIds: [] })).toBe(false)
+    expect(names.contextFits('w1', { goalId: null, tagIds: ['t3'] })).toBe(false)
+    expect(names.contextFits('w1', { goalId: 'gone', tagIds: [] })).toBe(false)
+    expect(names.contextFits('w1', { goalId: null, tagIds: ['t1', 'gone'] })).toBe(false)
+  })
+
+  it('contextFits gives a global item no goal and only global tags', () => {
+    expect(names.contextFits(null, { goalId: null, tagIds: ['t2'] })).toBe(true)
+    expect(names.contextFits(null, { goalId: 'g1', tagIds: [] })).toBe(false)
+    expect(names.contextFits(null, { goalId: null, tagIds: ['t1'] })).toBe(false)
+  })
 })

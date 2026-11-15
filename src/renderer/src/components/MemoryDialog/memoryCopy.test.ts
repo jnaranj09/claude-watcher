@@ -13,6 +13,7 @@ describe('memoryErrorCopy', () => {
     ['memory_version_not_found', 'That version is no longer in the history.'],
     ['memory_unavailable', 'Memory is not available. Reopen the app to try again.'],
     ['memory_read_failed', 'Could not load memory.'],
+    ['memory_context_invalid', 'That goal or tag no longer exists.'],
     ['store_write_failed', STORE_WRITE_FAILED_COPY]
   ])('maps %s to its sentence', (code, copy) => {
     expect(memoryErrorCopy(wrapped(code), 'Could not save memory.')).toBe(copy)

@@ -1,6 +1,7 @@
 // A small stand-in for main's memory store behind `window.memory` (the GoalsDialog test's style):
 // it keeps the items it answers with, applies the dialog's writes to them, and records every call.
-// It does not filter: what the dialog ASKS for is what the tests check. Shared by the Memory
+// It does not filter: what the dialog ASKS for is what the tests check. A create stamps the
+// request's context (no session name), an edit's context patch replaces the fields it sends. Shared by the Memory
 // dialog's tests. `twins` stands in for main's `Same value` rule: `list` marks the rows it returns
 // that have an entry there, and `get` answers the first five of an item's entry and counts the rest.
 import { vi, type Mock } from 'vitest'
@@ -218,6 +219,7 @@ export function installMemoryBridge(
       }))
     ),
     create: vi.fn((req: MemoryCreateRequest) => {
+      const meta = { ...req.context, sessionName: null, templateId: null, taskIds: [] }
       const item: MemoryItem =
         req.text.kind === 'specific'
           ? specificItem({
@@ -225,21 +227,33 @@ export function installMemoryBridge(
               key: req.text.key,
               value: req.text.value,
               check: req.check,
-              workspaceId: req.workspaceId
+              workspaceId: req.workspaceId,
+              meta
             })
           : factItem({
               id: 'f-new',
               title: req.text.title,
               body: req.text.body,
               check: req.check,
-              workspaceId: req.workspaceId
+              workspaceId: req.workspaceId,
+              meta
             })
       bridge.items = [item, ...bridge.items]
       return Promise.resolve(item)
     }),
     edit: vi.fn((req: MemoryEditRequest) =>
       withItem(bridge, req.id, (item) =>
-        replace(bridge, { ...item, ...req.text, check: req.check })
+        replace(bridge, {
+          ...item,
+          ...req.text,
+          check: req.check,
+          meta: {
+            ...item.meta,
+            folder: req.context?.folder === undefined ? item.meta.folder : req.context.folder,
+            goalId: req.context?.goalId === undefined ? item.meta.goalId : req.context.goalId,
+            tagIds: req.context?.tagIds ?? item.meta.tagIds
+          }
+        })
       )
     ),
     setState: vi.fn((id: string, state: MemoryItem['state']) =>

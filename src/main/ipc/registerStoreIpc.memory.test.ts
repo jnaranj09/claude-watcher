@@ -45,7 +45,12 @@ beforeEach(() => {
     },
     getMemoryStore: () => store,
     getMemoryCommands: () => commands,
-    memoryNames: { tagIdsByName: () => [], goalIdsByName: () => [], tagName: () => null },
+    memoryNames: {
+      tagIdsByName: () => [],
+      goalIdsByName: () => [],
+      tagName: () => null,
+      contextFits: () => true
+    },
     memoryActivity: createMemoryActivity(() => undefined)
   }
   // Only the memory registrar runs: it reads nothing else from the deps.
@@ -84,13 +89,18 @@ describe('registerMemoryIpc binds each handler to its own channel', () => {
   })
 
   it('items: create, list, get, edit, set-state, set-pinned, restore, delete', () => {
-    const made = call(CH.memoryCreate, { workspaceId: 'w1', text: PORT, check: null })
+    const made = call(CH.memoryCreate, {
+      workspaceId: 'w1',
+      text: PORT,
+      check: null,
+      context: { folder: null, goalId: null, tagIds: [] }
+    })
     expect(made).toMatchObject({ key: 'API port' })
     const { id } = made as { id: string }
     expect(call(CH.memoryList, LIST)).toMatchObject({ total: 1 })
     expect(call(CH.memoryGet, { id })).toMatchObject({ item: { id } })
     expect(
-      call(CH.memoryEdit, { id, text: { ...PORT, value: '9281' }, check: null })
+      call(CH.memoryEdit, { id, text: { ...PORT, value: '9281' }, check: null, context: null })
     ).toMatchObject({ value: '9281' })
     expect(call(CH.memorySetState, { id, state: 'stale' })).toMatchObject({ state: 'stale' })
     expect(call(CH.memorySetPinned, { id, pinned: true })).toMatchObject({ pinned: true })

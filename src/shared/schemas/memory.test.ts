@@ -24,7 +24,8 @@ const fact = { kind: 'fact', title: 'Deploy', body: 'line one\nline two' } as co
 const create = (text: unknown, check: string | null = null): unknown => ({
   workspaceId: null,
   check,
-  text
+  text,
+  context: { folder: null, goalId: null, tagIds: [] }
 })
 
 describe('memory text limits', () => {
@@ -61,7 +62,9 @@ describe('memory text limits', () => {
       inlineValueChars: 24,
       shortIdChars: 8,
       indexReasonShare: 6,
-      indexReasonRows: 40
+      indexReasonRows: 40,
+      contextFolder: 4096,
+      contextTags: 50
     })
   })
 
@@ -125,9 +128,30 @@ describe('memory text limits', () => {
 })
 
 describe('memory IPC requests', () => {
-  it('edit takes an id, text and check', () => {
-    expect(MemoryEditSchema.safeParse({ id: 'm1', text: fact, check: null }).success).toBe(true)
-    expect(MemoryEditSchema.safeParse({ id: '', text: fact, check: null }).success).toBe(false)
+  it('edit takes an id, text, check and a context patch or null', () => {
+    const edit = { id: 'm1', text: fact, check: null }
+    expect(MemoryEditSchema.safeParse({ ...edit, context: null }).success).toBe(true)
+    expect(MemoryEditSchema.safeParse({ ...edit, context: { tagIds: ['t1'] } }).success).toBe(true)
+    expect(MemoryEditSchema.safeParse({ ...edit, context: {} }).success).toBe(true)
+    expect(MemoryEditSchema.safeParse({ ...edit, id: '', context: null }).success).toBe(false)
+    expect(MemoryEditSchema.safeParse(edit).success).toBe(false)
+    expect(MemoryEditSchema.safeParse({ ...edit, context: { x: 1 } }).success).toBe(false)
+  })
+
+  it('a create needs a whole context: a folder on one line, a goal id and at most 50 tags', () => {
+    const context = { folder: '/work/app', goalId: 'g1', tagIds: ['t1'] }
+    const req = { workspaceId: 'w1', text: specific, check: null }
+    expect(MemoryCreateSchema.safeParse({ ...req, context }).success).toBe(true)
+    expect(MemoryCreateSchema.safeParse(req).success).toBe(false)
+    expect(MemoryCreateSchema.safeParse({ ...req, context: { folder: null } }).success).toBe(false)
+    const bad = [
+      { ...context, folder: '/a\nb' },
+      { ...context, folder: 'a'.repeat(MEMORY_LIMITS.contextFolder + 1) },
+      { ...context, goalId: '' },
+      { ...context, tagIds: Array.from({ length: MEMORY_LIMITS.contextTags + 1 }, () => 't1') }
+    ]
+    for (const c of bad)
+      expect(MemoryCreateSchema.safeParse({ ...req, context: c }).success).toBe(false)
   })
 
   it('set-state takes only active or stale', () => {

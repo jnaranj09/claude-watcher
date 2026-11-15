@@ -20,6 +20,7 @@ import {
   MEMORY_ERROR,
   MEMORY_LIMITS,
   MemoryVersionSchema,
+  type MemoryContextPatch,
   type MemoryItem,
   type MemoryItemKind,
   type MemoryRow,
@@ -96,6 +97,11 @@ export interface MemoryStore {
     by: MemoryWriter,
     reason: string | null
   ): MemoryItem
+  /** Writes only the given fields: `folder` to its column, `goalId` / `tagIds` inside `meta` (the
+   *  session name, template and task ids stay). No version, no date change. Unknown id:
+   *  `memory_not_found`. Only the dialog's create and edit call it (`memoryIpc.ts`): no tool or
+   *  save writes an item's context. */
+  setContext(id: string, patch: MemoryContextPatch): MemoryItem
   /** An episode is never pinned: `MEMORY_ERROR.notFound`, as for an unknown id. */
   setPinned(id: string, pinned: boolean): MemoryItem
   /** Appends the text of the version at `versionAt`; when two versions share that `at`, the
@@ -443,6 +449,20 @@ export function createMemoryStore(deps: {
         )
       })
     },
+
+    setContext: (id, patch) =>
+      write(() => {
+        const { folder, ...meta } = mustItem(id).meta
+        update(id, 'folder = ?, meta = ?', [
+          patch.folder === undefined ? folder : patch.folder,
+          JSON.stringify({
+            ...meta,
+            goalId: patch.goalId === undefined ? meta.goalId : patch.goalId,
+            tagIds: patch.tagIds ?? meta.tagIds
+          })
+        ])
+        return mustItem(id)
+      }),
 
     setPinned: (id, pinned) =>
       write(() => {

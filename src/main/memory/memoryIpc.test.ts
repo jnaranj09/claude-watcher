@@ -8,10 +8,23 @@ import { createMemoryActivity, type MemoryActivityLog } from './memoryActivity'
 import { createMemoryCommands, type MemoryCommands } from './memoryCommands'
 import { openMemoryDb, type MemoryDb } from './memoryDb'
 import { createMemoryIpcHandlers, type MemoryIpcHandlers } from './memoryIpc'
-import type { MemoryNames } from './memoryNames'
+import { memoryNameLookups, type MemoryNames } from './memoryNames'
 import { createMemoryStore, type MemoryStore } from './memoryStore'
 
 const NOW = 1_762_800_000_000
+/** Goals `g1` (w1) and `g2` (w2); tags `t1` (global), `t2` (w1), `t3` (w2). */
+const CATALOG = memoryNameLookups({
+  goals: () => [
+    { id: 'g1', name: 'Ship', workspaceId: 'w1' },
+    { id: 'g2', name: 'Other', workspaceId: 'w2' }
+  ],
+  tags: () => [
+    { id: 't1', name: 'infra', workspaceId: null },
+    { id: 't2', name: 'api', workspaceId: 'w1' },
+    { id: 't3', name: 'web', workspaceId: 'w2' }
+  ]
+})
+const NO_CONTEXT = { folder: null, goalId: null, tagIds: [] }
 const PORT: MemoryText = { kind: 'specific', key: 'API port', value: '9280' }
 const NOTE: MemoryText = { kind: 'fact', title: 'Deploys', body: 'Tag first, then deploy.' }
 
@@ -44,6 +57,7 @@ beforeEach(() => {
   commands = createMemoryCommands({ db, newId: () => `c${++ids}` })
   activity = createMemoryActivity()
   names = {
+    ...CATALOG,
     tagIdsByName: vi.fn((_w: string, name: string) => (name === 'infra' ? ['t1'] : [])),
     goalIdsByName: vi.fn((): string[] => []),
     goalName: vi.fn((): string | null => null),
@@ -70,12 +84,17 @@ const LIST = {
 } as const
 
 function create(text: MemoryText = PORT, workspaceId: string | null = 'w1'): string {
-  return h.create({ workspaceId, text, check: null }).id
+  return h.create({ workspaceId, text, check: null, context: NO_CONTEXT }).id
 }
 
 describe('create', () => {
   it('stamps the operator as the writer, basis stated, with empty meta', () => {
-    const item = h.create({ workspaceId: 'w1', text: PORT, check: 'curl :9280' })
+    const item = h.create({
+      workspaceId: 'w1',
+      text: PORT,
+      check: 'curl :9280',
+      context: NO_CONTEXT
+    })
     expect(item).toMatchObject({
       kind: 'specific',
       key: 'API port',
@@ -97,7 +116,13 @@ describe('create', () => {
 
   it('refuses an extra key (a basis or an origin never comes from the renderer)', () => {
     expect(() =>
-      h.create({ workspaceId: 'w1', text: PORT, check: null, basis: 'observed' })
+      h.create({
+        workspaceId: 'w1',
+        text: PORT,
+        check: null,
+        context: NO_CONTEXT,
+        basis: 'observed'
+      })
     ).toThrow()
   })
 })
@@ -153,7 +178,7 @@ describe('list', () => {
 describe('get', () => {
   it('answers the item and its versions, newest first', () => {
     const id = create()
-    h.edit({ id, text: { ...PORT, value: '9281' }, check: null })
+    h.edit({ id, text: { ...PORT, value: '9281' }, check: null, context: null })
     const out = h.get({ id })
     expect(out.item).toMatchObject({ id, value: '9281' })
     expect(out.versions.map((v) => v.body)).toEqual(['9281', '9280'])
@@ -213,14 +238,251 @@ describe('same value', () => {
 describe('edit', () => {
   it('appends a version written by the operator with no reason', () => {
     const id = create()
-    h.edit({ id, text: { ...PORT, value: '9281' }, check: null })
+    h.edit({ id, text: { ...PORT, value: '9281' }, check: null, context: null })
     const [newest] = store.versions(id)
     expect(newest).toMatchObject({ by: 'operator', reason: null, body: '9281' })
   })
 
   it('refuses an extra key', () => {
     expect(() =>
-      h.edit({ id: create(), text: PORT, check: null, reason: 'operator prose' })
+      h.edit({ id: create(), text: PORT, check: null, context: null, reason: 'operator prose' })
+    ).toThrow()
+  })
+})
+
+describe("an item's context (folder, goal, tags)", () => {
+  const SPECIFIC = PORT
+  const SCOPE_ALL = { workspaceId: 'w1', includeGlobal: true }
+  const EVERYTHING = { kind: 'specific', query: null, filters: {}, offset: 0, limit: 50 } as const
+  const CTX = { sessionFolder: null, tagIdsByName: () => [], goalIdsByName: () => [] }
+
+  function createOf(req: {
+    workspaceId: string | null
+    goalId: string | null
+    tagIds: string[]
+  }): unknown {
+    return {
+      workspaceId: req.workspaceId,
+      text: SPECIFIC,
+      check: null,
+      context: { folder: null, goalId: req.goalId, tagIds: req.tagIds }
+    }
+  }
+
+  /** The stored value of a specific (null for anything else). */
+  function valueOf(id: string): string | null {
+    const item = store.get(id)
+    return item?.kind === 'specific' ? item.value : null
+  }
+
+  /** An item a session saved, with a folder, a goal, tags, a session name, a template and tasks. */
+  function savedBySession(meta: { folder: string; goalId: string; tagIds: string[] }): string {
+    return store.add({
+      text: SPECIFIC,
+      workspaceId: 'w1',
+      check: 'curl :9280',
+      basis: 'inferred',
+      origin: { by: 'agent', sessionId: 's1' },
+      meta: { ...meta, sessionName: 'api work', templateId: 'tpl1', taskIds: ['k1'] },
+      source: null
+    }).id
+  }
+
+  it('a create stamps the folder, the goal and the tags, and nothing else', () => {
+    const item = h.create({
+      workspaceId: 'w1',
+      text: SPECIFIC,
+      check: null,
+      context: { folder: '/work/app/', goalId: 'g1', tagIds: ['t1', 't2'] }
+    })
+    expect(item.meta).toEqual({
+      folder: '/work/app',
+      goalId: 'g1',
+      tagIds: ['t1', 't2'],
+      sessionName: null,
+      templateId: null,
+      taskIds: []
+    })
+  })
+
+  it('a folder of only slashes is stored as /', () => {
+    const item = h.create({
+      workspaceId: 'w1',
+      text: SPECIFIC,
+      check: null,
+      context: { folder: '/', goalId: null, tagIds: [] }
+    })
+    expect(item.meta.folder).toBe('/')
+  })
+
+  it('a create with a goal of another workspace, a gone tag, or a goal on a global item is refused and writes nothing', () => {
+    for (const req of [
+      { workspaceId: 'w1', goalId: 'g2', tagIds: [] },
+      { workspaceId: 'w1', goalId: null, tagIds: ['gone'] },
+      { workspaceId: null, goalId: 'g1', tagIds: [] },
+      { workspaceId: null, goalId: null, tagIds: ['t2'] }
+    ]) {
+      expect(() => h.create(createOf(req))).toThrow(MEMORY_ERROR.contextInvalid)
+    }
+    expect(store.search(SCOPE_ALL, EVERYTHING, CTX).total).toBe(0)
+  })
+
+  it('a create without a context is a schema error', () => {
+    expect(() => h.create({ workspaceId: 'w1', text: SPECIFIC, check: null })).toThrow()
+  })
+
+  it('an edit with context null leaves the context as it is', () => {
+    const id = savedBySession({ folder: '/work/app', goalId: 'g1', tagIds: ['t1'] })
+    const out = h.edit({ id, text: { ...SPECIFIC, value: '9281' }, check: null, context: null })
+    expect(out.meta).toEqual({
+      folder: '/work/app',
+      goalId: 'g1',
+      tagIds: ['t1'],
+      sessionName: 'api work',
+      templateId: 'tpl1',
+      taskIds: ['k1']
+    })
+  })
+
+  it('an edit that sends only the tags keeps the folder and the goal', () => {
+    const id = savedBySession({ folder: '/gone/place', goalId: 'g1', tagIds: ['t1'] })
+    const out = h.edit({ id, text: SPECIFIC, check: null, context: { tagIds: ['t1', 't2'] } })
+    expect([out.meta.folder, out.meta.goalId, out.meta.tagIds]).toEqual([
+      '/gone/place',
+      'g1',
+      ['t1', 't2']
+    ])
+  })
+
+  it('an edit keeps a stored id that is gone, and refuses a new one that is gone', () => {
+    const id = savedBySession({ folder: '/work/app', goalId: 'gone-goal', tagIds: ['deleted-tag'] })
+    const kept = h.edit({
+      id,
+      text: SPECIFIC,
+      check: null,
+      context: { goalId: 'gone-goal', tagIds: ['deleted-tag', 't2'] }
+    })
+    expect([kept.meta.goalId, kept.meta.tagIds]).toEqual(['gone-goal', ['deleted-tag', 't2']])
+    expect(() =>
+      h.edit({
+        id,
+        text: SPECIFIC,
+        check: null,
+        context: { tagIds: ['deleted-tag', 'other-gone'] }
+      })
+    ).toThrow(MEMORY_ERROR.contextInvalid)
+    expect(store.get(id)?.meta.tagIds).toEqual(['deleted-tag', 't2'])
+  })
+
+  it('an edit refuses a goal of another workspace on a workspace item', () => {
+    const id = savedBySession({ folder: '/work/app', goalId: 'g1', tagIds: [] })
+    expect(() => h.edit({ id, text: SPECIFIC, check: null, context: { goalId: 'g2' } })).toThrow(
+      MEMORY_ERROR.contextInvalid
+    )
+    expect(store.get(id)?.meta.goalId).toBe('g1')
+  })
+
+  it('a context write keeps the session name, the template and the task ids, adds no version and moves no date', () => {
+    const id = savedBySession({ folder: '/work/app', goalId: 'g1', tagIds: ['t1'] })
+    const before = store.get(id)
+    const versionsBefore = store.versions(id).length
+    const after = store.setContext(id, { folder: '/work/shop', goalId: null, tagIds: [] })
+    expect(after.meta).toEqual({
+      folder: '/work/shop',
+      goalId: null,
+      tagIds: [],
+      sessionName: 'api work',
+      templateId: 'tpl1',
+      taskIds: ['k1']
+    })
+    expect(store.versions(id)).toHaveLength(versionsBefore)
+    expect([after.updatedAt, after.lastSeenAt]).toEqual([before?.updatedAt, before?.lastSeenAt])
+  })
+
+  it('setContext on an unknown id throws memory_not_found', () => {
+    expect(() => store.setContext('nope', { folder: '/x' })).toThrow(MEMORY_ERROR.notFound)
+  })
+
+  it('a Save that changes only the context adds no version and moves no date', () => {
+    const id = savedBySession({ folder: '/work/app', goalId: 'g1', tagIds: [] })
+    const before = store.get(id)
+    const versionsBefore = store.versions(id).length
+    h.edit({ id, text: SPECIFIC, check: 'curl :9280', context: { folder: '/work/shop' } })
+    expect(store.versions(id)).toHaveLength(versionsBefore)
+    expect(store.get(id)?.updatedAt).toBe(before?.updatedAt)
+    expect(store.get(id)?.meta.folder).toBe('/work/shop')
+  })
+
+  it('a Save that changes the text and the context writes one version and the context', () => {
+    const id = savedBySession({ folder: '/work/app', goalId: 'g1', tagIds: [] })
+    const versionsBefore = store.versions(id).length
+    const out = h.edit({
+      id,
+      text: { ...SPECIFIC, value: '9281' },
+      check: 'curl :9280',
+      context: { folder: '/work/shop' }
+    })
+    expect(store.versions(id)).toHaveLength(versionsBefore + 1)
+    expect([out.meta.folder, valueOf(id)]).toEqual(['/work/shop', '9281'])
+  })
+
+  it('a context edit tells the listeners once', () => {
+    const id = savedBySession({ folder: '/work/app', goalId: 'g1', tagIds: [] })
+    const heard = vi.fn()
+    store.onChange(heard)
+    h.edit({ id, text: { ...SPECIFIC, value: '9281' }, check: null, context: { folder: '/x' } })
+    expect(heard).toHaveBeenCalledTimes(1)
+  })
+
+  it('a refused context write leaves the text as it was', () => {
+    const id = savedBySession({ folder: '/work/app', goalId: 'g1', tagIds: [] })
+    expect(() =>
+      h.edit({ id, text: { ...SPECIFIC, value: '9281' }, check: null, context: { goalId: 'gone' } })
+    ).toThrow(MEMORY_ERROR.contextInvalid)
+    expect(valueOf(id)).toBe('9280')
+  })
+
+  it('a disk that refuses the context write keeps the text and the context as they were', () => {
+    const id = savedBySession({ folder: '/work/app', goalId: 'g1', tagIds: [] })
+    vi.spyOn(db, 'transaction').mockImplementation(() => {
+      throw new Error('SQLITE_FULL')
+    })
+    expect(() =>
+      h.edit({ id, text: { ...SPECIFIC, value: '9281' }, check: null, context: { folder: '/x' } })
+    ).toThrow(STORE_WRITE_FAILED)
+    vi.restoreAllMocks()
+    expect([store.get(id)?.meta.folder, valueOf(id)]).toEqual(['/work/app', '9280'])
+  })
+
+  it('a folder with a line break or a control character is a schema error', () => {
+    for (const folder of ['/a\n/b', '/a\u0007b']) {
+      expect(() =>
+        h.create({
+          workspaceId: 'w1',
+          text: SPECIFIC,
+          check: null,
+          context: { ...NO_CONTEXT, folder }
+        })
+      ).toThrow()
+    }
+    const id = create()
+    expect(() =>
+      h.edit({ id, text: SPECIFIC, check: null, context: { folder: '/a\n/b' } })
+    ).toThrow()
+  })
+
+  it('a context with an extra key, or more than 50 tags, is a schema error', () => {
+    expect(() =>
+      h.create({ workspaceId: 'w1', text: SPECIFIC, check: null, context: { ...NO_CONTEXT, x: 1 } })
+    ).toThrow()
+    const tagIds = Array.from({ length: 51 }, () => 't1')
+    expect(() =>
+      h.create({
+        workspaceId: 'w1',
+        text: SPECIFIC,
+        check: null,
+        context: { ...NO_CONTEXT, tagIds }
+      })
     ).toThrow()
   })
 })
@@ -237,7 +499,7 @@ describe('setState, setPinned, restore', () => {
   it('restores an older version as a new one', () => {
     const id = create()
     const [first] = store.versions(id)
-    h.edit({ id, text: { ...PORT, value: '9281' }, check: null })
+    h.edit({ id, text: { ...PORT, value: '9281' }, check: null, context: null })
     expect(h.restore({ id, versionAt: first?.at ?? 0 })).toMatchObject({ value: '9280' })
   })
 
@@ -430,8 +692,8 @@ describe('while memory is off (no store)', () => {
     const calls: (() => unknown)[] = [
       () => off.list(LIST),
       () => off.get(id),
-      () => off.create({ workspaceId: 'w1', text: PORT, check: null }),
-      () => off.edit({ ...id, text: PORT, check: null }),
+      () => off.create({ workspaceId: 'w1', text: PORT, check: null, context: NO_CONTEXT }),
+      () => off.edit({ ...id, text: PORT, check: null, context: null }),
       () => off.setState({ ...id, state: 'stale' }),
       () => off.setPinned({ ...id, pinned: true }),
       () => off.remove(id),
@@ -469,9 +731,9 @@ describe('a write the disk refuses', () => {
     vi.spyOn(db, 'transaction').mockImplementation(() => {
       throw new Error('SQLITE_FULL')
     })
-    expect(() => h.edit({ id, text: { ...PORT, value: '9281' }, check: null })).toThrow(
-      STORE_WRITE_FAILED
-    )
+    expect(() =>
+      h.edit({ id, text: { ...PORT, value: '9281' }, check: null, context: null })
+    ).toThrow(STORE_WRITE_FAILED)
     expect(() => h.remove({ id })).toThrow(STORE_WRITE_FAILED)
   })
 

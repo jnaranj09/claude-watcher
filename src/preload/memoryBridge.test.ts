@@ -64,10 +64,20 @@ describe('window.memory calls its own channel', () => {
     ['get', () => memory.get('m1'), CH.memoryGet],
     [
       'create',
-      () => memory.create({ workspaceId: 'w1', text: PORT, check: null }),
+      () =>
+        memory.create({
+          workspaceId: 'w1',
+          text: PORT,
+          check: null,
+          context: { folder: null, goalId: null, tagIds: [] }
+        }),
       CH.memoryCreate
     ],
-    ['edit', () => memory.edit({ id: 'm1', text: PORT, check: null }), CH.memoryEdit],
+    [
+      'edit',
+      () => memory.edit({ id: 'm1', text: PORT, check: null, context: null }),
+      CH.memoryEdit
+    ],
     ['setState', () => memory.setState('m1', 'stale'), CH.memorySetState],
     ['setPinned', () => memory.setPinned('m1', true), CH.memorySetPinned],
     ['remove', () => memory.remove('m1'), CH.memoryDelete],

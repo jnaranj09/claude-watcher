@@ -340,7 +340,8 @@ export function createMemoryTools(deps: {
   store: () => MemoryStore | null
   /** null = not a live session. */
   session: (sessionId: string) => MemorySessionMeta | null
-  names: MemoryNames
+  /** No `contextFits`: a tool never places an item (only the dialog does, `memoryIpc.ts`). */
+  names: Omit<MemoryNames, 'contextFits'>
   /** The goals store `task_report` reads and writes; null = not available. */
   tasks: () => Pick<GoalsStore, 'view' | 'reportTask'> | null
   /** The commands a `command` search lists; null = not available. */

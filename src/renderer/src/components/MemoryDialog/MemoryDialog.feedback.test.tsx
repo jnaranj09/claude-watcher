@@ -70,7 +70,8 @@ describe('MemoryDialog — Save', () => {
     expect(bridge.edit).toHaveBeenCalledWith({
       id: 'm1',
       text: { kind: 'specific', key: 'API port', value: '9282' },
-      check: 'ss -ltn'
+      check: 'ss -ltn',
+      context: null
     })
     expect(dialogToast('memory')).toMatchObject({ kind: 'success', title: 'Memory saved.' })
   })
@@ -98,7 +99,8 @@ describe('MemoryDialog — Save', () => {
     expect(bridge.create).toHaveBeenCalledWith({
       workspaceId: null,
       text: { kind: 'specific', key: 'Node version', value: 'v22.11.0' },
-      check: null
+      check: null,
+      context: { folder: null, goalId: null, tagIds: [] }
     })
     expect(dialogToast('memory')).toMatchObject({ kind: 'success', title: 'Memory saved.' })
   })

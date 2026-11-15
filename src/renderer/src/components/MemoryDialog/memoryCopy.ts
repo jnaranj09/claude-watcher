@@ -86,6 +86,7 @@ const ERROR_COPY: Readonly<Record<string, string>> = {
   [MEMORY_ERROR.versionNotFound]: HISTORY_TERMS.versionGone,
   [MEMORY_ERROR.unavailable]: 'Memory is not available. Reopen the app to try again.',
   [MEMORY_ERROR.readFailed]: MEMORY_COPY.loadFailed,
+  [MEMORY_ERROR.contextInvalid]: 'That goal or tag no longer exists.',
   [STORE_WRITE_FAILED]: STORE_WRITE_FAILED_COPY
 }
 

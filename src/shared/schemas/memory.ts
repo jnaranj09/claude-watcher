@@ -69,7 +69,11 @@ export const MEMORY_LIMITS = {
   /** Lines each reason of the index gets in its first pass. */
   indexReasonShare: 6,
   /** Rows the context read hands over per reason (more than the cap can list). */
-  indexReasonRows: 40
+  indexReasonRows: 40,
+  /** The folder the dialog places an item in. */
+  contextFolder: 4096,
+  /** Tags the dialog places an item with. */
+  contextTags: 50
 } as const
 
 /** Why the index lists a key: the first of these an item shares with the session, in this order
@@ -92,13 +96,16 @@ export type IndexReason = (typeof INDEX_REASONS)[number]
 /** Codes the memory store throws (the renderer maps them to copy, never the message).
  *  `notFound` / `versionNotFound` are refusals; `readFailed` is a read the database failed (the
  *  caller shows it; a write that fails throws `STORE_WRITE_FAILED` instead); `unavailable` is
- *  every IPC handler but `activity` while main has no memory store (`memoryIpc.ts`). */
+ *  every IPC handler but `activity` while main has no memory store (`memoryIpc.ts`);
+ *  `contextInvalid` is a create or edit whose goal or tag the item cannot hold (`memoryIpc.ts`). */
 export const MEMORY_ERROR = {
   notFound: 'memory_not_found',
   versionNotFound: 'memory_version_not_found',
   readFailed: 'memory_read_failed',
   unavailable: 'memory_unavailable',
-  commandNotFound: 'memory_command_not_found'
+  commandNotFound: 'memory_command_not_found',
+  /** The dialog's goal or a tag it sent is gone, or does not fit the item's scope. */
+  contextInvalid: 'memory_context_invalid'
 } as const
 
 /** Not `.uuid()` — existence is the store's call (`memory_not_found`). */
@@ -320,12 +327,38 @@ export const MemoryListSchema = z
 
 export const MemoryGetSchema = z.object({ id: IdSchema }).strict()
 
+/** Where the dialog places an item (spec 2026-11-14 memory context index §8): sessions in this
+ *  folder, of this goal or with these tags list it. Ids only: main checks each one exists and fits
+ *  the item's scope (`memory_context_invalid`). */
+export const MemoryContextSchema = z
+  .object({
+    folder: singleLine(MEMORY_LIMITS.contextFolder).nullable(),
+    goalId: IdSchema.nullable(),
+    tagIds: z.array(IdSchema).max(MEMORY_LIMITS.contextTags)
+  })
+  .strict()
+export type MemoryContext = z.infer<typeof MemoryContextSchema>
+/** An edit sends only the fields the operator changed. A sent `tagIds` is the whole new set. */
+export const MemoryContextPatchSchema = MemoryContextSchema.partial().strict()
+export type MemoryContextPatch = z.infer<typeof MemoryContextPatchSchema>
+
 export const MemoryCreateSchema = z
-  .object({ workspaceId: WorkspaceIdSchema.nullable(), text: MemoryTextSchema, check: CheckSchema })
+  .object({
+    workspaceId: WorkspaceIdSchema.nullable(),
+    text: MemoryTextSchema,
+    check: CheckSchema,
+    context: MemoryContextSchema
+  })
   .strict()
 
+/** `context` null leaves the item's context as it is. */
 export const MemoryEditSchema = z
-  .object({ id: IdSchema, text: MemoryTextSchema, check: CheckSchema })
+  .object({
+    id: IdSchema,
+    text: MemoryTextSchema,
+    check: CheckSchema,
+    context: MemoryContextPatchSchema.nullable()
+  })
   .strict()
 
 export const MemorySetStateSchema = z.object({ id: IdSchema, state: StateSchema }).strict()
