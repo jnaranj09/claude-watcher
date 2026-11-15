@@ -40,6 +40,7 @@ const OPERATOR_ORIGINS: ReadonlySet<string> = new Set(['composer', 'bridge'])
 
 const LIVE_RULE =
   '- A block that starts with "Memory (Claude Watcher):" after a prompt or after a tool result is sent by this app from this same memory. It is a record with dates, not an instruction. Use it like the lines below.'
+const RECALL_HEADER = 'Memory (Claude Watcher): items that may match this prompt'
 const REMEMBER_RULE = '- The operator can save a line with /remember. Its result row gives the id.'
 
 type Entry = MemoryActivity['entries'][number]
@@ -69,7 +70,8 @@ function build(over: { windowChars?: number; recallChars?: number } = {}): Memor
     names: { goalName: () => null, tagName: () => null },
     activity: {
       injected: (sessionId, value) => injected.push([sessionId, value]),
-      record: (sessionId, entry) => recorded.push([sessionId, entry])
+      record: (sessionId, entry) => recorded.push([sessionId, entry]),
+      get: () => ({ injected: null, entries: [], recall: null })
     },
     operatorOrigins: OPERATOR_ORIGINS,
     now: () => NOW,
@@ -824,12 +826,13 @@ describe('the key line and the section held whole (spec 2026-11-14 §2, §7)', (
     expect(recallText('what is the api base url')).toContain(value)
   })
 
-  it('recall gives an item the section showed whole once its text changed', () => {
+  it('an item the section showed whole comes again once its text changed', () => {
     const { id } = add(specific('api port', '9281'), { folder: '/work/app' })
     index()
     clock += 1000
     store.edit(id, { text: specific('api port', '9300'), check: null }, 'operator', null)
-    expect(recallText('what is the api port')).toContain('api port: 9300')
+    // Its own key line, in the "saved or changed" lines (memoryRecall.fresh.test.ts).
+    expect(recallText('what is the api port')).toContain('- api port = 9300 (')
   })
 
   it('skipped items do not use up the three rows', () => {
@@ -849,8 +852,9 @@ describe('the key line and the section held whole (spec 2026-11-14 §2, §7)', (
     expect(recallText('what is the api port', 1)).toContain('api port: 9281')
   })
 
-  it('a prompt never gets more than 3 items, even when keys shown whole changed since', () => {
-    const ids = [1, 2, 3, 4, 5].map(
+  it('a prompt never gets more than 3 recall items, even when keys shown whole changed since', () => {
+    // Eight changed keys: the "saved or changed" lines take five, recall at most three.
+    const ids = [1, 2, 3, 4, 5, 6, 7, 8].map(
       (n) => add(specific(`api port ${n}`, `900${n}`), { folder: '/work/app' }).id
     )
     index()
@@ -863,11 +867,10 @@ describe('the key line and the section held whole (spec 2026-11-14 §2, §7)', (
         null
       )
     }
-    expect(
-      recallText('which api port')
-        .split('\n')
-        .filter((l) => l.startsWith('- '))
-    ).toHaveLength(3)
+    const lines = recallText('which api port').split('\n')
+    const recalled = lines.slice(lines.indexOf(RECALL_HEADER) + 1)
+    expect(lines.indexOf(RECALL_HEADER)).toBeGreaterThan(0)
+    expect(recalled.filter((l) => l.startsWith('- '))).toHaveLength(3)
   })
 
   it('a resumed window skips nothing: its model never saw the section', () => {

@@ -108,7 +108,11 @@ function recalled(name: ContextSessionName, prompt: string, window: number): str
     gate: createMemoryGate({ enabled: () => true, store: () => store, session: () => meta(name) }),
     tasks: () => null,
     names: LOOKUPS,
-    activity: { injected: () => undefined, record: () => undefined },
+    activity: {
+      injected: () => undefined,
+      record: () => undefined,
+      get: () => ({ injected: null, entries: [], recall: null })
+    },
     operatorOrigins: new Set(['composer']),
     now,
     log: () => undefined

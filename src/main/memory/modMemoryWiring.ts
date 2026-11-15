@@ -35,7 +35,7 @@ export function createModMemory(deps: {
   tasks: () => Pick<GoalsStore, 'view'> | null
   /** The goal and tag names the section's headings print. */
   names: Pick<MemoryNames, 'goalName' | 'tagName'>
-  activity: Pick<MemoryActivityLog, 'injected' | 'record'>
+  activity: Pick<MemoryActivityLog, 'injected' | 'record' | 'get'>
   now: () => number
   log: (line: string) => void
 }): ModMemory {

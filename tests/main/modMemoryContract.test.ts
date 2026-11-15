@@ -159,7 +159,11 @@ describe('the memory mod’s contract with main', () => {
         },
         tasks: () => null,
         commands: () => null,
-        activity: { injected: () => undefined, record: () => undefined },
+        activity: {
+          injected: () => undefined,
+          record: () => undefined,
+          get: () => ({ injected: null, entries: [], recall: null })
+        },
         now: () => NOW,
         log: () => undefined
       })
@@ -290,7 +294,11 @@ describe('the memory mod’s contract with main', () => {
         }),
         tasks: () => null,
         names: { goalName: () => null, tagName: () => null },
-        activity: { injected: () => undefined, record: () => undefined },
+        activity: {
+          injected: () => undefined,
+          record: () => undefined,
+          get: () => ({ injected: null, entries: [], recall: null })
+        },
         operatorOrigins: OPERATOR_ORIGINS,
         now: () => NOW,
         log: () => undefined
@@ -353,7 +361,11 @@ describe('the memory mod’s contract with main', () => {
         gate: () => null,
         tasks: () => null,
         names: { goalName: () => null, tagName: () => null },
-        activity: { injected: () => undefined, record: () => undefined },
+        activity: {
+          injected: () => undefined,
+          record: () => undefined,
+          get: () => ({ injected: null, entries: [], recall: null })
+        },
         operatorOrigins: OPERATOR_ORIGINS,
         now: () => NOW,
         log: () => undefined
@@ -373,7 +385,11 @@ describe('the memory mod’s contract with main', () => {
         gate: () => null,
         tasks: () => null,
         names: { goalName: () => null, tagName: () => null },
-        activity: { injected: () => undefined, record: () => undefined },
+        activity: {
+          injected: () => undefined,
+          record: () => undefined,
+          get: () => ({ injected: null, entries: [], recall: null })
+        },
         operatorOrigins: OPERATOR_ORIGINS,
         now: () => NOW,
         log: () => undefined

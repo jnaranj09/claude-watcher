@@ -374,6 +374,15 @@ export function contextItems(
   })
 }
 
+/** How many active, unpinned specifics and facts in scope changed (were added, edited, restored
+ *  or set active) after `at`: one count, the per-prompt check of the "saved or changed" block. */
+export function changedSince(db: MemoryDb, scope: MemoryScope, at: number): number {
+  return count(
+    db,
+    and([scopeClause(scope), ACTIVE, RECALLABLE, { sql: 'item.updated_at > ?', params: [at] }])
+  )
+}
+
 const StartRow = z.object({ start: z.string() })
 
 /** The first `MEMORY_LIMITS.shortIdChars` characters two or more items in scope share (any

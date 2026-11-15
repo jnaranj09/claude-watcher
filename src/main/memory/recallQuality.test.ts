@@ -69,7 +69,11 @@ function blocks(): Map<string, string[]> {
     gate: createMemoryGate({ enabled: () => true, store: () => store, session: () => SESSION }),
     tasks: () => null,
     names: { goalName: () => null, tagName: () => null },
-    activity: { injected: () => undefined, record: () => undefined },
+    activity: {
+      injected: () => undefined,
+      record: () => undefined,
+      get: () => ({ injected: null, entries: [], recall: null })
+    },
     operatorOrigins: new Set(['composer']),
     now: () => clock,
     log: () => undefined

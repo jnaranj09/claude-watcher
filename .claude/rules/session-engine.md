@@ -225,7 +225,19 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   keys and 1,500 characters, and 20,000 characters of recall and at-use
   blocks a window, never passed (a block that would pass it is not given, and its items stay
   ungiven: M13); an item is given once per window, and recall skips a key the window's section
-  showed whole while its text is unchanged. Matching cuts the prompt's first 2,000
+  showed whole while its text is unchanged. Before recall's items, each operator prompt (the same
+  origin test, whatever its words) can get the "saved or changed" block
+  (`Memory (Claude Watcher): saved or changed since this conversation started`, at most
+  5 key lines (`MEMORY_LIMITS.freshRows`), inside the same 2,000 and 20,000 characters, recall's
+  lines left out first): keys the session's selection (`contextRows`) lists that changed after
+  the window's section was built and were not given with that change, and, when its tasks, goal,
+  template or tags changed, keys of those reasons the window was not told; a workspace move adds
+  `This session moved to another workspace. …` and lists the new context. A window remembers when
+  its section was built and for which workspace and context (`built`, moved to the live ones
+  once a block told them) and each key's change it gave (`told`); never a key this same session
+  saved or updated last (its activity record). The usual prompt costs one count
+  (`changedSince`); no model call. A resumed window (no `built`) and a session without the mod get
+  none of it. Matching cuts the prompt's first 2,000
   characters, its `<private>` spans left out, into 12 terms (`recallTerms.ts`); each term keeps its 200 newest rows (P3-C12); an
   item needs 2 terms or 1 exact one. The prompt text is used for the match and dropped. claude
   fixes a `session` section per conversation window, and a resumed conversation keeps its

@@ -5,12 +5,19 @@
 // and the ids given since), so nothing is given twice in a window, and how many characters the
 // window got, so recall stops at its budget. Recall also skips a key the section showed whole
 // while its text is the one it showed (spec 2026-11-14 memory context index §7).
+// A window also remembers when its section was built and the workspace and context it was built
+// for (`built`; none in a resumed window), and the change of each key its "saved or changed" block
+// gave (`told`). At each operator prompt that block comes first (§6): at most
+// `MEMORY_LIMITS.freshRows` key lines that are new or changed since the build, or that a changed
+// task, goal, template or tag set (or a workspace move, said in one line) newly relates; never a
+// key this same session saved or updated last. The usual prompt costs one count
+// (`changedSince`); the full selection runs only when something changed. No model call, no wait.
 // Every block starts with MEMORY_BLOCK_MARKER, so the slice cleaner never takes it as evidence;
 // every saved text in it goes through `oneLine` (P3-C1). A `<private>` span of the prompt is cut
 // (to a space, `privateSpans.ts`) before the terms; the mod sends the text as typed. Memory text and
 // prompt text are sensitive: this module logs `code=` only, and the activity log gets ids and counts.
 import type { GoalsView } from '../../shared/schemas/goal'
-import { MEMORY_ERROR, MEMORY_LIMITS } from '../../shared/schemas/memory'
+import { MEMORY_ERROR, MEMORY_LIMITS, type KeyReason } from '../../shared/schemas/memory'
 import type {
   ModMemoryAtUse,
   ModMemoryIndex,
@@ -31,6 +38,7 @@ import type { MemoryGrant } from './memoryTools'
 import { cutPrivate } from './privateSpans'
 import { MEMORY_BLOCK_MARKER, oneLine } from './promptText'
 import { recallTerms } from './recallTerms'
+import type { SessionContext } from './memorySearch'
 import { buildSessionIndex, sessionContext } from './sessionIndex'
 import { capped, parseRemember } from './rememberText'
 
@@ -61,10 +69,19 @@ interface WindowState {
   whole: Map<string, number>
   /** The id starts two items share (a key line then prints the whole id); null until needed. */
   clashes: ReadonlySet<string> | null
+  /** When the window's section was built and for what; null in a resumed window, or before the
+   *  index was asked. `at` never moves; the workspace and context follow what the "saved or
+   *  changed" block told. */
+  built: { at: number; workspaceId: string; context: SessionContext } | null
+  /** Id → the change date the "saved or changed" block gave it with. */
+  told: Map<string, number>
 }
 
 const LOG_PREFIX = '[claude-watcher][memory]'
 const RECALL_HEADER = `${MEMORY_BLOCK_MARKER} items that may match this prompt`
+const FRESH_HEADER = `${MEMORY_BLOCK_MARKER} saved or changed since this conversation started`
+const MOVED_LINE =
+  'This session moved to another workspace. The lists at the start of this conversation no longer apply.'
 const NOT_OK = { ok: false } as const
 const NOT_AVAILABLE = { ok: false, code: 'memory_not_available' } as const
 const NOTHING: ModMemoryTextAnswer = { ok: true, text: '' }
@@ -72,6 +89,32 @@ const NOTHING: ModMemoryTextAnswer = { ok: true, text: '' }
 const RESUMED_WINDOW = 0
 
 const moreLine = (n: number): string => `${n} more; use memory_search`
+
+const sameSet = (a: readonly string[], b: readonly string[]): boolean => {
+  const set = new Set(a)
+  return set.size === new Set(b).size && b.every((x) => set.has(x))
+}
+
+/** The reasons whose session field differs between `then` and `now` (the folder does not move). */
+function changedReasons(then: SessionContext, now: SessionContext): Set<KeyReason> {
+  const changed = new Set<KeyReason>()
+  if (!sameSet(then.taskIds, now.taskIds)) changed.add('task')
+  if (then.goalId !== now.goalId) changed.add('goal')
+  if (then.templateId !== now.templateId) changed.add('template')
+  if (!sameSet(then.tagIds, now.tagIds)) changed.add('tags')
+  return changed
+}
+
+/** The "saved or changed" part of one recall answer, before it is given. */
+type FreshPart = {
+  /** The header, then the moved line when the session moved. */
+  head: string[]
+  /** One per key, in order: its line, and what the window keeps once it is given. */
+  rows: { id: string; updatedAt: number; line: string; whole: boolean }[]
+  moved: boolean
+  /** The live workspace and context, when the answer moves `built` to them. */
+  rebuilt: { workspaceId: string; context: SessionContext } | null
+}
 
 /** `line` cut to `max` characters with `… id=<id>` kept at the end; never half of a surrogate
  *  pair (one character shorter then). */
@@ -86,15 +129,17 @@ export function createMemoryRecall(deps: {
   tasks: () => Pick<GoalsView, 'goals' | 'tasks'> | null
   /** The goal and tag names the section's headings print. */
   names: Pick<MemoryNames, 'goalName' | 'tagName'>
-  activity: Pick<MemoryActivityLog, 'injected' | 'record'>
+  /** `get` tells which keys the session itself saved or updated last. */
+  activity: Pick<MemoryActivityLog, 'injected' | 'record' | 'get'>
   /** The reducer's OPERATOR_ORIGINS. */
   operatorOrigins: ReadonlySet<string>
   now: () => number
   log: (line: string) => void
   /** Default MEMORY_LIMITS.recallWindowChars; a test passes a small one. */
   windowChars?: number
-  /** Default MEMORY_LIMITS.recallChars; a test passes a small one (with today's limits three
-   *  lines never reach it: a second line of defence, P3-C17). */
+  /** Default MEMORY_LIMITS.recallChars, for the "saved or changed" lines and recall's together
+   *  (P3-C17: three recall lines alone never reach it; with five fresh lines before them they
+   *  can, and the recall lines that do not fit are left out first). A test passes a small one. */
   recallChars?: number
 }): MemoryRecall {
   const windowChars = deps.windowChars ?? MEMORY_LIMITS.recallWindowChars
@@ -129,7 +174,9 @@ export function createMemoryRecall(deps: {
       delivered: new Set(),
       chars: 0,
       whole: new Map(),
-      clashes: null
+      clashes: null,
+      built: null,
+      told: new Map()
     }
     windows.set(sessionId, fresh)
     return fresh
@@ -202,6 +249,52 @@ export function createMemoryRecall(deps: {
     return { text: lines.join('\n'), ids }
   }
 
+  /** The "saved or changed" part for this prompt (rules in the header), or null. */
+  function freshPart(call: MemoryCall, state: WindowState): FreshPart | null {
+    const { built } = state
+    if (built === null) return null
+    const live = { workspaceId: call.session.workspaceId, context: sessionContext(call.session) }
+    const moved = live.workspaceId !== built.workspaceId
+    const changed = changedReasons(built.context, live.context)
+    if (!moved && changed.size === 0 && call.store.changedSince(call.scope, built.at) === 0) {
+      return null
+    }
+    const picked = call.store
+      .contextRows(live.workspaceId, live.context)
+      .flatMap((group) =>
+        group.rows.filter(
+          (row) =>
+            (row.updatedAt > built.at && state.told.get(row.id) !== row.updatedAt) ||
+            ((moved || changed.has(group.reason)) &&
+              !state.indexed.has(row.id) &&
+              !state.delivered.has(row.id))
+        )
+      )
+    const own = picked.length === 0 ? [] : deps.activity.get(call.sessionId).entries
+    const rows = picked
+      .filter(
+        (row) =>
+          !own.some(
+            (e) =>
+              e.itemId === row.id &&
+              (e.action === 'saved' || e.action === 'updated') &&
+              e.at >= row.updatedAt
+          )
+      )
+      .slice(0, MEMORY_LIMITS.freshRows)
+    if (rows.length === 0 && !moved) return null
+    const clashes = new Set(call.store.shortIdClashes(live.workspaceId))
+    return {
+      head: [FRESH_HEADER, ...(moved ? [MOVED_LINE] : [])],
+      rows: rows.map((row) => {
+        const { text, whole } = keyLine(row, clashes)
+        return { id: row.id, updatedAt: row.updatedAt, line: text, whole }
+      }),
+      moved,
+      rebuilt: moved || changed.size > 0 ? live : null
+    }
+  }
+
   /** Adds a composed block to the window and delivers its ids, or nothing when it would take the
    *  window past its ceiling (M13: the ceiling is never passed; the addendum's "past it nothing
    *  more is added"). Answers the text given. */
@@ -211,7 +304,7 @@ export function createMemoryRecall(deps: {
     block: { text: string; ids: readonly string[] },
     tool: string
   ): string {
-    if (block.ids.length === 0 || state.chars + block.text.length > windowChars) return ''
+    if (block.text === '' || state.chars + block.text.length > windowChars) return ''
     state.chars += block.text.length
     for (const id of block.ids) deliver(state, sessionId, id, tool)
     return block.text
@@ -235,6 +328,14 @@ export function createMemoryRecall(deps: {
         state.indexed = new Set(given)
         state.whole = new Map(old ? [] : whole.map((w) => [w.id, w.updatedAt]))
         state.clashes = new Set(call.store.shortIdClashes(call.session.workspaceId))
+        state.built = old
+          ? null
+          : {
+              at: deps.now(),
+              workspaceId: call.session.workspaceId,
+              context: sessionContext(call.session)
+            }
+        state.told = new Map()
         const folders = call.store.foldersWithSpecifics(
           call.scope,
           given,
@@ -250,33 +351,67 @@ export function createMemoryRecall(deps: {
         const call = deps.gate(grant)
         if (call === null) return NOT_OK
         const state = stateFor(call.sessionId, req.window)
-        const terms = recallTerms(cutPrivate(req.text, ' '))
-        if (!deps.operatorOrigins.has(req.origin) || terms.length === 0) return NOTHING
+        if (!deps.operatorOrigins.has(req.origin)) return NOTHING
         if (state.chars >= windowChars) return NOTHING
+        // The "saved or changed" part does not depend on the prompt's words: it comes before the
+        // terms. Its lines go first; the ones that do not fit the block are left out.
+        const fresh = freshPart(call, state)
+        const lines: string[] = []
+        let length = -1
+        const push = (line: string): void => {
+          lines.push(line)
+          length += 1 + line.length
+        }
+        const freshIds: string[] = []
+        if (fresh !== null) {
+          // The head goes in with the first key, or alone when the session moved.
+          const head = fresh.head.join('\n')
+          for (const row of fresh.rows) {
+            const add = (freshIds.length === 0 ? head.length + 1 : 0) + row.line.length + 1
+            if (length + add > recallChars) continue
+            if (freshIds.length === 0) push(head)
+            push(row.line)
+            freshIds.push(row.id)
+          }
+          if (freshIds.length === 0 && fresh.moved && head.length <= recallChars) push(head)
+        }
+        const terms = recallTerms(cutPrivate(req.text, ' '))
         // A key the section showed whole, still with the text it showed, is not given again; ask
-        // for enough rows that such keys never use up the block's rows.
-        const items = call.store
-          .recall(
-            call.scope,
-            terms,
-            [...state.delivered],
-            MEMORY_LIMITS.recallRows + state.whole.size
-          )
-          .filter((item) => state.whole.get(item.id) !== item.updatedAt)
-          .slice(0, MEMORY_LIMITS.recallRows)
-        let text = RECALL_HEADER
-        const ids: string[] = []
+        // for enough rows that such keys never use up the block's rows. A fresh key is not given
+        // twice in one answer.
+        const items =
+          terms.length === 0
+            ? []
+            : call.store
+                .recall(
+                  call.scope,
+                  terms,
+                  [...state.delivered, ...freshIds],
+                  MEMORY_LIMITS.recallRows + state.whole.size
+                )
+                .filter((item) => state.whole.get(item.id) !== item.updatedAt)
+                .slice(0, MEMORY_LIMITS.recallRows)
+        const recallIds: string[] = []
         for (const item of items) {
           const line = capLine(
             `${pinnedLine(item)} id=${item.id}`,
             item.id,
             MEMORY_LIMITS.recallLineChars
           )
-          if (text.length + 1 + line.length > recallChars) break
-          text += `\n${line}`
-          ids.push(item.id)
+          const header = recallIds.length === 0 ? RECALL_HEADER.length + 1 : 0
+          if (length + 1 + line.length + header > recallChars) break
+          if (recallIds.length === 0) push(RECALL_HEADER)
+          push(line)
+          recallIds.push(item.id)
         }
-        return { ok: true, text: give(state, call.sessionId, { text, ids }, 'prompt') }
+        const text = give(
+          state,
+          call.sessionId,
+          { text: lines.join('\n'), ids: [...freshIds, ...recallIds] },
+          'prompt'
+        )
+        if (text !== '' && fresh !== null) told(state, fresh, freshIds)
+        return { ok: true, text }
       })
     },
 
@@ -357,6 +492,19 @@ export function createMemoryRecall(deps: {
       windows.delete(sessionId)
       launches.delete(sessionId)
       resumed.delete(sessionId)
+    }
+  }
+
+  /** What a given "saved or changed" part leaves in the window (only once its text was given). */
+  function told(state: WindowState, fresh: FreshPart, given: readonly string[]): void {
+    for (const row of fresh.rows) {
+      if (!given.includes(row.id)) continue
+      state.told.set(row.id, row.updatedAt)
+      if (row.whole) state.whole.set(row.id, row.updatedAt)
+      else state.whole.delete(row.id)
+    }
+    if (fresh.rebuilt !== null && state.built !== null) {
+      state.built = { ...state.built, ...fresh.rebuilt }
     }
   }
 

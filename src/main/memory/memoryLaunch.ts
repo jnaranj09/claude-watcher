@@ -209,8 +209,8 @@ export function createMemoryMcp(
     dir: () => string
     /** Storage health's `memory` reporter: a refused config write shows in `StorageNotice`. */
     report: (code: StorageProblemCode) => void
-    /** Recall also records what it injected. */
-    activity: Pick<MemoryActivityLog, 'injected' | 'record'>
+    /** Recall also records what it injected, and reads what the session saved itself. */
+    activity: Pick<MemoryActivityLog, 'injected' | 'record' | 'get'>
   }
 ): MemoryMcp {
   const tokens = createSessionTokens<MemoryGrant>()

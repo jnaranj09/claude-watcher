@@ -38,6 +38,7 @@ import { CountRow, ItemRow, selectItems, type EpisodeRow, type KeyRow } from './
 import {
   agentSpecificsNoSource,
   browseItems,
+  changedSince,
   contextItems,
   extractScope,
   folderSpecifics,
@@ -134,6 +135,8 @@ export interface MemoryStore {
    *  and facts of the workspace and global, each under the first reason it shares with `ctx`, per
    *  reason its first `MEMORY_LIMITS.indexReasonRows` and its total. */
   contextRows(workspaceId: string, ctx: SessionContext): ContextGroup[]
+  /** How many active, unpinned specifics and facts in scope changed after `at`. */
+  changedSince(scope: MemoryScope, at: number): number
   /** The id starts (`MEMORY_LIMITS.shortIdChars`) two or more items of the workspace and global
    *  share. */
   shortIdClashes(workspaceId: string): string[]
@@ -514,6 +517,8 @@ export function createMemoryStore(deps: {
 
     contextRows: (workspaceId, ctx) =>
       read(() => contextItems(db, workspaceId, ctx, MEMORY_LIMITS.indexReasonRows)),
+
+    changedSince: (scope, at) => read(() => changedSince(db, scope, at)),
 
     shortIdClashes: (workspaceId) => read(() => shortIdClashes(db, workspaceId)),
 

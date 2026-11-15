@@ -283,3 +283,52 @@ describe('idsStarting', () => {
     expect(store.idsStarting(scope, 'abcdefg%', 10)).toEqual([])
   })
 })
+
+describe('changedSince', () => {
+  it('counts an add and an edit after at, not a pin, a stale item, another workspace or an episode', () => {
+    const before = add('old')
+    const pinned = add('pinned')
+    const staled = add('staled')
+    const at = clock
+    expect(store.changedSince({ workspaceId: 'w1', includeGlobal: true }, at)).toBe(0)
+    add('new here')
+    add('new global', {}, { workspaceId: null })
+    add('new elsewhere', {}, { workspaceId: 'w2' })
+    clock += 1000
+    store.edit(
+      before,
+      { text: { kind: 'specific', key: 'old', value: 'v2' }, check: null },
+      'operator',
+      null
+    )
+    clock += 1000
+    store.setState(staled, 'stale', 'operator', null)
+    store.setPinned(pinned, true)
+    store.edit(
+      pinned,
+      { text: { kind: 'specific', key: 'pinned', value: 'v2' }, check: null },
+      'operator',
+      null
+    )
+    clock += 1000
+    store.add({
+      text: { kind: 'episode', title: 'a session', body: 'it ran', endedAt: clock },
+      workspaceId: 'w1',
+      check: null,
+      basis: 'observed',
+      origin: { by: 'extract', sessionId: 's0' },
+      meta: {
+        folder: null,
+        sessionName: null,
+        tagIds: [],
+        templateId: null,
+        goalId: null,
+        taskIds: []
+      },
+      source: null
+    })
+    expect(store.changedSince({ workspaceId: 'w1', includeGlobal: true }, at)).toBe(3)
+    expect(store.changedSince({ workspaceId: 'w1', includeGlobal: false }, at)).toBe(2)
+    expect(store.changedSince({ workspaceId: 'w1', includeGlobal: true }, clock)).toBe(0)
+  })
+})

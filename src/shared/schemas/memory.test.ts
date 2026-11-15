@@ -62,6 +62,7 @@ describe('memory text limits', () => {
       inlineValueChars: 24,
       shortIdChars: 8,
       getIds: 10,
+      freshRows: 5,
       indexReasonShare: 6,
       indexReasonRows: 40,
       contextFolder: 4096,

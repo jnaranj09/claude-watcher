@@ -68,6 +68,8 @@ export const MEMORY_LIMITS = {
   shortIdChars: 8,
   /** Ids one `memory_get` call reads. */
   getIds: 10,
+  /** Keys one "saved or changed" block lists (inside the recall block's budget). */
+  freshRows: 5,
   /** Lines each reason of the index gets in its first pass. */
   indexReasonShare: 6,
   /** Rows the context read hands over per reason (more than the cap can list). */

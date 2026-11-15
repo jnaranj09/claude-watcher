@@ -290,8 +290,11 @@ Known limits:
 - The index hides a value only when it matches a secret pattern, holds a `<private>` tag, or its
   key holds a secret word (`dbPassword`, `API_KEY`): a secret under a harmless key that matches no
   pattern shows its first 24 characters.
-- A value that changes while a conversation runs stays as the index listed it until the
-  conversation's next window (`/clear`, `/compact`).
+- A key saved or changed while a conversation runs reaches it with your next prompt, in a block
+  of at most 5 keys (`saved or changed since this conversation started`), not one the same
+  session saved or updated itself. A session without recall (`Memory recall` off, the memory mod
+  not installed, or an older claude) and a resumed conversation before its next window keep the
+  index as listed until the conversation's next window (`/clear`, `/compact`).
 - An item you only move to another folder, goal or tags in the Memory dialog reaches a running
   conversation at its next window: the change moves no date, so nothing tells the conversation.
 - A value written right before a dotted or hyphenated continuation (`1.2` in `1.2.34`) is
