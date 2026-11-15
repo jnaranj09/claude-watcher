@@ -199,6 +199,18 @@ describe('contextRows', () => {
     })
   })
 
+  it('10b. a trailing slash on either folder is ignored; an item at the root is "this folder" for a session at the root', () => {
+    const slashed = add('slashed', { folder: '/work/app/' })
+    expect(reasonsOf(store.contextRows('w1', { ...BARE, folder: '/work/app/' }))).toEqual({
+      folder: [slashed]
+    })
+    const root = add('root', { folder: '/' })
+    expect(reasonsOf(store.contextRows('w1', { ...BARE, folder: '/' }))).toEqual({
+      folder: [root],
+      folder_below: [slashed]
+    })
+  })
+
   it('11. a row carries the last-seen day, the basis, the check flag and the deleted mark', () => {
     add('checked', { folder: '/work/app' }, { check: 'curl it', sessionId: 'gone' })
     store.markSessionDeleted('gone')

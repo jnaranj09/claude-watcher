@@ -45,6 +45,8 @@ const REMEMBER_RULE = '- The operator can save a line with /remember. Its result
 type Entry = MemoryActivity['entries'][number]
 
 let ids: number
+/** The start of every id the store mints: a test sets one 8 characters long to make a clash. */
+let idPrefix: string
 /** The store's clock: a test moves it to change an item later. */
 let clock: number
 let store: MemoryStore
@@ -80,11 +82,12 @@ beforeEach(() => {
   const open = openMemoryDb(':memory:', { now: () => NOW, log: () => undefined })
   if (!open.ok) throw new Error('open failed')
   ids = 0
+  idPrefix = 'm'
   clock = NOW
   store = createMemoryStore({
     db: open.db,
     now: () => clock,
-    newId: () => `m${++ids}`,
+    newId: () => `${idPrefix}${++ids}`,
     report: () => undefined,
     log: () => undefined
   })
@@ -872,6 +875,15 @@ describe('the key line and the section held whole (spec 2026-11-14 §2, §7)', (
     recall.launched('s1', { excludeTaskIds: [], resume: true })
     index(0)
     expect(recallText('what is the api port', 0)).toContain('api port: 9281')
+  })
+
+  it('at use prints the whole id of a key whose first 8 characters another item shares', () => {
+    idPrefix = 'abcdefgh-'
+    add(specific('db port', '5433'), { folder: '/work/other' })
+    add(specific('api port', '9281'), { folder: '/elsewhere' })
+    expect(atUse(['/work/other']).text?.split('\n')[1]).toBe(
+      `- db port = 5433 (seen ${DAY}, inferred) id=abcdefgh-1`
+    )
   })
 
   it('the index records its groups in the activity', () => {
