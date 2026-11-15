@@ -152,6 +152,19 @@ describe('the saved or changed block', () => {
     expect(recallText('which api port again')).toBe('')
   })
 
+  it('a key already told that changes a second time comes again with its newer value', () => {
+    const port = add(specific('api port', '9281'))
+    index()
+    edit(port.id, 'api port', '9300')
+    expect(recallText('hello there')).toBe(
+      `${FRESH_HEADER}\n${line('api port', '9300', port.id, 'stated')}`
+    )
+    edit(port.id, 'api port', '9400')
+    expect(recallText('hello again')).toBe(
+      `${FRESH_HEADER}\n${line('api port', '9400', port.id, 'stated')}`
+    )
+  })
+
   it('nothing new and the same context costs one count and adds nothing', () => {
     add(specific('api port', '9281'))
     index()
