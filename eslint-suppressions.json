@@ -420,7 +420,7 @@
       "count": 3
     },
     "testing-library/no-container": {
-      "count": 85
+      "count": 80
     },
     "vitest/no-conditional-in-test": {
       "count": 3
@@ -602,7 +602,7 @@
   },
   "src/renderer/src/components/TagMenu/TagMenu.test.tsx": {
     "testing-library/no-container": {
-      "count": 6
+      "count": 2
     }
   },
   "src/renderer/src/components/TagPicker/TagPicker.test.tsx": {
@@ -610,7 +610,7 @@
       "count": 1
     },
     "testing-library/no-container": {
-      "count": 5
+      "count": 1
     },
     "testing-library/no-unnecessary-act": {
       "count": 1
@@ -732,7 +732,7 @@
   },
   "src/renderer/src/components/board/Board.test.tsx": {
     "testing-library/no-container": {
-      "count": 84
+      "count": 81
     },
     "vitest/no-conditional-in-test": {
       "count": 1

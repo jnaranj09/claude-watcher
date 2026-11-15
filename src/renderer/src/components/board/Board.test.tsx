@@ -898,9 +898,9 @@ describe('Board — the Tags… menu offers only global + the card’s own works
         ?.click()
     )
     // data-testid queried, never textContent search (design.md).
-    expect(container.querySelector('[data-testid="card-tag-picker-row-t-global"]')).not.toBeNull()
-    expect(container.querySelector('[data-testid="card-tag-picker-row-t-own"]')).not.toBeNull()
-    expect(container.querySelector('[data-testid="card-tag-picker-row-t-other"]')).toBeNull()
+    expect(document.querySelector('[data-testid="card-tag-picker-row-t-global"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="card-tag-picker-row-t-own"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="card-tag-picker-row-t-other"]')).toBeNull()
   })
 })
 

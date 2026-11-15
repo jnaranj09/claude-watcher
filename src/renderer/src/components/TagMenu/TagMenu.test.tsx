@@ -5,7 +5,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { renderComponent } from '../../test/renderComponent'
 import { FilterBar } from '../FilterBar/FilterBar'
 import { TagPicker } from '../TagPicker/TagPicker'
 import { tagsStore } from '../../stores/tagsStore'
@@ -27,7 +27,7 @@ afterEach(() => {
   })
 })
 
-function renderFilterList(): RenderResult {
+function renderFilterList(): Element {
   act(() => {
     workspacesStore.setState({
       workspaces: [{ id: 'default', name: 'Default', color: 'slate', defaultCwd: null }],
@@ -41,10 +41,11 @@ function renderFilterList(): RenderResult {
   cleanups.push(r.unmount)
   act(() => r.container.querySelector<HTMLElement>('[data-testid="filter-toggle"]')?.click())
   act(() => r.container.querySelector<HTMLElement>('[data-testid="filter-pill-tag-edit"]')?.click())
-  return r
+  return r.container
 }
 
-function renderPicker(): RenderResult {
+/** The picker's list is portaled to document.body: its root is the wrapper around its Surface. */
+function renderPicker(): Element {
   const r = renderComponent(
     <TagPicker
       tags={[DEPLOY, PROD]}
@@ -52,18 +53,21 @@ function renderPicker(): RenderResult {
       onChange={vi.fn()}
       onClose={vi.fn()}
       anchorRef={{ current: null }}
+      triggerRef={{ current: null }}
       testId="picker"
       label="Tags for api"
     />
   )
   cleanups.push(r.unmount)
-  return r
+  const root = document.querySelector('[data-testid="picker"]')?.parentElement
+  if (root === null || root === undefined) throw new Error('picker not drawn')
+  return root
 }
 
 describe('the filter tag list and the tag picker are ONE design', () => {
   it('both popups are TagMenu, and every row is a TagMenuRow holding a chip', () => {
     for (const r of [renderFilterList(), renderPicker()]) {
-      const menus = r.container.querySelectorAll('[data-popover]')
+      const menus = r.querySelectorAll('[data-popover]')
       expect(menus).toHaveLength(1)
       const rows = [...(menus[0]?.querySelectorAll('[data-popover-item]') ?? [])]
       expect(rows).toHaveLength(2)
@@ -73,16 +77,14 @@ describe('the filter tag list and the tag picker are ONE design', () => {
 
   it('no longer stamps the retired one-off hooks', () => {
     for (const r of [renderFilterList(), renderPicker()]) {
-      expect(r.container.querySelector('[data-tag-menu]')).toBeNull()
-      expect(r.container.querySelector('[data-tag-menu-row]')).toBeNull()
+      expect(r.querySelector('[data-tag-menu]')).toBeNull()
+      expect(r.querySelector('[data-tag-menu-row]')).toBeNull()
     }
   })
 
   it('the chosen row carries the same check mark in both', () => {
     for (const r of [renderFilterList(), renderPicker()]) {
-      const checks = r.container.querySelectorAll(
-        '[data-popover-item] [data-testid="tag-menu-check"]'
-      )
+      const checks = r.querySelectorAll('[data-popover-item] [data-testid="tag-menu-check"]')
       expect(checks).toHaveLength(1)
       expect(checks[0]?.closest('[data-popover-item]')?.getAttribute('aria-checked')).toBe('true')
     }

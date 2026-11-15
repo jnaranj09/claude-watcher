@@ -8,7 +8,11 @@
 // filter is a multi-choice `menu` in FilterChips, the picker a checkbox `group`). Themes reach both
 // through `[data-popover]` / `[data-popover-item]` (Popover), so a theme cannot style one and miss
 // the other.
-import type { JSX, KeyboardEvent, MouseEvent, ReactNode } from 'react'
+//
+// Where it sits: the filter's list is drawn inside its pill's anchor (`.wrap`, absolute). The
+// picker's list is portaled to document.body by TagPicker and placed there (`anchored`: fixed, at
+// the style `useAnchoredPlacement` measures), because a form's scroll body would cut it.
+import type { CSSProperties, JSX, KeyboardEvent, MouseEvent, ReactNode, RefObject } from 'react'
 import type { Tag } from '../../../../shared/ipc/contract'
 import { Popover } from '../Popover/Popover'
 import { TagChip } from '../TagChip/TagChip'
@@ -26,6 +30,9 @@ export interface TagMenuProps {
   id?: string | undefined
   onKeyDown?: ((e: KeyboardEvent<HTMLDivElement>) => void) | undefined
   onClick?: ((e: MouseEvent<HTMLDivElement>) => void) | undefined
+  /** A portaled list (TagPicker): its wrapper and the placement `useAnchoredPlacement` gives it.
+   *  Absent: the list sits under its anchor (FilterChips). */
+  anchored?: { ref: RefObject<HTMLDivElement | null>; style: CSSProperties } | undefined
   children: ReactNode
 }
 
@@ -37,13 +44,19 @@ export function TagMenu({
   id,
   onKeyDown,
   onClick,
+  anchored,
   children
 }: TagMenuProps): JSX.Element {
   // Overlay motion: while it fades out, clicks pass through its box (not just the Surface).
   const leaving = useLeaving()
   return (
     <div
-      className={`${styles.wrap} ${align === 'end' ? styles.alignEnd : styles.alignStart}`}
+      className={
+        anchored === undefined
+          ? `${styles.wrap} ${align === 'end' ? styles.alignEnd : styles.alignStart}`
+          : styles.anchored
+      }
+      {...(anchored === undefined ? {} : { ref: anchored.ref, style: anchored.style })}
       {...leavingProps(leaving)}
     >
       <Popover.Surface

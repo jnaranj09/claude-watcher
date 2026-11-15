@@ -225,6 +225,7 @@ function RailRow(props: {
   const [peekOpen, setPeekOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const addGroupRef = useRef<HTMLSpanElement | null>(null)
+  const addTagRef = useRef<HTMLButtonElement | null>(null)
   const tagPickerId = useId()
   if (!view.present) return null
   const { name, status, emphasized, active } = view
@@ -377,14 +378,15 @@ function RailRow(props: {
           />
         )}
       </span>
-      {/* The group holds BOTH `+ tag` and its list: TagPicker closes on a mousedown outside its
-          anchor, so an anchor holding only the button would close the list under the click that
-          ticks it. `display: contents` — no box, so both are still placed from `.rowWrap`. */}
+      {/* The group is TagPicker's anchor: a mousedown outside it and outside the list closes the
+          list. The list itself is portaled and sits under `+ tag` (`addTagRef`). `display:
+          contents` — no box, so `+ tag` is still placed from `.rowWrap`. */}
       {peekAdd && (
         <span className={styles.addTagGroup} ref={addGroupRef}>
           <button
             type="button"
             className={`${styles.addTag} ${styles.addTagButton}`}
+            ref={addTagRef}
             data-testid="rail-tags-add"
             aria-expanded={editing}
             aria-controls={tagPickerId}
@@ -403,6 +405,7 @@ function RailRow(props: {
                 onChange={(next) => onSetTags?.(id, next)}
                 onClose={() => setEditing(false)}
                 anchorRef={addGroupRef}
+                triggerRef={addTagRef}
                 testId="rail-tag-picker"
                 label={`Tags for ${name}`}
               />

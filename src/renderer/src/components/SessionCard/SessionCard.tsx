@@ -380,8 +380,9 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
   }
 
   // SessionCard.module.css `.root[data-menu-open]` — lifts THIS card's stacking context above
-  // its siblings while its own move menu or tag picker is open, so the popover never paints
-  // under the next card in the column (Task 17 drive-scenario finding).
+  // its siblings while its own move menu or tag picker is open, so the move menu never paints
+  // under the next card in the column (Task 17 drive-scenario finding; the tag picker is portaled
+  // to document.body, TagPicker).
   const menuOpen = moveOpen || tagsOpen
 
   return (
@@ -563,6 +564,7 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
                   onChange={(tagIds) => onSetTags(tagIds)}
                   onClose={closeTags}
                   anchorRef={tagsAnchorRef}
+                  triggerRef={tagsButtonRef}
                   testId="card-tag-picker"
                   label={`Tags for ${sessionName}`}
                 />

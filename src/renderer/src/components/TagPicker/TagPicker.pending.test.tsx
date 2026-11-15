@@ -29,6 +29,7 @@ function mount(selectedIds: string[], onChange: (ids: string[]) => void = () => 
       onChange={onChange}
       onClose={() => {}}
       anchorRef={{ current: null }}
+      triggerRef={{ current: null }}
       testId="picker"
       label="Tags for api"
     />
@@ -36,7 +37,7 @@ function mount(selectedIds: string[], onChange: (ids: string[]) => void = () => 
 }
 
 const checked = (id: string): string | null | undefined =>
-  r?.container.querySelector(`[data-testid="picker-row-${id}"]`)?.getAttribute('aria-checked')
+  document.querySelector(`[data-testid="picker-row-${id}"]`)?.getAttribute('aria-checked')
 
 describe('TagPicker — pending toggles', () => {
   it('shows a pending tag as ticked, and the next click builds on it', () => {
@@ -44,9 +45,7 @@ describe('TagPicker — pending toggles', () => {
     mount([], onChange)
     act(() => tagsStore.getState().setPending('s1', new Map([['a', true]])))
     expect(checked('a')).toBe('true')
-    act(() =>
-      r?.container.querySelector<HTMLButtonElement>('[data-testid="picker-row-b"]')?.click()
-    )
+    act(() => document.querySelector<HTMLButtonElement>('[data-testid="picker-row-b"]')?.click())
     expect(onChange).toHaveBeenCalledWith(['a', 'b'])
   })
 

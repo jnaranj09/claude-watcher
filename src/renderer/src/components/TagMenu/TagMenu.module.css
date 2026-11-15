@@ -1,12 +1,29 @@
 /* Where a tag list sits; its look is Popover's (spec 2026-10-01). */
-.wrap {
-  position: absolute;
-  top: calc(100% + var(--space-1));
-  z-index: 50;
+.wrap,
+.anchored {
   min-width: 200px;
   max-width: 300px;
   --popover-max-height: 340px;
   cursor: default;
+}
+/* The filter's list: under its pill, inside the pill's anchor. */
+.wrap {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  z-index: 50;
+}
+/* The picker's list (TagPicker): portaled to document.body and placed by `useAnchoredPlacement`
+   (inline top/bottom, right, maxHeight), so a form's scroll body or a card's clip never cuts it.
+   Above ManageDialog (60), below toasts (70), as Select's list. A flex column so the inline
+   maxHeight reaches the list through the Surface. */
+.anchored {
+  position: fixed;
+  z-index: 65;
+  display: flex;
+  flex-direction: column;
+}
+.anchored > [data-popover] {
+  min-height: 0;
 }
 .alignStart {
   left: 0;

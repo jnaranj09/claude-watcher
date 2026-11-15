@@ -449,7 +449,8 @@ describe('SessionCard — one anatomy, two live presentations (AC-4, AC-8; watch
   // `z-index: 10` escaped to compete against sibling cards (also z-index:auto) by DOM tree order
   // instead of by z-index. `.root[data-menu-open]` (SessionCard.module.css) fixes it by lifting
   // ONLY the card with an open popover — never unconditionally, or two adjacent open cards would
-  // tie and fall back to tree order again.
+  // tie and fall back to tree order again. (The tag picker is now portaled to document.body; the
+  // move menu still relies on the lift, and the card still lifts for both.)
   it('carries data-menu-open on the root ONLY while its own move menu or tag picker is open', () => {
     const { container, unmount } = renderComponent(
       <SessionCard
@@ -623,7 +624,7 @@ describe('SessionCard — tags (T-26, §4.3)', () => {
     expect(button.getAttribute('aria-label')).toBe('Create tags')
     act(() => button.click())
     expect(onManageTags).toHaveBeenCalledTimes(1)
-    expect(container.querySelector('[data-testid="card-tag-picker"]')).toBeNull()
+    expect(document.querySelector('[data-testid="card-tag-picker"]')).toBeNull()
     expect(onActivate).not.toHaveBeenCalled()
   })
 
@@ -639,9 +640,9 @@ describe('SessionCard — tags (T-26, §4.3)', () => {
     act(() =>
       container.querySelector<HTMLButtonElement>('[data-testid="card-tags-button"]')?.click()
     )
-    expect(container.querySelector('[data-testid="card-tag-picker"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="card-tag-picker"]')).not.toBeNull()
     act(() =>
-      container
+      document
         .querySelector<HTMLButtonElement>('[data-testid="card-tag-picker-row-t-ops"]')
         ?.click()
     )
@@ -658,11 +659,32 @@ describe('SessionCard — tags (T-26, §4.3)', () => {
     act(() =>
       container.querySelector<HTMLButtonElement>('[data-testid="card-tags-button"]')?.click()
     )
-    const picker = container.querySelector('[data-testid="card-tag-picker"]')
+    const picker = document.querySelector('[data-testid="card-tag-picker"]')
     if (picker === null) throw new Error('picker did not open')
     fireEvent(picker, new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    expect(container.querySelector('[data-testid="card-tag-picker"]')).toBeNull()
+    expect(document.querySelector('[data-testid="card-tag-picker"]')).toBeNull()
     expect(onActivate).not.toHaveBeenCalled()
+  })
+
+  /** An element of the tag picker's list, which is portaled to document.body. */
+  function portaled(testId: string): HTMLElement {
+    const el = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`)
+    if (el === null) throw new Error(`missing ${testId}`)
+    return el
+  }
+
+  it('Escape in the portaled Tags… list hands focus back to its button', () => {
+    const { container, unmount } = renderComponent(
+      <SessionCard {...baseProps({ availableTags: [PROD], onSetTags: vi.fn() })} />
+    )
+    cleanup = unmount
+    const button = container.querySelector<HTMLButtonElement>('[data-testid="card-tags-button"]')
+    act(() => button?.click())
+    const row = portaled('card-tag-picker-row-t-prod')
+    expect(container).not.toContainElement(row)
+    act(() => row.focus())
+    fireEvent(row, new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(button).toHaveFocus()
   })
 
   it('the move menu warns when the move drops this workspace’s own tags (T-9)', () => {
@@ -764,7 +786,7 @@ describe('the card popovers close like every other popover', () => {
       tagsButton.click()
     })
     expect(moveMenuOpen(container)).toBe(false)
-    expect(container.querySelector('[data-testid="card-tag-picker"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="card-tag-picker"]')).not.toBeNull()
   })
 
   it('a mousedown inside the move menu leaves it open (its rows still get their click)', () => {
@@ -905,7 +927,7 @@ describe('Archive / Delete (D-3, D-5)', () => {
     expect(shown).toMatch(/opacity:\s*1;/)
     expect(shown).toMatch(/max-width:\s*none;/)
     expect(shown).toMatch(/margin-left:\s*0;/)
-    // A focus ring and a move / tags popover inside the slot are never clipped once it shows.
+    // A focus ring and a move popover inside the slot are never clipped once it shows.
     expect(shown).toMatch(/overflow:\s*visible;/)
     // Only opacity animates: the width change is instant (nothing new moves).
     expect(rest).toMatch(/transition:\s*opacity 120ms ease-out;/)

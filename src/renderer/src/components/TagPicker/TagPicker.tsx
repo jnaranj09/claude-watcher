@@ -8,15 +8,30 @@
 // reads as a checkbox. The chip carries the full name (`acme/prod`), like the filter list — the
 // indented path label (D-13) is kept for the Tags dialog rail only.
 //
+// The list is PORTALED to document.body and placed under its trigger by `useAnchoredPlacement`,
+// as Select's is (spec 2026-11-14 memory context index, ruling C4): drawn inside its anchor, a
+// form's scroll body (the Memory dialog's Tags field) would cut it. It follows the trigger on
+// scroll and resize.
+//
 // Mechanics mirror the card's move menu and WorkspaceSwitcher: Escape closes and STOPS (it must not
-// also close a dialog or leave the focused view), a mousedown outside the anchor closes. Clicks and
-// Enter/Space keydowns stop propagating, because on a board card this list is a DOM child of the
-// card's own role="button" — without that, ticking a tag would also open the session.
-import { useEffect, type JSX, type KeyboardEvent, type MouseEvent, type RefObject } from 'react'
+// also close a dialog or leave the focused view), a mousedown outside both the anchor and the list
+// closes. Clicks and Enter/Space keydowns stop propagating, because on a board card this list is a
+// React child of the card's own role="button" (a portal still bubbles React events to it) —
+// without that, ticking a tag would also open the session.
+import {
+  useEffect,
+  useRef,
+  type JSX,
+  type KeyboardEvent,
+  type MouseEvent,
+  type RefObject
+} from 'react'
+import { createPortal } from 'react-dom'
 import type { Tag } from '../../../../shared/ipc/contract'
 import { TagMenu, TagMenuNote, TagMenuRow } from '../TagMenu/TagMenu'
 import { applyPendingTags, useTags } from '../../stores/tagsStore'
 import { useLeaving } from '../Presence/leaving'
+import { useAnchoredPlacement } from '../Popover/useAnchoredPlacement'
 
 export interface TagPickerProps {
   /** DOM id for the popup root. Lets a trigger button point `aria-controls` at it (SessionCard's
@@ -33,8 +48,11 @@ export interface TagPickerProps {
   /** The new tag list, in the order of `tags`. */
   onChange: (tagIds: string[]) => void
   onClose: (reason: 'escape' | 'outside') => void
-  /** The element holding BOTH the trigger and this list — a mousedown outside it closes the list. */
+  /** The element holding the trigger — a mousedown outside it and outside the list closes the
+   *  list. */
   anchorRef: RefObject<HTMLElement | null>
+  /** The button that opens the list: the list sits under it, its right edges lined up. */
+  triggerRef: RefObject<HTMLElement | null>
   testId: string
   /** The accessible name, e.g. "Tags for billing api". */
   label: string
@@ -48,6 +66,7 @@ export function TagPicker({
   onChange,
   onClose,
   anchorRef,
+  triggerRef,
   testId,
   label
 }: TagPickerProps): JSX.Element {
@@ -55,11 +74,16 @@ export function TagPicker({
     sessionId === undefined ? undefined : s.pendingBySession.get(sessionId)
   )
   const leaving = useLeaving()
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const placement = useAnchoredPlacement(true, triggerRef, listRef, 'end')
   useEffect(() => {
     // Leaving (overlay motion): it is already closing; a second outside click must not close again.
     if (leaving) return
     const onMouseDown = (e: globalThis.MouseEvent): void => {
-      if (anchorRef.current?.contains(e.target as Node) === true) return
+      // Both roots: the list is portaled OUT of the anchor.
+      const target = e.target as Node
+      if (anchorRef.current?.contains(target) === true) return
+      if (listRef.current?.contains(target) === true) return
       onClose('outside')
     }
     document.addEventListener('mousedown', onMouseDown)
@@ -85,13 +109,14 @@ export function TagPicker({
     if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
   }
 
-  return (
+  return createPortal(
     <TagMenu
       align="end"
       role="group"
       ariaLabel={label}
       testId={testId}
       id={id}
+      anchored={{ ref: listRef, style: placement }}
       onClick={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
       onKeyDown={handleKeyDown}
     >
@@ -111,6 +136,7 @@ export function TagPicker({
           />
         ))
       )}
-    </TagMenu>
+    </TagMenu>,
+    document.body
   )
 }

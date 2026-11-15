@@ -54,8 +54,8 @@
   /* Containing block and STACKING CONTEXT for the two chrome layers below: they sit at
    * `z-index: -1`, and without a context of the rail's own a negative z-index would fall through
    * to the root and paint UNDER the app's ground. `isolation` traps every z-index inside the rail
-   * (the tag picker's 10 included); nothing in the rail overlaps a sibling of the rail, so that
-   * changes no paint order that matters. */
+   * (the tag picker is portaled to document.body, so it is not one of them); nothing in the rail
+   * overlaps a sibling of the rail, so that changes no paint order that matters. */
   position: relative;
   isolation: isolate;
   /* Where the tab's left edge sits inside the slot; the notch mask is positioned from it. The
@@ -1181,8 +1181,8 @@
   anchor-name: --rail-add-tag;
 }
 
-/* `+ tag` and its picker in one element for TagPicker's outside-click check, with no box of its
- * own, so the button is placed from `.rowWrap` and the picker hangs below the whole card. */
+/* TagPicker's anchor for its outside-click check, with no box of its own, so `+ tag` is placed
+ * from `.rowWrap`. The picker is portaled to document.body and sits under `+ tag`. */
 .addTagGroup {
   display: contents;
 }

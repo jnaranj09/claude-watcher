@@ -355,10 +355,11 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
       [...(panel?.querySelectorAll('[data-testid="tag-chip"]') ?? [])].map((c) => c.textContent)
     ).toEqual(['deploy', 'prod'])
     act(() => item?.querySelector<HTMLButtonElement>('[data-testid="rail-tags-add"]')?.click())
-    // A real click starts with a mousedown, and TagPicker closes on a mousedown outside its anchor:
-    // the anchor must hold the list too, or the list is gone before the click lands.
+    // A real click starts with a mousedown, and TagPicker closes on a mousedown outside its anchor
+    // and its list: the list is portaled, so it must count as inside, or it is gone before the
+    // click lands.
     const check = (): HTMLButtonElement | null | undefined =>
-      item?.querySelector<HTMLButtonElement>('[data-testid="rail-tag-picker-row-t-deploy"]')
+      document.querySelector<HTMLButtonElement>('[data-testid="rail-tag-picker-row-t-deploy"]')
     act(() => {
       check()?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
     })
@@ -436,9 +437,9 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
     const item = itemOf(r, 'tagged')
     act(() => item?.querySelector<HTMLButtonElement>('[data-testid="rail-tags-peek"]')?.click())
     act(() => item?.querySelector<HTMLButtonElement>('[data-testid="rail-tags-add"]')?.click())
-    expect(item?.querySelector('[data-testid="rail-tag-picker-row-t-other"]')).toBeNull()
-    expect(item?.querySelector('[data-testid="rail-tag-picker-row-t-own"]')).not.toBeNull()
-    expect(item?.querySelector('[data-testid="rail-tag-picker-row-t-deploy"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="rail-tag-picker-row-t-other"]')).toBeNull()
+    expect(document.querySelector('[data-testid="rail-tag-picker-row-t-own"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="rail-tag-picker-row-t-deploy"]')).not.toBeNull()
   })
 
   it('"Show all tags" gives every tagged row a one-line chip row — and only while it is on', () => {

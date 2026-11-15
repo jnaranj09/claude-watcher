@@ -217,7 +217,10 @@ Tags dialog rail uses `TagPathLabel` instead.
   checkbox `group`).
 - **Every tag list popup is `components/TagMenu/TagMenu.tsx`** (filter + `TagPicker`): chip per
   row, `✓` at right when on, no native checkbox. Drawn with `Popover`. Filter = `menu`
-  (`menuitemcheckbox`, several tags), picker = `group` (`role="checkbox"`).
+  (`menuitemcheckbox`, several tags), picker = `group` (`role="checkbox"`). The picker's list (a
+  card's `Tags…`, the rail peek's `+ tag`) is portaled to `document.body` and placed under its
+  trigger, right edges lined up, by `useAnchoredPlacement`, as `Select`'s list is: drawn inside
+  its anchor, a form's scroll body would cut it. The filter's list stays under its pill.
 - Rail row name reserves `--rail-tools-width` while tools show.
 - Tags dialog rail: `TagPathLabel` (`acme/` secondary, `prod` primary, indent `depth ×
 --space-3`, accessible name = full name). Display only.

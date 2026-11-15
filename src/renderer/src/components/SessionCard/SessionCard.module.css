@@ -31,15 +31,16 @@
   outline-offset: 2px;
 }
 
-/* The move menu / tag picker (both `.moveWrap` popovers below) are `position: absolute` with
- * `z-index: 10`, but `.root` itself is `z-index: auto` — an unpositioned-for-stacking-purposes
+/* The move menu (a `.moveWrap` popover below) is `position: absolute` with `z-index: 10`, but `.root` itself is `z-index: auto` — an unpositioned-for-stacking-purposes
  * box that never bundles its own popover into one paint unit. Confirmed live (getBoundingClientRect
  * + getComputedStyle walk, tags-visual.mjs drive scenario, Task 17): with `z-index: auto` here, a
  * card's open popover painted UNDER the very next card in the same column (the later sibling in
  * DOM order), because sibling cards are ALSO `position: relative, z-index: auto` and out-rank a
  * plain `z-index: auto` ancestor at that tier. Only elevating THIS card while ITS OWN popover is
  * open (never unconditionally, or two adjacent open cards would tie and fall back to DOM order
- * again) fixes it — same reasoning as WorkspaceSwitcher.module.css's `.anchor` comment. */
+ * again) fixes it — same reasoning as WorkspaceSwitcher.module.css's `.anchor` comment. The tag
+ * picker was the other such popover; it is now portaled to document.body (TagPicker), so it never
+ * competes with a sibling card, but the card is still lifted while it is open. */
 .root[data-menu-open] {
   z-index: 1;
 }
@@ -102,9 +103,10 @@
 }
 
 /* Fully opaque while this card's move menu or tag picker is open. `opacity` below 1 makes the card
- * a BACKDROP ROOT: a glass popover inside it (a theme's `backdrop-filter`) could then blur only
- * what the card itself painted, never the board behind it — and the popover was drawn at 82% too.
- * The card being acted on is also the one worth reading at full strength. */
+ * a BACKDROP ROOT: a glass popover inside it (a theme's `backdrop-filter`; the move menu — the
+ * tag picker is portaled out) could then blur only what the card itself painted, never the board
+ * behind it — and the popover was drawn at 82% too. The card being acted on is also the one worth
+ * reading at full strength. */
 .calm[data-menu-open] {
   opacity: 1;
 }
@@ -149,7 +151,7 @@
  * layout AND in the tab order at all times. Hiding it would make rename keyboard-unreachable, and
  * a hover-only control is exactly the accessibility hole UX-DR29's "never the sole signal"
  * thinking guards against. Once shown the slot is `overflow: visible`, so a focus ring or a
- * move / tags popover inside it is never clipped. */
+ * move popover inside it is never clipped. */
 .actionSlot {
   flex: none;
   display: inline-flex;
