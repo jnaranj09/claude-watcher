@@ -6,8 +6,8 @@
 // window got, so recall stops at its budget. Recall also skips a key the section showed whole
 // while its text is the one it showed (spec 2026-11-14 memory context index §7).
 // A window also remembers when its section was built and the workspace and context it was built
-// for (`built`; none in a resumed window), and the change of each key its "saved or changed" block
-// gave (`told`). At each operator prompt that block comes first (§6): at most
+// for (`built`; none in a resumed window), and the change each key was given with (`told`, by any
+// block). At each operator prompt the "saved or changed" block comes first (§6): at most
 // `MEMORY_LIMITS.freshRows` key lines that are new or changed since the build, or that a changed
 // task, goal, template or tag set (or a workspace move, said in one line) newly relates; never a
 // key this same session saved or updated last. A prompt costs one count (`changedSince` since
@@ -75,7 +75,8 @@ interface WindowState {
    *  section is built (null in a resumed window, or before the index was asked), then moved by a
    *  selection that told everything it found, or found nothing to tell. */
   built: { at: number; workspaceId: string; context: SessionContext } | null
-  /** Id → the change date the "saved or changed" block gave it with. */
+  /** Id → the change date a block of this window (saved or changed, recall, at use) gave it with;
+   *  the "saved or changed" block does not give that change again (ruling C7). */
   told: Map<string, number>
 }
 
@@ -278,6 +279,8 @@ export function createMemoryRecall(deps: {
               !state.delivered.has(row.id))
         )
       )
+    // The session's own saves, from its activity record (it keeps the newest 200 entries, so an
+    // older own save is no longer seen as its own).
     const own = picked.length === 0 ? [] : deps.activity.get(call.sessionId).entries
     const qualified = picked.filter(
       (row) =>
@@ -405,6 +408,7 @@ export function createMemoryRecall(deps: {
                 .filter((item) => state.whole.get(item.id) !== item.updatedAt)
                 .slice(0, MEMORY_LIMITS.recallRows)
         const recallIds: string[] = []
+        const recallDates = new Map<string, number>()
         for (const item of items) {
           const line = capLine(
             `${pinnedLine(item)} id=${item.id}`,
@@ -416,6 +420,7 @@ export function createMemoryRecall(deps: {
           if (recallIds.length === 0) push(RECALL_HEADER)
           push(line)
           recallIds.push(item.id)
+          recallDates.set(item.id, item.updatedAt)
         }
         const text = give(
           state,
@@ -423,7 +428,10 @@ export function createMemoryRecall(deps: {
           { text: lines.join('\n'), ids: [...freshIds, ...recallIds] },
           'prompt'
         )
-        if (text !== '' && fresh !== null) told(state, fresh, freshIds)
+        if (text === '') return { ok: true, text }
+        // Recall's keys are given with their change too (ruling C7): not sent again as fresh.
+        for (const [id, at] of recallDates) state.told.set(id, at)
+        if (fresh !== null) told(state, fresh, freshIds)
         return { ok: true, text }
       })
     },
@@ -443,10 +451,15 @@ export function createMemoryRecall(deps: {
           MEMORY_LIMITS.atUseRows
         )
         state.clashes ??= new Set(call.store.shortIdClashes(call.session.workspaceId))
-        return {
-          ok: true,
-          text: give(state, call.sessionId, atUseText(folders, found, state.clashes), 'file')
+        const block = atUseText(folders, found, state.clashes)
+        const text = give(state, call.sessionId, block, 'file')
+        // At use's keys are given with their change too (ruling C7): not sent again as fresh.
+        if (text !== '') {
+          for (const row of found.rows) {
+            if (block.ids.includes(row.id)) state.told.set(row.id, row.updatedAt)
+          }
         }
+        return { ok: true, text }
       })
     },
 

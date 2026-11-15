@@ -179,6 +179,35 @@ describe('the saved or changed block', () => {
     expect(recallText('hello there')).toBe('')
   })
 
+  it('a key the section listed is not sent again when a changed reason now comes first for it', () => {
+    // Listed under its folder; with the session's new goal its first reason becomes `goal`.
+    add(specific('goal key', '1234'), { goalId: 'g1' })
+    expect(index()).toContain('goal key')
+    session = { ...session, goalId: 'g1' }
+    expect(recallText('hello there')).toBe('')
+  })
+
+  it('a key that at use already gave after its change is not sent again', () => {
+    index()
+    later('new port', '7001')
+    const atUse = recall.atUse(grant, { version: 1, window: 0, folders: ['/work/app'] })
+    expect(atUse).toMatchObject({ ok: true, text: expect.stringContaining('- new port = 7001') })
+    expect(recallText('hello there')).toBe('')
+  })
+
+  it('a key that recall already gave after its change is not sent again', () => {
+    index()
+    for (let i = 0; i < 5; i++) later(`folder key ${i}`, `${i}`)
+    const sixth = later('deploy host', 'acme.test', { folder: '/work/app/sub' })
+    // The block is full with five newer folder keys; recall gives the sixth one.
+    const first = recallText('which deploy host')
+    expect(first.split('\n').slice(-2)).toEqual([
+      RECALL_HEADER,
+      `- deploy host: acme.test (seen ${DAY}, inferred) id=${sixth.id}`
+    ])
+    expect(recallText('hello there')).toBe('')
+  })
+
   it('a workspace change says so, then lists the new context', () => {
     add(specific('api port', '9281'))
     const there = add(specific('w2 port', '7002'), { workspaceId: 'w2' })
@@ -254,6 +283,57 @@ describe('the saved or changed block', () => {
     expect(recallText('hello there')).toBe('')
     expect(activity.get('s1').entries).toEqual([])
     expect(index(1)).toContain('new port = 7001')
+  })
+
+  it('a key at use gave is not sent again when a changed reason relates it', () => {
+    add(specific('goal key', '1234'), { folder: '/other', goalId: 'g1' })
+    index()
+    expect(recall.atUse(grant, { version: 1, window: 0, folders: ['/other'] })).toMatchObject({
+      text: expect.stringContaining('- goal key = 1234')
+    })
+    session = { ...session, goalId: 'g1' }
+    expect(recallText('hello there')).toBe('')
+  })
+
+  it('a key this session updated itself is not sent back to it', () => {
+    const own = add(specific('own key', '4242'))
+    index()
+    edit(own.id, 'own key', '4343')
+    activity.record('s1', {
+      at: clock,
+      action: 'updated',
+      tool: 'memory_update',
+      itemId: own.id,
+      reason: null
+    })
+    expect(recallText('hello there')).toBe('')
+  })
+
+  it('a key line that does not fit the block is left out', () => {
+    recall = build({ recallChars: FRESH_HEADER.length + 10 })
+    index()
+    later('new port', '7001')
+    expect(recallText('hello there')).toBe('')
+  })
+
+  it('a key the block had no room for comes with the next prompt', () => {
+    const first = `${FRESH_HEADER}\n${line('new host', 'acme.test', 'm2')}`
+    recall = build({ recallChars: first.length + 10 })
+    index()
+    later('new port', '7001')
+    later('new host', 'acme.test')
+    expect(recallText('hello there')).toBe(first)
+    expect(recallText('hello again')).toBe(`${FRESH_HEADER}\n${line('new port', '7001', 'm1')}`)
+  })
+
+  it('keys of a block the window refused are not marked told', () => {
+    add(specific('deploy host', 'acme.test'), { folder: '/other' })
+    const fresh = `${FRESH_HEADER}\n${line('new port', '7001', 'm2')}`
+    recall = build({ windowChars: fresh.length + 5 })
+    index()
+    later('new port', '7001')
+    expect(recallText('which deploy host')).toBe('')
+    expect(recallText('ok')).toBe(fresh)
   })
 
   it('a resumed window gets no fresh block', () => {
