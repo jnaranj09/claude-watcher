@@ -12,8 +12,11 @@
 // unknown id does. No tool input carries a workspace id, a session id, a basis or an origin;
 // they are stamped here (a save is `inferred`, origin `agent` + the calling session).
 //
-// A refusal is a short code (`memory_not_found`, `store_write_failed`, `memory_read_failed`,
-// `task_not_found`).
+// An id is the whole id, or its first `MEMORY_LIMITS.shortIdChars` (or more) characters as a key
+// line prints it, looked up inside the same scope (`visible`).
+//
+// A refusal is a short code (`memory_not_found`, `memory_id_ambiguous`, `store_write_failed`,
+// `memory_read_failed`, `task_not_found`).
 // Memory is off, the store missing or the session not live: `MEMORY_NOT_AVAILABLE`. Any other
 // throw is a bug: it logs `code=memory_tool_failed` (never the error text, which can carry
 // memory text) and answers `MEMORY_NOT_AVAILABLE`; the endpoint does not catch a tool's throw.
@@ -83,9 +86,12 @@ const COMMAND_KIND = 'command'
 const TASK_ID_MAX = 200
 const UNKNOWN_TAG = 'unknown tag'
 const BROWSE_BY = ['kind', 'folder', 'tag', 'month'] as const
+/** Two items in scope start with the short id a tool was given: neither is read. */
+const ID_AMBIGUOUS = 'memory_id_ambiguous'
 /** Throws of the store that a tool answers as a code; any other throw is a bug. */
 const KNOWN_CODES: ReadonlySet<string> = new Set([
   MEMORY_ERROR.notFound,
+  ID_AMBIGUOUS,
   MEMORY_ERROR.readFailed,
   STORE_WRITE_FAILED
 ])
@@ -299,7 +305,9 @@ interface Call extends MemoryCall {
     itemId: string | null
   ): void
   tagNames(ids: readonly string[]): string
-  /** The item when it exists and is in the session's scope; else `memory_not_found`. */
+  /** The item when it exists and is in the session's scope, by its whole id or, failing that, by
+   *  the first `MEMORY_LIMITS.shortIdChars` (or more) characters of it; else `memory_not_found`, or
+   *  `memory_id_ambiguous` when two items in scope start that way. */
   visible(id: string): MemoryItem
 }
 
@@ -514,7 +522,7 @@ export function createMemoryTools(deps: {
     const current = c.visible(id)
     // The store refuses a text of the other kind with `memory_not_found`.
     const item = c.store.edit(
-      id,
+      current.id,
       { text, check: check === undefined ? current.check : check },
       'agent',
       reason
@@ -566,11 +574,17 @@ export function createMemoryTools(deps: {
         }),
       tagNames,
       visible: (id) => {
-        const item = store.get(id)
-        if (item === null || (item.workspaceId !== workspaceId && item.workspaceId !== null)) {
-          throw new Error(MEMORY_ERROR.notFound)
+        const whole = store.get(id)
+        if (whole !== null && (whole.workspaceId === workspaceId || whole.workspaceId === null)) {
+          return whole
         }
-        return item
+        if (id.length < MEMORY_LIMITS.shortIdChars) throw new Error(MEMORY_ERROR.notFound)
+        // The start is looked up inside the session's scope (in SQL), so a match is visible.
+        const [first, second] = store.idsStarting(gated.scope, id, 2)
+        if (second !== undefined) throw new Error(ID_AMBIGUOUS)
+        const found = first === undefined ? null : store.get(first)
+        if (found === null) throw new Error(MEMORY_ERROR.notFound)
+        return found
       }
     }
   }

@@ -251,3 +251,23 @@ describe('shortIdClashes', () => {
     expect(store.shortIdClashes('w1')).toEqual(['abcdefgh'])
   })
 })
+
+describe('idsStarting', () => {
+  it('returns at most limit ids in scope, global items included, compared exactly', () => {
+    nextIds = ['abcdefgh-1', 'abcdefgh-2', 'abcdefgh-3', 'abcdefgh-4', 'ABCDEFGH-5']
+    add('in w1')
+    add('global', {}, { workspaceId: null })
+    add('in w2', {}, { workspaceId: 'w2' })
+    add('stale')
+    store.setState('abcdefgh-4', 'stale', 'operator', null)
+    add('other case')
+    const scope = { workspaceId: 'w1', includeGlobal: true }
+    expect(store.idsStarting(scope, 'abcdefgh', 10).sort()).toEqual([
+      'abcdefgh-1',
+      'abcdefgh-2',
+      'abcdefgh-4'
+    ])
+    expect(store.idsStarting(scope, 'abcdefgh', 2)).toHaveLength(2)
+    expect(store.idsStarting(scope, 'abcdefg%', 10)).toEqual([])
+  })
+})

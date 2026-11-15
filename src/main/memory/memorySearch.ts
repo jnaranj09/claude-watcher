@@ -401,6 +401,27 @@ export function shortIdClashes(db: MemoryDb, workspaceId: string): string[] {
     .map((r) => r.start)
 }
 
+const IdRow = z.object({ id: z.string() })
+
+/** Ids in scope (any state, any kind) that start with `start`, compared exactly (never LIKE), at
+ *  most `limit`. */
+export function idsStarting(
+  db: MemoryDb,
+  scope: MemoryScope,
+  start: string,
+  limit: number
+): string[] {
+  const where = scopeClause(scope)
+  return db
+    .all(
+      `SELECT item.id AS id FROM item WHERE ${where.sql} AND substr(item.id, 1, length(?)) = ?
+       ORDER BY item.id LIMIT ?`,
+      IdRow,
+      [...where.params, start, start, limit]
+    )
+    .map((r) => r.id)
+}
+
 const ScopeRow = z.object({
   id: z.string(),
   kind: z.enum(MEMORY_ITEM_KINDS),

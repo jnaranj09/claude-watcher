@@ -40,6 +40,7 @@ import {
   contextItems,
   extractScope,
   folderSpecifics,
+  idsStarting,
   indexItems,
   recallItems,
   searchItems,
@@ -131,6 +132,9 @@ export interface MemoryStore {
   /** The id starts (`MEMORY_LIMITS.shortIdChars`) two or more items of the workspace and global
    *  share. */
   shortIdClashes(workspaceId: string): string[]
+  /** Ids in scope (any state, any kind) that start with `start`, compared exactly, at most
+   *  `limit`. */
+  idsStarting(scope: MemoryScope, start: string, limit: number): string[]
   /** Recall (phase 3 addendum §6): the active, unpinned specifics and facts in scope, not in
    *  `excludeIds`, that two distinct terms or one exact term match (one FTS5 phrase per term, its
    *  newest 200 rows),
@@ -493,6 +497,8 @@ export function createMemoryStore(deps: {
       read(() => contextItems(db, workspaceId, ctx, MEMORY_LIMITS.indexReasonRows)),
 
     shortIdClashes: (workspaceId) => read(() => shortIdClashes(db, workspaceId)),
+
+    idsStarting: (scope, start, limit) => read(() => idsStarting(db, scope, start, limit)),
 
     recall: (scope, terms, excludeIds, limit) =>
       read(() => recallItems(db, scope, terms, excludeIds, limit)),
