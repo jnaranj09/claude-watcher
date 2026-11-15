@@ -84,6 +84,15 @@ export function folderName(path: string): string {
   return trimmed === '' ? '/' : trimmed.slice(trimmed.lastIndexOf('/') + 1)
 }
 
+/** `/home/u/api` → `/home/u`: the quieter second half of a folder row (the Folder filter's rows,
+ *  the Memory form's `Folder` options). */
+export function parentPath(path: string): string {
+  const trimmed = path.replace(/\/+$/, '')
+  const cut = trimmed.lastIndexOf('/')
+  if (cut < 0) return ''
+  return cut === 0 ? '/' : trimmed.slice(0, cut)
+}
+
 export function removeFilterLabel(type: FilterType): string {
   return `Remove the ${FILTER_TYPE_LABEL[type].toLowerCase()} filter`
 }

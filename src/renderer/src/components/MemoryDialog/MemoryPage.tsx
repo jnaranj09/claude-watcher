@@ -7,13 +7,16 @@
 // again whenever main says memory changed, without touching the draft being typed (the form keeps
 // its own state, keyed by the item). A specific main marks as holding the same value as another
 // one draws `Same value` in its row, and its form names the others (MemoryTwins; a click opens one,
-// listed or not).
+// listed or not). The form's `Folder`, `Goal` and `Tags` are built here from the stores and the
+// rail's filters (`MemoryFormContext`): the folders the dialog knows, the workspace's goals, the
+// scope's tags, and a New form's start.
 import { useEffect, useLayoutEffect, useRef, useState, type JSX, type ReactNode } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { MemoryGetResult } from '../../../../shared/ipc/contract'
 import type { MemoryItem, MemoryRow } from '../../../../shared/schemas/memory'
 import { FAVORITE_TERMS, MEMORY_TERMS } from '../../copy/terms'
 import { activeFilterCount, effectiveFilters, type SessionFilters } from '../../lib/sessionFilters'
+import { selectSessionsById, useBoard } from '../../stores/boardStore'
 import { selectGoalsIn, useGoals } from '../../stores/goalsStore'
 import { selectIncludeGlobal, selectMemoryEnabled, useSettings } from '../../stores/settingsStore'
 import { selectTags, useTags } from '../../stores/tagsStore'
@@ -32,7 +35,8 @@ import { railTags } from '../SessionsDialog/railFilters'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import { EpisodeForm } from './EpisodeForm'
 import { MemoryFilters } from './MemoryFilters'
-import { MemoryForm } from './MemoryForm'
+import { MemoryForm, type MemoryFormContext } from './MemoryForm'
+import { draftFromFilters, offeredFolders } from './memoryContext'
 import { MemoryHistory } from './MemoryHistory'
 import { MemoryTwins } from './MemoryTwins'
 import { MEMORY_COPY, memoryErrorCopy } from './memoryCopy'
@@ -74,6 +78,7 @@ export function MemoryPage({
   const tags = useTags(selectTags)
   const goals = useGoals(selectGoalsIn(workspaceId))
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
+  const sessionsById = useBoard(selectSessionsById)
   const [query, setQuery] = useState('')
   // An episode is extraction's alone: nothing creates one here, and it is never pinned.
   const episodes = kind === 'episode'
@@ -135,6 +140,26 @@ export function MemoryPage({
   // The detail of the selected item, so its twins come from the same read as `item`.
   const open = detail !== null && detail.item.id === selectedId ? detail : null
   const item = open?.item ?? null
+
+  // What the form's `Folder`, `Goal` and `Tags` offer (spec 2026-11-14 memory context index §8).
+  const formContext: MemoryFormContext = {
+    folders: offeredFolders({
+      stored: item?.meta.folder ?? null,
+      filter: shown.folders[0] ?? null,
+      goals: goals.map((g) => g.defaultCwd),
+      workspace: workspaces.find((w) => w.id === workspaceId)?.defaultCwd ?? null,
+      sessions: Object.values(sessionsById)
+        .filter((session) => session.workspaceId === workspaceId)
+        .map((session) => session.projectPath),
+      listed: list.folders
+    }),
+    goals: goals.map((g) => ({ id: g.id, name: g.name })),
+    tags: offeredTags,
+    start: draftFromFilters(shown, {
+      goalIds: new Set(goals.map((g) => g.id)),
+      tagIds: new Set(offeredTags.map((t) => t.id))
+    })
+  }
 
   // An aria-modal dialog must take focus on mount: the ✕ is the mount-stable target (the search
   // box is not drawn on an empty page).
@@ -232,6 +257,7 @@ export function MemoryPage({
           onChanged={refresh}
           onHistory={() => {}}
           sameValue={null}
+          context={formContext}
         />
       )
     }
@@ -272,6 +298,7 @@ export function MemoryPage({
               onOpen={(id) => actions.select(id)}
             />
           }
+          context={formContext}
         />
       )
     }

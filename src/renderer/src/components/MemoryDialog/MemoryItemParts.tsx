@@ -1,7 +1,8 @@
 // Memory — the parts an item's form (MemoryForm: a specific or a fact) and an episode's read-only
 // pane (EpisodeForm) share, so the two never drift: `Mark stale` / `Mark active` with its `✓ Saved`,
 // the footer's `Delete` → `Confirm delete`, and the read-only lines of where the item came from
-// (`Origin session` with `Session deleted`, `Folder`, `Tags`, `Workspace`). Every write's refusal is
+// (`Origin session` with `Session deleted`, `Folder`, `Tags`, `Workspace`; an item's form edits
+// `Folder` and `Tags` as fields and leaves them out here). Every write's refusal is
 // the dialog's error toast, mapped from its code (memoryErrorCopy), never the message.
 import type { JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -83,8 +84,16 @@ export function MemoryItemDelete({
 }
 
 /** Where the item came from, read-only: `Origin session` (with `Session deleted`), `Folder`, `Tags`
- *  (only with tags), `Workspace` (the name in its tint; a gone one is an orphan). */
-export function MemoryOriginLines({ item }: { item: MemoryItem }): JSX.Element {
+ *  (only with tags), `Workspace` (the name in its tint; a gone one is an orphan). `omitPlace`
+ *  leaves out `Folder` and `Tags`: a specific's or fact's form edits them as fields (spec
+ *  2026-11-14 memory context index §8); an episode keeps them read-only. */
+export function MemoryOriginLines({
+  item,
+  omitPlace = false
+}: {
+  item: MemoryItem
+  omitPlace?: boolean
+}): JSX.Element {
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const tags = useTags(selectTags)
   const shownTags = tagsForIds(tags, item.meta.tagIds)
@@ -106,7 +115,7 @@ export function MemoryOriginLines({ item }: { item: MemoryItem }): JSX.Element {
           </p>
         </>
       )}
-      {item.meta.folder !== null && (
+      {!omitPlace && item.meta.folder !== null && (
         <>
           <ManageDialog.Label>{MEMORY_COPY.folder}</ManageDialog.Label>
           <p
@@ -118,7 +127,7 @@ export function MemoryOriginLines({ item }: { item: MemoryItem }): JSX.Element {
           </p>
         </>
       )}
-      {shownTags.length > 0 && (
+      {!omitPlace && shownTags.length > 0 && (
         <>
           <ManageDialog.Label>{MEMORY_COPY.tags}</ManageDialog.Label>
           <div className={styles.valueRow}>

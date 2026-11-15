@@ -156,7 +156,9 @@ describe('MemoryDialog — the form', () => {
     expect(screen.getByLabelText('Check')).toHaveValue('ss -ltn')
     expect(screen.getByTestId('memory-form-basis')).toHaveTextContent('observed')
     expect(screen.getByTestId('memory-form-origin')).toHaveTextContent('fix-health-check')
-    expect(screen.getByTestId('memory-form-folder')).toHaveTextContent('/srv/acme/api')
+    // The folder is a field now (spec 2026-11-14 memory context index §8), not a read-only line.
+    expect(screen.getByTestId('memory-folder')).toHaveAttribute('data-value', '/srv/acme/api')
+    expect(screen.queryByTestId('memory-form-folder')).not.toBeInTheDocument()
     expect(bridge.get).toHaveBeenCalledWith('m1')
   })
 

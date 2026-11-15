@@ -33,6 +33,7 @@ import {
 import {
   FILTER_TYPE_LABEL,
   folderName,
+  parentPath,
   removeFilterLabel,
   TIME_RANGE_LABEL,
   timePickRowLabel,
@@ -119,14 +120,6 @@ function isTime(type: FilterType): type is TimeType {
 /** Folders in list order: by name, then by full path (two `api` folders keep one order). */
 function byFolderName(a: string, b: string): number {
   return folderName(a).localeCompare(folderName(b)) || a.localeCompare(b)
-}
-
-/** `/home/u/api` → `/home/u`: the quieter second half of a folder row. */
-function parentPath(path: string): string {
-  const trimmed = path.replace(/\/+$/, '')
-  const cut = trimmed.lastIndexOf('/')
-  if (cut < 0) return ''
-  return cut === 0 ? '/' : trimmed.slice(0, cut)
 }
 
 function typeIcon(type: FilterType): JSX.Element {

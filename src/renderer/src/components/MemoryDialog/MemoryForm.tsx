@@ -3,13 +3,23 @@
 // row `[History] [Mark stale | Mark active]`, plus `[Open source]` when extraction kept where it
 // came from, then `Same value as` when main found other specifics with the same value
 // (`sameValue`, MemoryTwins), then what main stamped, read-only: `Basis`, `Last seen`, then the lines it shares with
-// an episode (MemoryItemParts: `Origin session` with `Session deleted`, `Folder`, `Tags`,
-// `Workspace`), and, while `Open source` is on, the stored quote in History's frame (PICK look 3;
+// an episode (MemoryItemParts: `Origin session` with `Session deleted`, `Workspace`; `Folder` and
+// `Tags` are fields here, below), and, while `Open source` is on, the stored quote in History's frame (PICK look 3;
 // nothing reads the transcript at view time, addendum D31). The footer is `[Delete] [Save]`. The
 // pin is on the row, never here (owner). A New form adds a `Global` switch: off, it is saved in the
 // scope's workspace. Keyed by the item, so a selection change remounts it with a fresh draft, and a
 // read of the same item (main's push) keeps the draft.
+//
+// Where the item is placed (spec 2026-11-14 memory context index §8): after `Check`, `Folder` (a
+// Select of the folders the dialog knows, `No folder` first), `Goal` (the workspace's goals, `No
+// goal` first; not rendered for a global item or under `Global`), `Tags` (the chips of the picked
+// tags and the session card's own tag button and picker), then one hint. On an open item these
+// replace the read-only `Folder` and `Tags` lines. A New form starts from the rail's filters
+// (`draftFromFilters`) and sends the whole context; an open item sends only what changed
+// (`contextPatch`), so a stored goal or tag the form cannot draw is neither sent nor dropped.
+// `Global` on clears the goal and the tags a global item cannot hold (`rescopeContext`).
 import { useEffect, useId, useRef, useState, type FormEvent, type JSX, type ReactNode } from 'react'
+import type { Tag } from '../../../../shared/ipc/contract'
 import {
   MemoryCreateSchema,
   MemoryEditSchema,
@@ -17,14 +27,40 @@ import {
 } from '../../../../shared/schemas/memory'
 import { HISTORY_TERMS } from '../../copy/terms'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
+import { folderName, parentPath } from '../../lib/filterCopy'
 import { Button } from '../Button/Button'
+import filterChipStyles from '../FilterChips/FilterChips.module.css'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
+import { Presence } from '../Presence/Presence'
+import { Select, type SelectOption } from '../Select/Select'
 import { Switch } from '../Switch/Switch'
+import { TagChipRow } from '../TagChip/TagChipRow'
+import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
+import { TagPicker } from '../TagPicker/TagPicker'
 import { TextArea } from '../TextArea/TextArea'
 import { TextInput } from '../TextInput/TextInput'
+import {
+  contextPatch,
+  NO_FOLDER,
+  NO_GOAL,
+  rescopeContext,
+  type ContextDraft
+} from './memoryContext'
 import { FIELD_HINT, MEMORY_COPY, memoryErrorCopy } from './memoryCopy'
 import { MemoryItemDelete, MemoryOriginLines, MemoryStateButton } from './MemoryItemParts'
 import styles from './MemoryDialog.module.css'
+
+/** What the form's `Folder`, `Goal` and `Tags` offer, and where a New form starts. */
+export interface MemoryFormContext {
+  /** The folders the dialog knows (`offeredFolders`), the open item's own first. */
+  folders: readonly string[]
+  /** The workspace's goals. */
+  goals: readonly { id: string; name: string }[]
+  /** The tags the scope can see (`railTags`): global and the workspace's own. */
+  tags: readonly Tag[]
+  /** A New form's start (`draftFromFilters`). */
+  start: ContextDraft
+}
 
 export interface MemoryFormProps {
   kind: 'specific' | 'fact'
@@ -39,6 +75,7 @@ export interface MemoryFormProps {
   onHistory: () => void
   /** `Same value as` (MemoryTwins) for an open specific; null for the New form. */
   sameValue: ReactNode
+  context: MemoryFormContext
 }
 
 function headOf(item: MemoryItem): string {
@@ -57,7 +94,8 @@ export function MemoryForm({
   onDeleted,
   onChanged,
   onHistory,
-  sameValue
+  sameValue,
+  context
 }: MemoryFormProps): JSX.Element {
   const { actions } = useManageDialogContext()
   const globalId = useId()
@@ -66,6 +104,22 @@ export function MemoryForm({
   const [text, setText] = useState(item === null ? '' : textOf(item))
   const [check, setCheck] = useState(item?.check ?? '')
   const [global, setGlobal] = useState(false)
+  // The tags a global item may hold; under `Global` (or on a global item) only these are offered.
+  const scopeGlobal = item === null ? global : item.workspaceId === null
+  const offeredTags = scopeGlobal
+    ? context.tags.filter((t) => t.workspaceId === null)
+    : context.tags
+  const drawnTagIds = new Set(offeredTags.map((t) => t.id))
+  const [place, setPlace] = useState<ContextDraft>(() =>
+    item === null
+      ? context.start
+      : {
+          folder: item.meta.folder,
+          goalId: item.meta.goalId,
+          tagIds: item.meta.tagIds.filter((id) => drawnTagIds.has(id))
+        }
+  )
+  const patch = item === null ? null : contextPatch(item, place, drawnTagIds)
   // `Open source`: the quote opens under the last read-only line, below the fold at the default
   // window, so opening it scrolls it into view (PICK look 3).
   const [sourceOpen, setSourceOpen] = useState(false)
@@ -84,7 +138,7 @@ export function MemoryForm({
           workspaceId: global ? null : workspaceId,
           text: draftText,
           check: checkValue,
-          context: { folder: null, goalId: null, tagIds: [] }
+          context: place
         })
       : null
   const edit =
@@ -94,7 +148,7 @@ export function MemoryForm({
           id: item.id,
           text: draftText,
           check: checkValue,
-          context: null
+          context: patch
         })
   const issuePath = (create ?? edit)?.error?.issues[0]?.path ?? []
   // A text field's issue sits under `text` (`['text', 'value']`); `check` sits at the top.
@@ -106,7 +160,8 @@ export function MemoryForm({
       ? head.trim() !== '' || text.trim() !== '' || checkValue !== null
       : head.trim() !== headOf(item) ||
         text.trim() !== textOf(item) ||
-        (checkValue?.trim() ?? null) !== item.check
+        (checkValue?.trim() ?? null) !== item.check ||
+        patch !== null
 
   const save = useAsyncAction(async (): Promise<void> => {
     try {
@@ -132,6 +187,21 @@ export function MemoryForm({
       set(next)
       actions.setError(null)
     }
+  }
+
+  function placed(change: Partial<ContextDraft>): void {
+    setPlace((p) => ({ ...p, ...change }))
+    actions.setError(null)
+  }
+
+  function switchGlobal(next: boolean): void {
+    setGlobal(next)
+    // design.md: a scope change in a form resets what the new scope can't see.
+    if (next) {
+      const globalIds = new Set(context.tags.filter((t) => t.workspaceId === null).map((t) => t.id))
+      setPlace((p) => rescopeContext(p, globalIds))
+    }
+    actions.setError(null)
   }
 
   const headId = kind === 'specific' ? 'memory-key' : 'memory-title'
@@ -166,9 +236,17 @@ export function MemoryForm({
       {/* Why Save is greyed, once the operator has edited something (design.md): by the fields. */}
       {hint !== null && <ManageDialog.Hint testId="memory-hint">{hint}</ManageDialog.Hint>}
 
+      <ContextFields
+        context={context}
+        place={place}
+        offeredTags={offeredTags}
+        showGoal={!scopeGlobal}
+        onPlace={placed}
+      />
+
       {item === null ? (
         <span className={styles.switchRow}>
-          <Switch id={globalId} testId="memory-global" checked={global} onChange={setGlobal} />
+          <Switch id={globalId} testId="memory-global" checked={global} onChange={switchGlobal} />
           <label className={styles.switchLabel} htmlFor={globalId}>
             {MEMORY_COPY.global}
           </label>
@@ -202,7 +280,7 @@ export function MemoryForm({
           </p>
           <ManageDialog.Label>{MEMORY_COPY.lastSeen}</ManageDialog.Label>
           <p className={styles.value}>{new Date(item.lastSeenAt).toLocaleString()}</p>
-          <MemoryOriginLines item={item} />
+          <MemoryOriginLines item={item} omitPlace />
           {source !== null && sourceOpen && (
             <p id={quoteId} ref={quoteRef} className={styles.quote} data-testid="memory-source">
               {source.quote}
@@ -216,5 +294,122 @@ export function MemoryForm({
         <ManageDialog.Save testId="memory-save" disabled={!canSave} busy={save.busy} />
       </ManageDialog.Footer>
     </ManageDialog.Form>
+  )
+}
+
+/** A folder option: its last path part, then its parent path, quieter (the Folder filter's rows);
+ *  the whole path is its `title`. */
+function folderOption(path: string): SelectOption<string> {
+  const parent = parentPath(path)
+  return {
+    value: path,
+    label: path,
+    display: (
+      <span title={path}>
+        <span className={filterChipStyles.folderName}>{folderName(path)}</span>
+        {parent !== '' && <span className={filterChipStyles.path}>{` ${parent}`}</span>}
+      </span>
+    )
+  }
+}
+
+/** `Folder`, `Goal` and `Tags`, then their one hint. */
+function ContextFields({
+  context,
+  place,
+  offeredTags,
+  showGoal,
+  onPlace
+}: {
+  context: MemoryFormContext
+  place: ContextDraft
+  offeredTags: readonly Tag[]
+  showGoal: boolean
+  onPlace: (change: Partial<ContextDraft>) => void
+}): JSX.Element {
+  const tagPickerId = useId()
+  const [tagsOpen, setTagsOpen] = useState(false)
+  const tagsAnchorRef = useRef<HTMLDivElement | null>(null)
+  const tagsButtonRef = useRef<HTMLButtonElement | null>(null)
+  const folderValue = place.folder ?? NO_FOLDER
+  // A stored goal that is gone shows `No goal` (and is kept unless another is picked).
+  const goalValue = context.goals.some((g) => g.id === place.goalId)
+    ? (place.goalId ?? NO_GOAL)
+    : NO_GOAL
+  const pickedTags = offeredTags.filter((t) => place.tagIds.includes(t.id))
+
+  function closeTags(reason: 'escape' | 'outside'): void {
+    setTagsOpen(false)
+    // Only Escape hands focus back; an outside click leaves focus where the operator clicked.
+    if (reason === 'escape') tagsButtonRef.current?.focus()
+  }
+
+  return (
+    <>
+      <ManageDialog.Label>{MEMORY_COPY.folder}</ManageDialog.Label>
+      <Select
+        value={folderValue}
+        options={[
+          { value: NO_FOLDER, label: MEMORY_COPY.noFolder },
+          ...context.folders.map(folderOption)
+        ]}
+        onChange={(next) => {
+          if (next !== folderValue) onPlace({ folder: next === NO_FOLDER ? null : next })
+        }}
+        ariaLabel={MEMORY_COPY.folder}
+        testId="memory-folder"
+      />
+      {showGoal && (
+        <>
+          <ManageDialog.Label>{MEMORY_COPY.goal}</ManageDialog.Label>
+          <Select
+            value={goalValue}
+            options={[
+              { value: NO_GOAL, label: MEMORY_COPY.noGoal },
+              ...context.goals.map((g) => ({ value: g.id, label: g.name }))
+            ]}
+            onChange={(next) => {
+              if (next !== goalValue) onPlace({ goalId: next === NO_GOAL ? null : next })
+            }}
+            ariaLabel={MEMORY_COPY.goal}
+            testId="memory-goal"
+          />
+        </>
+      )}
+      <ManageDialog.Label>{MEMORY_COPY.tags}</ManageDialog.Label>
+      <div className={styles.valueRow} ref={tagsAnchorRef} data-testid="memory-tags">
+        <TagChipRow tags={pickedTags} testId="memory-tags-chips" />
+        <Button
+          variant="ghost"
+          size="xs"
+          icon
+          buttonRef={tagsButtonRef}
+          testId="memory-tags-button"
+          aria-expanded={tagsOpen}
+          aria-controls={tagPickerId}
+          aria-label={MEMORY_COPY.tags}
+          title={MEMORY_COPY.tags}
+          onClick={() => setTagsOpen((open) => !open)}
+        >
+          <TagGlyphIcon />
+        </Button>
+        <Presence value={tagsOpen || null}>
+          {() => (
+            <TagPicker
+              id={tagPickerId}
+              tags={offeredTags}
+              selectedIds={pickedTags.map((t) => t.id)}
+              onChange={(tagIds) => onPlace({ tagIds })}
+              onClose={closeTags}
+              anchorRef={tagsAnchorRef}
+              triggerRef={tagsButtonRef}
+              testId="memory-tag-picker"
+              label={MEMORY_COPY.tags}
+            />
+          )}
+        </Presence>
+      </div>
+      <ManageDialog.Hint testId="memory-context-hint">{MEMORY_COPY.contextHint}</ManageDialog.Hint>
+    </>
   )
 }

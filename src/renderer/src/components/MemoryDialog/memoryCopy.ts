@@ -4,7 +4,7 @@
 // component exports in a .tsx.
 import { MEMORY_ERROR, MEMORY_LIMITS, type MemoryWriter } from '../../../../shared/schemas/memory'
 import { STORE_WRITE_FAILED } from '../../../../shared/schemas/storageHealth'
-import { HISTORY_TERMS, MEMORY_TERMS } from '../../copy/terms'
+import { GOAL_TERMS, HISTORY_TERMS, MEMORY_TERMS } from '../../copy/terms'
 import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 
 export const MEMORY_COPY = {
@@ -49,6 +49,14 @@ export const MEMORY_COPY = {
   originSession: 'Origin session',
   folder: 'Folder',
   tags: 'Tags',
+  /** The form's `Goal` field (the filter chip's word). */
+  goal: GOAL_TERMS.filterLabel,
+  /** The `Folder` and `Goal` fields' first option (spec 2026-11-14 memory context index, Copy). */
+  noFolder: 'No folder',
+  noGoal: 'No goal',
+  /** The one hint under `Folder`, `Goal` and `Tags`. */
+  contextHint:
+    'Sessions in this folder, goal or with these tags list this item. With none, every session of the workspace does.',
   workspace: 'Workspace',
   markStale: 'Mark stale',
   markActive: 'Mark active',
