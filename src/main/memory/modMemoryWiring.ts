@@ -11,6 +11,7 @@ import type { SessionTokens } from '../mcp/sessionTokens'
 import type { GoalsStore } from '../persistence/goals'
 import type { MemoryActivityLog } from './memoryActivity'
 import { createMemoryGate } from './memoryGate'
+import type { MemoryNames } from './memoryNames'
 import { createMemoryRecall, type MemoryRecall } from './memoryRecall'
 import type { MemoryStore } from './memoryStore'
 import type { MemoryGrant, MemorySessionMeta } from './memoryTools'
@@ -32,6 +33,8 @@ export function createModMemory(deps: {
   /** null = not a live session. */
   session: (sessionId: string) => MemorySessionMeta | null
   tasks: () => Pick<GoalsStore, 'view'> | null
+  /** The goal and tag names the section's headings print. */
+  names: Pick<MemoryNames, 'goalName' | 'tagName'>
   activity: Pick<MemoryActivityLog, 'injected' | 'record'>
   now: () => number
   log: (line: string) => void
@@ -39,6 +42,7 @@ export function createModMemory(deps: {
   const recall = createMemoryRecall({
     gate: createMemoryGate({ enabled: deps.enabled, store: deps.store, session: deps.session }),
     tasks: () => deps.tasks()?.view() ?? null,
+    names: deps.names,
     activity: deps.activity,
     operatorOrigins: OPERATOR_ORIGINS,
     now: deps.now,

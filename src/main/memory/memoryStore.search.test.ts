@@ -2,7 +2,7 @@
 // then the word index ranks, then the trigram index adds exact pieces. Real `:memory:` db.
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { MemoryFilters } from '../../shared/memory/filterFields'
-import type { MemoryItem, MemoryText } from '../../shared/schemas/memory'
+import type { EpisodeText, MemoryItem, MemoryText } from '../../shared/schemas/memory'
 import type { FilterContext } from './filterSql'
 import { openMemoryDb } from './memoryDb'
 import { createMemoryStore, type MemoryScope, type MemoryStore } from './memoryStore'
@@ -36,7 +36,7 @@ beforeEach(() => {
 type Extra = Partial<MemoryItem['meta']> & { workspaceId?: string | null; sessionId?: string }
 
 /** Each add is one second after the last, so `updatedAt` orders them. */
-function add(text: MemoryText, extra: Extra = {}): MemoryItem {
+function add(text: MemoryText | EpisodeText, extra: Extra = {}): MemoryItem {
   clock += 1000
   const { workspaceId = 'w1', sessionId = 's1', ...meta } = extra
   return store.add({
@@ -359,53 +359,71 @@ describe('indexRows', () => {
     expect(store.indexRows('w1', '/work').pinned.map((i) => i.id)).toEqual(['m2', 'm1'])
   })
 
-  it('specificsHere are the folder, above and below it on a path boundary, newest first', () => {
+  it('active counts every active item of the workspace and global, pinned and episodes included', () => {
+    add(specific('here'), { folder: '/work/app' })
+    add(specific('global'), { workspaceId: null })
+    add(specific('theirs'), { workspaceId: 'w2' })
+    store.setPinned(add(specific('pinned')).id, true)
+    store.setState(add(specific('stale')).id, 'stale', 'agent', null)
+    add({ kind: 'episode', title: 'a run', body: 'x', endedAt: NOW }, { folder: '/work/app' })
+    expect(store.indexRows('w1', '/work/app').active).toBe(4)
+  })
+})
+
+describe('contextRows (the index keys) on the folder rules', () => {
+  const BARE = { folder: '/work/app', taskIds: [], goalId: null, templateId: null, tagIds: [] }
+  const placed = (folder = '/work/app'): Record<string, string[]> =>
+    Object.fromEntries(
+      store.contextRows('w1', { ...BARE, folder }).map((g) => [g.reason, g.rows.map((r) => r.head)])
+    )
+
+  it('the folder, above and below it on a path boundary, each its own group, facts included', () => {
     add(specific('above'), { folder: '/work' })
     add(specific('self'), { folder: '/work/app' })
     add(specific('below'), { folder: '/work/app/src' })
     add(specific('sibling'), { folder: '/work/apple' })
-    add(specific('no folder'))
     add({ kind: 'fact', title: 'fact here', body: 'x' }, { folder: '/work/app' })
-    const out = store.indexRows('w1', '/work/app')
-    expect(out.specificsHere.map((r) => r.head)).toEqual(['below', 'self', 'above'])
-    expect(out.more).toBe(3)
+    expect(placed()).toEqual({
+      folder: ['fact here', 'self'],
+      folder_above: ['above'],
+      folder_below: ['below']
+    })
   })
 
-  it('specificsHere holds at most 50 and the rest count in more', () => {
+  it('a group hands over at most 40 rows and counts them all', () => {
     for (let i = 0; i < 52; i++) add(specific(`k${i}`), { folder: '/work/app' })
-    const out = store.indexRows('w1', '/work/app')
-    expect([out.specificsHere.length, out.specificsHere[0]?.head, out.more]).toEqual([50, 'k51', 2])
+    const [group] = store.contextRows('w1', BARE)
+    expect([group?.rows.length, group?.rows[0]?.head, group?.total]).toEqual([40, 'k51', 52])
   })
 
-  it('specificsHere keeps to the workspace and global', () => {
+  it('keeps to the workspace and global', () => {
     add(specific('mine'), { folder: '/work/app' })
     add(specific('global'), { folder: '/work/app', workspaceId: null })
     add(specific('theirs'), { folder: '/work/app', workspaceId: 'w2' })
-    const out = store.indexRows('w1', '/work/app')
-    expect([out.specificsHere.map((r) => r.head), out.more]).toEqual([['global', 'mine'], 0])
+    expect(placed()).toEqual({ folder: ['global', 'mine'] })
   })
 
-  it('specificsHere matches folders above and below by exact case', () => {
+  it('matches folders above and below by exact case', () => {
     add(specific('upper above'), { folder: '/Work' })
     add(specific('upper below'), { folder: '/work/App/src' })
     add(specific('above'), { folder: '/work' })
-    expect(store.indexRows('w1', '/work/app').specificsHere.map((r) => r.head)).toEqual(['above'])
+    expect(placed()).toEqual({ folder_above: ['above'] })
   })
 
-  it('a specific here carries its current value', () => {
+  it('a key carries its current value', () => {
     const { id } = add(specific('port', '9280'), { folder: '/work/app' })
     store.edit(id, { text: specific('port', '9281'), check: null }, 'agent', null)
-    expect(store.indexRows('w1', '/work/app').specificsHere.map((r) => r.body)).toEqual(['9281'])
+    expect(store.contextRows('w1', BARE)[0]?.rows.map((r) => r.body)).toEqual(['9281'])
   })
 
   it('the root folder is above every folder', () => {
     add(specific('root'), { folder: '/' })
-    expect(store.indexRows('w1', '/work/app').specificsHere.map((r) => r.head)).toEqual(['root'])
+    expect(placed()).toEqual({ folder_above: ['root'] })
   })
 
   it('a pinned item is listed once, under pinned', () => {
     store.setPinned(add(specific('pinned'), { folder: '/work/app' }).id, true)
     const out = store.indexRows('w1', '/work/app')
-    expect([out.pinned.length, out.specificsHere.length, out.more]).toEqual([1, 0, 0])
+    expect([out.pinned.length, store.contextRows('w1', BARE), out.active]).toEqual([1, [], 1])
   })
 })

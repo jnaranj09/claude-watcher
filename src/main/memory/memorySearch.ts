@@ -57,7 +57,6 @@ export type MemorySearchInput = {
 }
 export type BrowseBy = 'kind' | 'folder' | 'tag' | 'month'
 
-const SPECIFICS_HERE_MAX = 50
 /** The trigram index cannot match fewer characters than this. */
 const TRIGRAM_MIN = 3
 const ACTIVE: SqlClause = { sql: "item.state = 'active'", params: [] }
@@ -221,17 +220,16 @@ function hereOfKind<T>(
   ])
 }
 
-/** A pinned specific is listed once, under `pinned`; `more` counts every other active item (an
- *  episode is never pinned, so it is never listed twice). */
+/** The index's pinned items and recent sessions; `active` counts every active item in scope
+ *  (pinned items and episodes included), for the index's last count line. */
 export function indexItems(
   db: MemoryDb,
   workspaceId: string,
   folder: string
 ): {
   pinned: MemoryItem[]
-  specificsHere: MemoryRow[]
   episodesHere: EpisodeRow[]
-  more: number
+  active: number
 } {
   const inScope = and([scopeClause({ workspaceId, includeGlobal: true }), ACTIVE])
   const pinned = db.all(
@@ -239,21 +237,12 @@ export function indexItems(
     ItemRow,
     inScope.params
   )
-  const specificsHere = hereOfKind(db, inScope, 'specific', folder, SPECIFICS_HERE_MAX, {
-    row: ListRow,
-    order: NEWEST_FIRST
-  })
   // Episodes by the day their session ended: a catch-up or a state change never reorders them.
   const episodesHere = hereOfKind(db, inScope, 'episode', folder, EXTRACT_LIMITS.episodesInIndex, {
     row: EpisodeListRow,
     order: NEWEST_ENDED_FIRST
   })
-  return {
-    pinned,
-    specificsHere,
-    episodesHere,
-    more: count(db, inScope) - pinned.length - specificsHere.length - episodesHere.length
-  }
+  return { pinned, episodesHere, active: count(db, inScope) }
 }
 
 /** What a session shares with the items its index lists (spec 2026-11-14 memory context index

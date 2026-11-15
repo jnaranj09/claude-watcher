@@ -70,6 +70,7 @@ function setup(over: Partial<MemorySpawnDeps> = {}): { deps: MemorySpawnDeps; se
     store: () => store,
     tasks: () => null,
     now: () => NOW,
+    names: { goalName: () => null, tagName: () => null },
     tokens: { mint: () => 'tok', revoke: (id) => seen.revoked.push(id) },
     configs: { write: () => '/data/mcp/a.json', remove: (id) => seen.removed.push(id) },
     url: MEMORY_MCP_URL,
@@ -184,7 +185,12 @@ describe('the memory mod’s token', () => {
       enabled: () => true,
       store: () => null,
       session: () => null,
-      names: { tagIdsByName: () => [], tagName: () => null, goalIdsByName: () => [] },
+      names: {
+        tagIdsByName: () => [],
+        tagName: () => null,
+        goalIdsByName: () => [],
+        goalName: () => null
+      },
       tasks: () => null,
       commands: () => null,
       activity: createMemoryActivity(),

@@ -77,7 +77,12 @@ function start(store: MemoryStore | null): Promise<Rig> {
     enabled: () => enabled,
     store: () => store,
     session: (id) => (id === 's1' ? SESSION : null),
-    names: { tagIdsByName: () => [], tagName: () => null, goalIdsByName: () => [] },
+    names: {
+      tagIdsByName: () => [],
+      tagName: () => null,
+      goalIdsByName: () => [],
+      goalName: () => null
+    },
     tasks: () => null,
     commands: () => null,
     activity: createMemoryActivity(),

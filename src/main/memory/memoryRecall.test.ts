@@ -61,6 +61,7 @@ function build(over: { windowChars?: number; recallChars?: number } = {}): Memor
       session: (id) => (id === 's1' || id === 's2' ? SESSION : null)
     }),
     tasks: () => view,
+    names: { goalName: () => null, tagName: () => null },
     activity: {
       injected: (sessionId, value) => injected.push([sessionId, value]),
       record: (sessionId, entry) => recorded.push([sessionId, entry])
@@ -196,7 +197,9 @@ describe('a resumed conversation', () => {
     expect(out).toEqual({
       ok: true,
       folders: ['/work/app'],
-      text: expect.stringContaining(`- api base (${DAY}) id=${here.id}`)
+      text: expect.stringContaining(
+        `- api base = https://api.acme.test (seen ${DAY}, inferred) id=${here.id}`
+      )
     })
     expect(injected).toEqual([])
   })

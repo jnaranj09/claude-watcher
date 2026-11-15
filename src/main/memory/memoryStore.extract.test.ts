@@ -310,19 +310,25 @@ describe('reads for extraction', () => {
     store.add(a)
     const out = store.indexRows('w1', '/work/app')
     expect(out.episodesHere.map((r) => r.head)).toEqual(['below', 'e7', 'e6', 'e5', 'e4'])
-    expect(out.specificsHere.map((r) => r.head)).toEqual(['API port'])
-    // e1..e3 and `away` are the rest.
-    expect(out.more).toBe(4)
+    // Every active item in scope: the nine episodes and the specific.
+    expect(out.active).toBe(10)
   })
 
   const DAY = 86_400_000
+  /** An index with no tasks and no key groups: only the episodes are listed. */
+  const NO_KEYS = {
+    tasksHere: [],
+    groups: [],
+    names: { goal: null, tags: [] },
+    clashes: new Set<string>()
+  }
 
   it('an episode a later catch-up writes keeps the day its session ended, in its row and its index line', () => {
     const ended = NOW - 3 * DAY
     store.add({ ...base, text: { ...EPISODE, endedAt: ended } })
     const rows = store.indexRows('w1', '/work/app')
     expect(rows.episodesHere.map((r) => [r.endedAt, r.updatedAt])).toEqual([[ended, NOW]])
-    const index = buildMemoryIndex({ ...rows, tasksHere: [], now: NOW })
+    const index = buildMemoryIndex({ ...rows, ...NO_KEYS, now: NOW })
     expect(index.text.split('\n').at(-1)).toBe(`- Moved the API port (${formatDay(ended)}) id=m1`)
   })
 
@@ -339,7 +345,7 @@ describe('reads for extraction', () => {
     expect(rows.episodesHere.map((r) => r.head)).toEqual(['newer', 'older'])
     expect(rows.episodesHere[1]?.updatedAt).toBe(clock)
     expect(
-      buildMemoryIndex({ ...rows, tasksHere: [], now: clock })
+      buildMemoryIndex({ ...rows, ...NO_KEYS, now: clock })
         .text.split('\n')
         .slice(-2)
     ).toEqual([

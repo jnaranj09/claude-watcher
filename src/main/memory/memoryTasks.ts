@@ -1,5 +1,6 @@
 // Memory phase 2: reads of the goals view for memory (pure). The index lists a folder's open tasks
-// (`openTasksForFolder`); extraction gets the workspace's open tasks as its scope
+// (`openTasksForFolder`) and, for a launch, groups keys by the goal its tasks share
+// (`goalOfTasks`); extraction gets the workspace's open tasks as its scope
 // (`scopeTasksForExtract`, D19). Titles and checks are SENSITIVE: these never log.
 import type { GoalsView, Task, TaskLeftWith } from '../../shared/schemas/goal'
 import { EXTRACT_LIMITS } from '../../shared/schemas/memoryExtract'
@@ -57,6 +58,17 @@ export function openTasksForFolder(
       check: t.check,
       reportedDoneAt: t.report?.outcome === 'done' ? t.report.at : null
     }))
+}
+
+/** The one goal every task in `taskIds` belongs to; null when there are none, two, or a loose
+ *  task (no goal, or not in the view). */
+export function goalOfTasks(
+  view: Pick<GoalsView, 'tasks'>,
+  taskIds: readonly string[]
+): string | null {
+  const goals = new Set(taskIds.map((id) => view.tasks.find((t) => t.id === id)?.goalId ?? null))
+  const [only] = goals
+  return goals.size === 1 && only !== undefined ? only : null
 }
 
 /** D19: open tasks of the workspace, those linked to `sessionId` first, then the folder's, then

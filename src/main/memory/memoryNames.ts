@@ -2,7 +2,8 @@
 // a name into the ids a workspace can see: its own tags and global ones, and its own goals. As the
 // filter fields describe them (`shared/memory/filterFields.ts`), a tag matches by its whole name and
 // a goal by part of its name; both ignore case and surrounding spaces, and a blank name matches
-// nothing (never every goal). The memory tools also name an item's tags by id. The stores are read
+// nothing (never every goal). The memory tools also name an item's tags by id, and the memory
+// index names a session's goal and tags in its headings. The stores are read
 // late (index.ts passes getters), so this never holds a stale catalog.
 
 /** What a memory search needs to resolve the names in its filters, per workspace, and what the
@@ -12,6 +13,8 @@ export interface MemoryNames {
   goalIdsByName(workspaceId: string, name: string): string[]
   /** A tag's name, or null for a tag that is gone (an item keeps a deleted tag's id). */
   tagName(id: string): string | null
+  /** A goal's name, or null for a goal that is gone (the index's goal heading then names none). */
+  goalName(id: string): string | null
 }
 
 type Named = { id: string; name: string; workspaceId: string | null }
@@ -47,6 +50,7 @@ export function memoryNameLookups(source: {
       ),
     goalIdsByName: (workspaceId, name) =>
       idsNamed(source.goals(), (goal) => goal.workspaceId === workspaceId, name, partOfName),
-    tagName: (id) => source.tags().find((tag) => tag.id === id)?.name ?? null
+    tagName: (id) => source.tags().find((tag) => tag.id === id)?.name ?? null,
+    goalName: (id) => source.goals().find((goal) => goal.id === id)?.name ?? null
   }
 }

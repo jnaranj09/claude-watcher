@@ -7,6 +7,7 @@ import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { TaskSchema, type GoalsView } from '../../shared/schemas/goal'
+import type { MemoryItem } from '../../shared/schemas/memory'
 import type { Session } from '../../shared/schemas/session'
 import { GOALS_MCP_PATH, MEMORY_MCP_PATH, MEMORY_MCP_URL } from '../hooks/hookContract'
 import { createSessionTokens, type SessionTokens } from '../mcp/sessionTokens'
@@ -34,6 +35,8 @@ import {
 } from './memoryLaunch'
 
 const NOW = 1_762_800_000_000
+
+type MemoryItemMeta = MemoryItem['meta']
 
 const dirs: string[] = []
 function tempDir(): string {
@@ -76,6 +79,7 @@ function spawnDeps(over: Partial<Omit<MemorySpawnDeps, 'tokens'>> = {}): MemoryS
     store: () => store,
     tasks: () => null,
     now: () => NOW,
+    names: { goalName: () => null, tagName: () => null },
     tokens,
     configs: createMcpConfigs({
       dir: () => userData,
@@ -195,6 +199,54 @@ describe('memorySpawnExtras', () => {
     expect(out.appendPrompt).toContain('Not in it')
   })
 
+  /** Saves one specific of w1 in `/elsewhere` with `meta`. */
+  function saveElsewhere(deps: MemorySpawnDeps, key: string, meta: Partial<MemoryItemMeta>): void {
+    deps.store()?.add({
+      text: { kind: 'specific', key, value: '4242' },
+      workspaceId: 'w1',
+      check: null,
+      basis: 'stated',
+      origin: { by: 'agent', sessionId: 's0' },
+      meta: {
+        folder: '/elsewhere',
+        sessionName: null,
+        tagIds: [],
+        templateId: null,
+        goalId: null,
+        taskIds: [],
+        ...meta
+      },
+      source: null
+    })
+  }
+
+  it("a launch whose goal block tasks share a goal lists that goal's items, from any folder", () => {
+    const view = {
+      goals: [],
+      tasks: [openTask('t1', 'One', { goalId: 'g1' }), openTask('t2', 'Two', { goalId: 'g1' })]
+    }
+    const on = spawnDeps({
+      tasks: () => view,
+      names: { goalName: (id) => (id === 'g1' ? 'Billing v2' : null), tagName: () => null }
+    })
+    saveElsewhere(on, 'billing port', { goalId: 'g1' })
+    const out = memorySpawnExtras(on, 's1', { ...launch, excludeTaskIds: ['t1', 't2'] }, null)
+    const lines = out.appendPrompt?.split('\n') ?? []
+    const heading = lines.indexOf('## Saved for goal "Billing v2"')
+    expect(heading).toBeGreaterThan(-1)
+    expect(lines[heading + 1]).toMatch(/^- billing port = 4242 \(seen /)
+  })
+
+  it('a launch never prints the tags group or the template group', () => {
+    const on = spawnDeps({ names: { goalName: () => null, tagName: () => 'infra' } })
+    saveElsewhere(on, 'tagged key', { tagIds: ['a'] })
+    saveElsewhere(on, 'template key', { templateId: 'tp1' })
+    const out = memorySpawnExtras(on, 's1', launch, null)
+    expect(out.appendPrompt).not.toContain('## Saved with the same tags')
+    expect(out.appendPrompt).not.toContain('## Saved from the same template')
+    expect(out.appendPrompt).toContain('2 more; use memory_search')
+  })
+
   it('the token it mints is the one in the config file and resolves to the session', () => {
     const on = spawnDeps()
     const mint = vi.spyOn(on.tokens, 'mint')
@@ -306,7 +358,12 @@ describe('the memory MCP server', () => {
       enabled: () => true,
       store,
       session: (id) => (id === 's1' ? sessionMeta : null),
-      names: { tagIdsByName: () => [], tagName: () => null, goalIdsByName: () => [] },
+      names: {
+        tagIdsByName: () => [],
+        tagName: () => null,
+        goalIdsByName: () => [],
+        goalName: () => null
+      },
       tasks: () => null,
       commands: () => null,
       activity: createMemoryActivity(),
@@ -372,7 +429,12 @@ describe('the memory MCP server', () => {
       enabled: () => true,
       store: () => null,
       session: () => null,
-      names: { tagIdsByName: () => [], tagName: () => null, goalIdsByName: () => [] },
+      names: {
+        tagIdsByName: () => [],
+        tagName: () => null,
+        goalIdsByName: () => [],
+        goalName: () => null
+      },
       tasks: () => null,
       commands: () => null,
       activity: createMemoryActivity(),

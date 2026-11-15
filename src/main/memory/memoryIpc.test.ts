@@ -46,6 +46,7 @@ beforeEach(() => {
   names = {
     tagIdsByName: vi.fn((_w: string, name: string) => (name === 'infra' ? ['t1'] : [])),
     goalIdsByName: vi.fn((): string[] => []),
+    goalName: vi.fn((): string | null => null),
     tagName: vi.fn((): string | null => null)
   }
   logs = []

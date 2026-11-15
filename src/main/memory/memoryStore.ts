@@ -118,12 +118,11 @@ export interface MemoryStore {
     folder: string
   ): {
     pinned: MemoryItem[]
-    specificsHere: MemoryRow[]
     /** Active episodes of the folder (at, above or below it), the
-     *  `EXTRACT_LIMITS.episodesInIndex` whose session ended last, each with its `endedAt`; `more`
-     *  does not count them. */
+     *  `EXTRACT_LIMITS.episodesInIndex` whose session ended last, each with its `endedAt`. */
     episodesHere: EpisodeRow[]
-    more: number
+    /** Every active item of the workspace and global, pinned items and episodes included. */
+    active: number
   }
   /** The index's keys (spec 2026-11-14 memory context index §1): the active, unpinned specifics
    *  and facts of the workspace and global, each under the first reason it shares with `ctx`, per

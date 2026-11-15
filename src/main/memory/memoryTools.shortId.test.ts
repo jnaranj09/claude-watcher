@@ -62,7 +62,12 @@ function setUp(seeds: readonly Seed[]): {
     enabled: () => true,
     store: () => store,
     session: (id) => (id === 's1' ? meta('w1') : null),
-    names: { tagIdsByName: () => [], tagName: () => null, goalIdsByName: () => [] },
+    names: {
+      tagIdsByName: () => [],
+      tagName: () => null,
+      goalIdsByName: () => [],
+      goalName: () => null
+    },
     tasks: () => null,
     commands: () => null,
     activity,

@@ -21,9 +21,11 @@ function lineOf(task: Partial<IndexTask>, now: number): string {
   const out = buildMemoryIndex({
     pinned: [],
     tasksHere: [t],
-    specificsHere: [],
+    groups: [],
+    names: { goal: null, tags: [] },
+    clashes: new Set(),
     episodesHere: [],
-    more: 0,
+    active: 0,
     now
   })
   return out.text.split('\n').at(-1) ?? ''
@@ -72,7 +74,9 @@ describe('the task line in Europe/Berlin', () => {
     const out = buildMemoryIndex({
       pinned: [],
       tasksHere: [],
-      specificsHere: [],
+      groups: [],
+      names: { goal: null, tags: [] },
+      clashes: new Set(),
       episodesHere: [
         {
           id: 'e1',
@@ -91,7 +95,7 @@ describe('the task line in Europe/Berlin', () => {
           originDeletedAt: null
         }
       ],
-      more: 0,
+      active: 1,
       now: local(2026, 11, 12, 12)
     })
     expect(out.text.split('\n').at(-1)).toBe('- Moved the build (2026-11-11) id=e1')

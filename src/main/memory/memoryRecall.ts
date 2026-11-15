@@ -20,13 +20,14 @@ import type {
 } from '../../shared/schemas/modMemory'
 import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 import type { MemoryActivityLog } from './memoryActivity'
+import type { MemoryNames } from './memoryNames'
 import { sessionItemMeta, type MemoryCall } from './memoryGate'
 import { MEMORY_LIVE_RULES, MEMORY_RULES_OF_USE, pinnedLine, specificLine } from './memoryIndex'
 import type { MemoryGrant } from './memoryTools'
 import { cutPrivate } from './privateSpans'
 import { MEMORY_BLOCK_MARKER, oneLine } from './promptText'
 import { recallTerms } from './recallTerms'
-import { buildSessionIndex } from './sessionIndex'
+import { buildSessionIndex, sessionContext } from './sessionIndex'
 import { capped, parseRemember } from './rememberText'
 
 export interface MemoryRecall {
@@ -74,6 +75,8 @@ function capLine(line: string, id: string, max: number): string {
 export function createMemoryRecall(deps: {
   gate: (grant: MemoryGrant) => MemoryCall | null
   tasks: () => Pick<GoalsView, 'goals' | 'tasks'> | null
+  /** The goal and tag names the section's headings print. */
+  names: Pick<MemoryNames, 'goalName' | 'tagName'>
   activity: Pick<MemoryActivityLog, 'injected' | 'record'>
   /** The reducer's OPERATOR_ORIGINS. */
   operatorOrigins: ReadonlySet<string>
@@ -334,11 +337,11 @@ export function createMemoryRecall(deps: {
 
   function buildIndex(call: MemoryCall): { text: string; itemIds: string[] } {
     return buildSessionIndex(
-      { tasks: deps.tasks, now: deps.now },
+      { tasks: deps.tasks, now: deps.now, names: deps.names },
       call.store,
       {
         workspaceId: call.session.workspaceId,
-        cwd: call.session.folder,
+        context: sessionContext(call.session),
         excludeTaskIds: launches.get(call.sessionId) ?? []
       },
       `${MEMORY_RULES_OF_USE}\n${MEMORY_LIVE_RULES}`

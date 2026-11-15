@@ -8,8 +8,8 @@
 // one choice (`recallMod`, mods/memoryModSpawn.ts, memory phase 3 addendum §2): the `watcher-memory`
 // mod (`--plugin-dir`, and `MEMORY_CONFIG_ENV` naming the config file, where the mod reads the link
 // to main and this session's token), which sends the index and recall while the session runs; or
-// phase 1, the index for its folder (its open tasks, specifics and recent sessions) appended to its
-// system prompt. Either way the choice is recorded for Context (`activity.recallMode`). All of it
+// phase 1, the index for its folder (its open tasks, its keys grouped by the task, goal and folder
+// it shares with them, and its recent sessions) appended to its system prompt. Either way the choice is recorded for Context (`activity.recallMode`). All of it
 // or nothing: a memory failure never fails a launch;
 // the session starts as if memory were off, with a code logged. claude's own auto memory is not
 // set here: it has its own setting, applied to every launch in `pty/spawnExtras.ts`.
@@ -35,8 +35,10 @@ import type { MemoryRecallMod } from '../mods/memoryModSpawn'
 import type { Extractor } from './extract/extractor'
 import type { MemoryActivityLog } from './memoryActivity'
 import type { MemoryCommands } from './memoryCommands'
+import type { MemoryNames } from './memoryNames'
 import type { MemoryRecall } from './memoryRecall'
 import type { MemoryStore } from './memoryStore'
+import { goalOfTasks } from './memoryTasks'
 import {
   MEMORY_MCP_SERVER_NAME,
   MEMORY_TOOLS,
@@ -99,6 +101,8 @@ export interface MemorySpawnDeps {
   tasks: () => Pick<GoalsView, 'goals' | 'tasks'> | null
   /** The time the index counts `last seen` days to. */
   now: () => number
+  /** The goal and tag names the index's headings print. */
+  names: Pick<MemoryNames, 'goalName' | 'tagName'>
   tokens: Pick<SessionTokens<MemoryGrant>, 'mint' | 'revoke'>
   configs: Pick<McpConfigs, 'write' | 'remove'>
   /** `MEMORY_MCP_URL`. */
@@ -155,7 +159,20 @@ export function memorySpawnExtras(
         env: { ...MEMORY_SPAWN_ENV, [MEMORY_CONFIG_ENV]: path }
       }
     }
-    const index = buildSessionIndex(deps, store, launch)
+    // A spawn knows no template and no tags (its card is put on the board after it): the index has
+    // no template or tags group. Its goal is the one the goal block's tasks share.
+    const view = deps.tasks()
+    const index = buildSessionIndex(deps, store, {
+      workspaceId: launch.workspaceId,
+      context: {
+        folder: launch.cwd,
+        taskIds: launch.excludeTaskIds,
+        goalId: view === null ? null : goalOfTasks(view, launch.excludeTaskIds),
+        templateId: null,
+        tagIds: []
+      },
+      excludeTaskIds: launch.excludeTaskIds
+    })
     deps.activity.injected(sessionId, { chars: index.text.length, itemIds: index.itemIds })
     deps.activity.recallMode(sessionId, { mode: 'launch', reason: mod.skip })
     return {

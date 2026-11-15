@@ -68,6 +68,7 @@ function blocks(): Map<string, string[]> {
   const recall = createMemoryRecall({
     gate: createMemoryGate({ enabled: () => true, store: () => store, session: () => SESSION }),
     tasks: () => null,
+    names: { goalName: () => null, tagName: () => null },
     activity: { injected: () => undefined, record: () => undefined },
     operatorOrigins: new Set(['composer']),
     now: () => clock,

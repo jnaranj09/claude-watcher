@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Goal, Task } from '../../shared/schemas/goal'
 import { EXTRACT_LIMITS } from '../../shared/schemas/memoryExtract'
-import { openTasksForFolder, scopeTasksForExtract } from './memoryTasks'
+import { goalOfTasks, openTasksForFolder, scopeTasksForExtract } from './memoryTasks'
 
 const SHOP = '/work/acme/shop'
 
@@ -172,5 +172,29 @@ describe('scopeTasksForExtract', () => {
       'newest',
       'folder'
     ])
+  })
+})
+
+describe('goalOfTasks', () => {
+  const view = {
+    tasks: [
+      task({ id: 'a1', createdAt: 1, goalId: 'gA' }),
+      task({ id: 'a2', createdAt: 2, goalId: 'gA' }),
+      task({ id: 'b1', createdAt: 3, goalId: 'gB' }),
+      task({ id: 'loose', createdAt: 4 })
+    ]
+  }
+
+  it('is the goal two tasks of one goal share', () => {
+    expect(goalOfTasks(view, ['a1', 'a2'])).toBe('gA')
+  })
+
+  it('is null for no task, for tasks of two goals and for a loose task', () => {
+    expect([
+      goalOfTasks(view, []),
+      goalOfTasks(view, ['a1', 'b1']),
+      goalOfTasks(view, ['a1', 'loose']),
+      goalOfTasks(view, ['a1', 'unknown'])
+    ]).toEqual([null, null, null, null])
   })
 })

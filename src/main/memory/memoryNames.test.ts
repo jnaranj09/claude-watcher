@@ -50,4 +50,9 @@ describe('memoryNameLookups', () => {
     expect(names.tagName('t3')).toBe('Infra')
     expect(names.tagName('gone')).toBeNull()
   })
+
+  it('names a goal by its id, and a deleted goal by nothing', () => {
+    expect(names.goalName('g2')).toBe('ship V2')
+    expect(names.goalName('gone')).toBeNull()
+  })
 })

@@ -22,10 +22,16 @@ import { MEMORY_LIVE_RULES, MEMORY_RULES_OF_USE } from './memoryIndex'
 import { createMemoryRecall } from './memoryRecall'
 import { createMemoryStore } from './memoryStore'
 import type { MemorySessionMeta } from './memoryTools'
-import { buildSessionIndex } from './sessionIndex'
+import { buildSessionIndex, sessionContext } from './sessionIndex'
 
 const NOW = 1_762_800_000_000
 const WORKSPACE = { global: null, other: 'w2' } as const
+const GOAL_NAMES: Record<string, string> = { gA: 'Goal A', gB: 'Goal B' }
+const TAG_NAMES: Record<string, string> = { tCommon: 'common', tRare: 'rare' }
+const LOOKUPS = {
+  goalName: (id: string): string | null => GOAL_NAMES[id] ?? null,
+  tagName: (id: string): string | null => TAG_NAMES[id] ?? null
+}
 
 function seeded(): {
   store: ReturnType<typeof createMemoryStore>
@@ -85,9 +91,9 @@ function meta(name: ContextSessionName): MemorySessionMeta {
 function sectionFor(name: ContextSessionName): { text: string; itemIds: string[] } {
   const session = meta(name)
   return buildSessionIndex(
-    { tasks: () => null, now },
+    { tasks: () => null, now, names: LOOKUPS },
     store,
-    { workspaceId: 'w1', cwd: session.folder, excludeTaskIds: [] },
+    { workspaceId: 'w1', context: sessionContext(session), excludeTaskIds: [] },
     `${MEMORY_RULES_OF_USE}\n${MEMORY_LIVE_RULES}`
   )
 }
@@ -101,6 +107,7 @@ function recalled(name: ContextSessionName, prompt: string, window: number): str
   const recall = createMemoryRecall({
     gate: createMemoryGate({ enabled: () => true, store: () => store, session: () => meta(name) }),
     tasks: () => null,
+    names: LOOKUPS,
     activity: { injected: () => undefined, record: () => undefined },
     operatorOrigins: new Set(['composer']),
     now,
@@ -158,47 +165,18 @@ describe('what the memory section lists per session context', () => {
   })
 
   it('listed within the cap: the list cases each session finds', () => {
-    expect(missedBySession()).toEqual({
-      bare: ['blue-green', 'fact-6', 'ws-1'],
-      goalA: ['crowd-01', 'crowd-05', 'goal-only-1', 'fact-3', 'ws-2'],
-      goalB: ['crowd-09', 'crowd-12', 'ws-2'],
-      root: ['fact-4', 'ws-3'],
-      package: ['tag-rare-1', 'ws-3'],
-      template: ['tpl-rare-1', 'ws-4'],
-      empty: ['ws-1', 'ws-6', 'fact-7']
-    })
+    expect(missedBySession()).toEqual({})
   })
 
   it('found at all: in the section or in the recall block', () => {
-    expect(notFound()).toEqual([
-      'bare:blue-green',
-      'bare:fact-6',
-      'bare:ws-1',
-      'goalA:crowd-01',
-      'goalA:crowd-05',
-      'goalA:goal-only-1',
-      'goalA:fact-3',
-      'goalA:ws-2',
-      'goalB:crowd-09',
-      'goalB:crowd-12',
-      'goalB:ws-2',
-      'root:fact-4',
-      'root:ws-3',
-      'package:tag-rare-1',
-      'package:ws-3',
-      'template:tpl-rare-1',
-      'template:ws-4',
-      'empty:ws-1',
-      'empty:ws-6',
-      'empty:fact-7'
-    ])
+    expect(notFound()).toEqual([])
   })
 
   it('wrong-context lines per session', () => {
     expect(wrongCount()).toEqual({
       bare: 0,
-      goalA: 1,
-      goalB: 3,
+      goalA: 0,
+      goalB: 0,
       root: 0,
       package: 0,
       template: 0,
@@ -209,7 +187,7 @@ describe('what the memory section lists per session context', () => {
   it('no section passes the cap, and the largest is pinned', () => {
     const sizes = NAMES.map((name) => sectionFor(name).text.length)
     expect(Math.max(...sizes)).toBeLessThanOrEqual(MEMORY_LIMITS.indexChars)
-    expect(Math.max(...sizes)).toBe(3470)
+    expect(Math.max(...sizes)).toBe(5999)
   })
 
   it('no item is listed twice in one section', () => {

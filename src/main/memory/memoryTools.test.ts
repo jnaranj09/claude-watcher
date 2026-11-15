@@ -9,6 +9,7 @@ import { formatDay } from './formatDay'
 import { createMemoryActivity, type MemoryActivityLog } from './memoryActivity'
 import { createMemoryCommands, type MemoryCommands } from './memoryCommands'
 import { openMemoryDb } from './memoryDb'
+import { memoryNameLookups } from './memoryNames'
 import { createMemoryStore, type MemoryAdd, type MemoryStore } from './memoryStore'
 import {
   MEMORY_NOT_AVAILABLE,
@@ -21,6 +22,7 @@ import {
 const NOW = 1_762_800_000_000
 const DAY = 86_400_000
 const SECRET = 'secret-4417'
+const NO_NAMES = memoryNameLookups({ tags: () => [], goals: () => [] })
 
 function meta(workspaceId: string, over: Partial<MemorySessionMeta> = {}): MemorySessionMeta {
   return {
@@ -79,10 +81,10 @@ beforeEach(() => {
     store: () => (storeAvailable ? store : null),
     session: (id) => sessions.get(id) ?? null,
     names: {
+      ...NO_NAMES,
       tagIdsByName: (_w, name) =>
         Object.entries(tagNames).flatMap(([id, v]) => (v === name ? id : [])),
-      tagName: (id) => tagNames[id] ?? null,
-      goalIdsByName: () => []
+      tagName: (id) => tagNames[id] ?? null
     },
     tasks: () => (goalsAvailable ? goals : null),
     commands: () => (storeAvailable ? commands : null),
@@ -627,7 +629,7 @@ describe('failures', () => {
       session: () => {
         throw new Error('x')
       },
-      names: { tagIdsByName: () => [], tagName: () => null, goalIdsByName: () => [] },
+      names: NO_NAMES,
       tasks: () => goals,
       commands: () => commands,
       activity,
@@ -889,7 +891,7 @@ describe('memory_search kind command', () => {
       enabled: () => true,
       store: () => store,
       session: (id) => sessions.get(id) ?? null,
-      names: { tagIdsByName: () => [], tagName: () => null, goalIdsByName: () => [] },
+      names: NO_NAMES,
       tasks: () => goals,
       commands: () => null,
       activity,

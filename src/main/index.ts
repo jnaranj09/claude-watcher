@@ -1339,6 +1339,7 @@ app
             // The index lists the folder's open tasks from the live goals view.
             tasks: () => goalsStore?.view() ?? null,
             now: () => Date.now(),
+            names: memoryNames,
             tokens: memoryMcp.tokens,
             configs: memoryMcp.configs,
             url: MEMORY_MCP_URL,

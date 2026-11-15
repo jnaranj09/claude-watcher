@@ -151,7 +151,12 @@ describe('the memory mod’s contract with main', () => {
         enabled: () => true,
         store: () => null,
         session: () => null,
-        names: { tagIdsByName: () => [], tagName: () => null, goalIdsByName: () => [] },
+        names: {
+          tagIdsByName: () => [],
+          tagName: () => null,
+          goalIdsByName: () => [],
+          goalName: () => null
+        },
         tasks: () => null,
         commands: () => null,
         activity: { injected: () => undefined, record: () => undefined },
@@ -170,6 +175,7 @@ describe('the memory mod’s contract with main', () => {
             store: () => modStore,
             tasks: () => null,
             now: () => NOW,
+            names: { goalName: () => null, tagName: () => null },
             tokens: mcp.tokens,
             configs: mcp.configs,
             url: `http://${HOST}:${port}${MEMORY_MCP_PATH}`,
@@ -283,6 +289,7 @@ describe('the memory mod’s contract with main', () => {
           session: (id) => (id === 's1' ? SESSION : null)
         }),
         tasks: () => null,
+        names: { goalName: () => null, tagName: () => null },
         activity: { injected: () => undefined, record: () => undefined },
         operatorOrigins: OPERATOR_ORIGINS,
         now: () => NOW,
@@ -315,7 +322,7 @@ describe('the memory mod’s contract with main', () => {
         readTextAnswer(JSON.stringify(prompt)),
         readRememberAnswer(JSON.stringify(saved))
       ]).toEqual([
-        { text: expect.stringContaining('- staging port ('), folders: [] },
+        { text: expect.stringContaining('- staging port = 9281 ('), folders: [] },
         expect.stringMatching(new RegExp(`^${MEMORY_BLOCK_MARKER.replace(/[()]/g, '\\$&')}`)),
         { ok: true, kind: 'specific', id: stored.rows[0]?.id }
       ])
@@ -344,6 +351,7 @@ describe('the memory mod’s contract with main', () => {
       const recall = createMemoryRecall({
         gate: () => null,
         tasks: () => null,
+        names: { goalName: () => null, tagName: () => null },
         activity: { injected: () => undefined, record: () => undefined },
         operatorOrigins: OPERATOR_ORIGINS,
         now: () => NOW,
@@ -363,6 +371,7 @@ describe('the memory mod’s contract with main', () => {
       const recall = createMemoryRecall({
         gate: () => null,
         tasks: () => null,
+        names: { goalName: () => null, tagName: () => null },
         activity: { injected: () => undefined, record: () => undefined },
         operatorOrigins: OPERATOR_ORIGINS,
         now: () => NOW,

@@ -35,7 +35,12 @@ function toolsNamingTag(tagName: string): (name: string, args: unknown) => McpTo
     enabled: () => true,
     store: () => store,
     session: (id) => (id === 's1' ? SESSION : null),
-    names: { tagIdsByName: () => [], tagName: () => tagName, goalIdsByName: () => [] },
+    names: {
+      tagIdsByName: () => [],
+      tagName: () => tagName,
+      goalIdsByName: () => [],
+      goalName: () => null
+    },
     tasks: () => null,
     commands: () => null,
     activity: createMemoryActivity(),
