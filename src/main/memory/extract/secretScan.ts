@@ -69,22 +69,41 @@ export const SECRET_PATTERNS: readonly RegExp[] = [
   )
 ]
 
-/** The pattern `namesSecret` reads, built from `SECRET_NAME_WORDS`. */
-const SECRET_NAME = new RegExp(
-  `(?<![A-Za-z0-9])(?:${[
-    ...SECRET_NAME_WORDS.filter((w) => !w.includes('_')),
-    ...SECRET_NAME_WORDS.filter((w) => w.includes('_')).map((w) => w.replace('_', '[ _-]?')),
-    'api[ _-]?key'
-  ].join('|')})s?(?![A-Za-z0-9])`,
-  'i'
-)
+/** The secret names as word parts: a single word (`password`), or two parts that may also be
+ *  written as one (`access` + `key`, or `accesskey`). Built from `SECRET_NAME_WORDS`. */
+const SECRET_PARTS: readonly (readonly string[])[] = [
+  ...SECRET_NAME_WORDS.map((w) => w.split('_')),
+  ['api', 'key']
+]
 
-/** A secret name as a whole word in `text`, in any case: a word of `SECRET_NAME_WORDS` (its `_`
- *  may also be a space, a `-` or nothing), or `api key` / `api_key` / `api-key` / `apikey`; an `s`
- *  may follow (`max tokens`). Unlike the patterns above, no value has to follow: a key line reads
- *  it in a key (`db password`), whose value may be short. */
+/** The word parts of a key, lower case: split at every non-letter (so digits go too) and at each
+ *  camelCase hump (`dbPassword`, `APIKey`). */
+function wordParts(text: string): string[] {
+  return text
+    .replace(/(\p{Ll})(\p{Lu})/gu, '$1 $2')
+    .replace(/(\p{Lu})(\p{Lu}\p{Ll})/gu, '$1 $2')
+    .split(/[^\p{L}]+/u)
+    .filter((p) => p !== '')
+    .map((p) => p.toLowerCase())
+}
+
+/** A secret name is one of the key's word parts, in any case: a word of `SECRET_NAME_WORDS`
+ *  or its plural (`dbPassword`, `password2`, `db-password`, `max tokens`), or `access` / `private` / `api` then
+ *  `key`, as two parts or one (`API_KEY`, `apiKey`, `apikey`). A word only inside a longer part
+ *  is not one (`tokenizer`, `passwordless`). Unlike the patterns above, no value has to follow: a
+ *  key line reads it in a key (`db password`), whose value may be short. */
 export function namesSecret(text: string): boolean {
-  return SECRET_NAME.test(text)
+  const parts = wordParts(text)
+  /** `part` is `word`, or its plural (`tokens`) when it ends a name. */
+  const is = (part: string | undefined, word: string, last: boolean): boolean =>
+    part === word || (last && part === `${word}s`)
+  return parts.some((part, i) =>
+    SECRET_PARTS.some(
+      (name) =>
+        is(part, name.join(''), true) ||
+        name.every((word, j) => is(parts[i + j], word, j === name.length - 1))
+    )
+  )
 }
 
 /** The text with every match of every pattern replaced by SECRET_MARK. */

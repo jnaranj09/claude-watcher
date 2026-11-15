@@ -260,14 +260,26 @@ describe('SECRET_PATTERNS', () => {
 })
 
 describe('namesSecret', () => {
-  it.each(['db password', 'Admin PWD', 'api-key', 'apikey', 'access key', 'max tokens'])(
-    'finds a secret name in %s',
-    (key) => {
-      expect(namesSecret(key)).toBe(true)
-    }
-  )
+  it.each([
+    'db password',
+    'Admin PWD',
+    'api-key',
+    'apikey',
+    'access key',
+    'max tokens',
+    'dbPassword',
+    'authToken',
+    'clientSecret',
+    'password2',
+    'API_KEY',
+    'db-password',
+    'APIKey',
+    'privateKeyPath'
+  ])('finds a secret name in %s', (key) => {
+    expect(namesSecret(key)).toBe(true)
+  })
 
-  it.each(['tokenizer', 'passwordless', 'keyboard', 'secretary'])(
+  it.each(['tokenizer', 'passwordless', 'keyboard', 'secretary', 'tokenizerVersion', 'keyApi'])(
     'finds none when the name is only part of a word: %s',
     (key) => {
       expect(namesSecret(key)).toBe(false)

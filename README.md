@@ -280,8 +280,9 @@ Known limits:
   file that shows an opening `<private>` with no closing tag (documentation, source code)
   hides the rest of that tool result from a save. Text inside the tag that Claude's own reply
   splits over two text parts is cut only in the first part; the rest is read.
-- The index hides a value only when it matches a secret pattern or its key holds a secret word:
-  a secret under a harmless key that matches no pattern shows its first 24 characters.
+- The index hides a value only when it matches a secret pattern, holds a `<private>` tag, or its
+  key holds a secret word (`dbPassword`, `API_KEY`): a secret under a harmless key that matches no
+  pattern shows its first 24 characters.
 - A value that changes while a conversation runs stays as the index listed it until the
   conversation's next window (`/clear`, `/compact`).
 - A value written right before a dotted or hyphenated continuation (`1.2` in `1.2.34`) is

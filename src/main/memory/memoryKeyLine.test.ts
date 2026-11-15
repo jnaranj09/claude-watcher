@@ -92,6 +92,28 @@ describe('keyLine', () => {
     expect(keyLine(row({ head: 'tokenizer version', body: '0.19' }), NONE).whole).toBe(true)
   })
 
+  it('7b. a secret word that is one part of a camelCase, digit or snake key hides the value', () => {
+    for (const head of [
+      'dbPassword',
+      'authToken',
+      'clientSecret',
+      'password2',
+      'API_KEY',
+      'db-password'
+    ]) {
+      const out = keyLine(row({ head, body: 'hunter2' }), NONE)
+      expect(out.text).toBe(
+        `- ${head} (value not shown, 7 chars, seen ${formatDay(DAY)}, observed) id=3f2b9c1e`
+      )
+    }
+  })
+
+  it('7c. a secret word that is only inside a longer part shows the value', () => {
+    for (const head of ['tokenizerVersion', 'passwordlessLogin']) {
+      expect(keyLine(row({ head, body: '0.19' }), NONE).whole).toBe(true)
+    }
+  })
+
   it('8. a clash prints the whole id', () => {
     expect(keyLine(row({ head: 'k', body: 'v' }), new Set(['3f2b9c1e'])).text).toContain(
       ' id=3f2b9c1e-8a4d-4f6b-9e21-7c5d0a9b8e44'
