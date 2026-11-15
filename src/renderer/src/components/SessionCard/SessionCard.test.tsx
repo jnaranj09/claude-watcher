@@ -666,27 +666,6 @@ describe('SessionCard — tags (T-26, §4.3)', () => {
     expect(onActivate).not.toHaveBeenCalled()
   })
 
-  /** An element of the tag picker's list, which is portaled to document.body. */
-  function portaled(testId: string): HTMLElement {
-    const el = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`)
-    if (el === null) throw new Error(`missing ${testId}`)
-    return el
-  }
-
-  it('Escape in the portaled Tags… list hands focus back to its button', () => {
-    const { container, unmount } = renderComponent(
-      <SessionCard {...baseProps({ availableTags: [PROD], onSetTags: vi.fn() })} />
-    )
-    cleanup = unmount
-    const button = container.querySelector<HTMLButtonElement>('[data-testid="card-tags-button"]')
-    act(() => button?.click())
-    const row = portaled('card-tag-picker-row-t-prod')
-    expect(container).not.toContainElement(row)
-    act(() => row.focus())
-    fireEvent(row, new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    expect(button).toHaveFocus()
-  })
-
   it('the move menu warns when the move drops this workspace’s own tags (T-9)', () => {
     const { container, unmount } = renderComponent(
       <SessionCard

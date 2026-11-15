@@ -2,6 +2,7 @@
 // answers the click before main does, and the next click builds on it.
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { act } from 'react'
+import { screen } from '@testing-library/react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { TagPicker } from './TagPicker'
 import { tagsStore } from '../../stores/tagsStore'
@@ -36,28 +37,28 @@ function mount(selectedIds: string[], onChange: (ids: string[]) => void = () => 
   )
 }
 
-const checked = (id: string): string | null | undefined =>
-  document.querySelector(`[data-testid="picker-row-${id}"]`)?.getAttribute('aria-checked')
+// The list is portaled to document.body: `screen` reads the whole document.
+const row = (id: string): HTMLElement => screen.getByTestId(`picker-row-${id}`)
 
 describe('TagPicker — pending toggles', () => {
   it('shows a pending tag as ticked, and the next click builds on it', () => {
     const onChange = vi.fn()
     mount([], onChange)
     act(() => tagsStore.getState().setPending('s1', new Map([['a', true]])))
-    expect(checked('a')).toBe('true')
-    act(() => document.querySelector<HTMLButtonElement>('[data-testid="picker-row-b"]')?.click())
+    expect(row('a')).toHaveAttribute('aria-checked', 'true')
+    act(() => row('b').click())
     expect(onChange).toHaveBeenCalledWith(['a', 'b'])
   })
 
   it('a pending-off tag shows unticked', () => {
     mount(['a'])
     act(() => tagsStore.getState().setPending('s1', new Map([['a', false]])))
-    expect(checked('a')).toBe('false')
+    expect(row('a')).toHaveAttribute('aria-checked', 'false')
   })
 
   it("another session's pending toggles do not show", () => {
     mount([])
     act(() => tagsStore.getState().setPending('s2', new Map([['a', true]])))
-    expect(checked('a')).toBe('false')
+    expect(row('a')).toHaveAttribute('aria-checked', 'false')
   })
 })

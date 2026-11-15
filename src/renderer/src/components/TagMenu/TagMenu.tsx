@@ -57,6 +57,10 @@ export function TagMenu({
           : styles.anchored
       }
       {...(anchored === undefined ? {} : { ref: anchored.ref, style: anchored.style })}
+      // The placed wrapper of a portaled list, for tests (`<testId>-placed`).
+      {...(anchored !== undefined && testId !== undefined
+        ? { 'data-testid': `${testId}-placed` }
+        : {})}
       {...leavingProps(leaving)}
     >
       <Popover.Surface

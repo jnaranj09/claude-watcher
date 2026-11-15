@@ -36,6 +36,10 @@ describe('SessionCard — Tags… from the keyboard', () => {
     const button = screen.getByTestId('card-tags-button')
     await userEvent.click(button)
     expect(screen.getByTestId('card-tag-picker-row-t-ops')).toHaveFocus()
+    // Portaled: the list is not inside the card.
+    expect(screen.getByRole('button', { name: /^deploy-prod/ })).not.toContainElement(
+      screen.getByTestId('card-tag-picker-row-t-ops')
+    )
     await userEvent.keyboard(' ')
     expect(onSetTags).toHaveBeenCalledWith(['t-ops', 't-prod'])
     await userEvent.keyboard('{Escape}')
