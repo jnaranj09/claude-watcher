@@ -180,6 +180,18 @@ describe('ContextDialog — the Memory page, why keys were listed', () => {
     expect(rows[1]).not.toHaveTextContent('pulled')
   })
 
+  it('only memory_get counts as read: another tool that names an item does not', async () => {
+    await openMemoryPage({
+      ...GROUPED,
+      entries: [
+        { at: NOW - 30_000, action: 'pulled', tool: 'memory_search', itemId: 'm3', reason: null },
+        { at: NOW - 20_000, action: 'pulled', tool: 'memory_browse', itemId: 'm1', reason: null }
+      ]
+    })
+    const rows = await screen.findAllByTestId('context-memory-reason')
+    expect(rows.map((r) => r.textContent)).not.toContainEqual(expect.stringContaining('pulled'))
+  })
+
   it('no groups, no reason rows', async () => {
     await openMemoryPage({
       ...GROUPED,

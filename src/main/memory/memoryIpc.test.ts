@@ -315,6 +315,12 @@ describe("an item's context (folder, goal, tags)", () => {
     expect(item.meta.folder).toBe('/')
   })
 
+  it('an edit stores a folder without its trailing slashes too', () => {
+    const id = savedBySession({ folder: '/work/app', goalId: 'g1', tagIds: [] })
+    const out = h.edit({ id, text: SPECIFIC, check: null, context: { folder: '/work/shop//' } })
+    expect(out.meta.folder).toBe('/work/shop')
+  })
+
   it('a create with a goal of another workspace, a gone tag, or a goal on a global item is refused and writes nothing', () => {
     for (const req of [
       { workspaceId: 'w1', goalId: 'g2', tagIds: [] },

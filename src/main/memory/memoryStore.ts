@@ -100,8 +100,8 @@ export interface MemoryStore {
   ): MemoryItem
   /** Writes only the given fields: `folder` to its column, `goalId` / `tagIds` inside `meta` (the
    *  session name, template and task ids stay). No version, no date change. Unknown id:
-   *  `memory_not_found`. Only the dialog's create and edit call it (`memoryIpc.ts`): no tool or
-   *  save writes an item's context. */
+   *  `memory_not_found`. Only the dialog's edit calls it (`memoryIpc.ts`; a create stamps the
+   *  context through `add`'s `meta`): no tool or save writes an item's context. */
   setContext(id: string, patch: MemoryContextPatch): MemoryItem
   /** An episode is never pinned: `MEMORY_ERROR.notFound`, as for an unknown id. */
   setPinned(id: string, pinned: boolean): MemoryItem
