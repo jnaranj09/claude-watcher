@@ -87,13 +87,18 @@ export function TagPicker({
     minWidth: undefined
   }
   // Focus the first row once the list is placed: a list still hidden for its first measure cannot
-  // take focus.
+  // take focus. With no row (no tag in scope) the list itself takes it, so its keys (Escape, Tab)
+  // stay the list's and do not reach the dialog behind it.
   const measured = placement.visibility !== 'hidden'
   const focusedOnOpen = useRef(false)
   useEffect(() => {
     if (!measured || focusedOnOpen.current) return
     focusedOnOpen.current = true
-    listRef.current?.querySelector<HTMLElement>('[data-popover-item]')?.focus()
+    const list = listRef.current
+    const target =
+      list?.querySelector<HTMLElement>('[data-popover-item]') ??
+      list?.querySelector<HTMLElement>('[role="group"]')
+    target?.focus()
   }, [measured])
   useEffect(() => {
     // Leaving (overlay motion): it is already closing; a second outside click must not close again.
@@ -134,7 +139,8 @@ export function TagPicker({
       const rows = [...(listRef.current?.querySelectorAll('[data-popover-item]') ?? [])]
       const at = rows.findIndex((row) => row === document.activeElement)
       const pastEnd = e.shiftKey ? at === 0 : at === rows.length - 1
-      if (at !== -1 && pastEnd) {
+      // No row: Tab from the list itself is past both ends.
+      if (rows.length === 0 || (at !== -1 && pastEnd)) {
         e.preventDefault()
         e.stopPropagation()
         closeFromKey()

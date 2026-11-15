@@ -69,6 +69,8 @@ export function TagMenu({
         aria-label={ariaLabel}
         testId={testId}
         {...(id !== undefined ? { id } : {})}
+        // A portaled list can take focus itself when it has no row (TagPicker); out of Tab order.
+        {...(anchored !== undefined ? { tabIndex: -1 } : {})}
         onKeyDown={onKeyDown}
         onClick={onClick}
       >

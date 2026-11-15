@@ -1,7 +1,7 @@
 // TagPicker from the keyboard (slice 2 review, round 1): the list is portaled to document.body, so
 // Tab from its button no longer reaches it by DOM order. Opening it moves focus to its first row,
-// as Select's list does; Escape, or Tab past either end, closes it and hands focus back to the
-// button. Also pins the list's rung above a dialog (ManageDialog is 60).
+// as Select's list does (with no row, to the list itself); Escape, or Tab past either end, closes
+// it and hands focus back to the button. Also pins the list's rung above a dialog (ManageDialog is 60).
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import { useRef, useState, type JSX } from 'react'
 import { render, screen } from '@testing-library/react'
@@ -20,13 +20,22 @@ afterEach(() => {
 const DEPLOY: Tag = { id: 't-deploy', name: 'deploy', color: 'amber', workspaceId: null }
 const PROD: Tag = { id: 't-prod', name: 'prod', color: 'rose', workspaceId: null }
 
-/** A trigger and its picker, as a caller wires them, then a button after the anchor. */
-function Harness({ onClose }: { onClose: (reason: 'escape' | 'outside') => void }): JSX.Element {
+/** A trigger and its picker, as a caller wires them, then a button after the anchor; all inside
+ *  an outer key handler that stands for the dialog's (ManageDialog closes on Escape). */
+function Harness({
+  onClose,
+  tags = [DEPLOY, PROD],
+  onOuterKey = vi.fn()
+}: {
+  onClose: (reason: 'escape' | 'outside') => void
+  tags?: Tag[]
+  onOuterKey?: (key: string) => void
+}): JSX.Element {
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   return (
-    <>
+    <div onKeyDown={(e) => onOuterKey(e.key)}>
       <div ref={anchorRef}>
         <button type="button" ref={triggerRef} onClick={() => setOpen((v) => !v)}>
           Tags
@@ -34,7 +43,7 @@ function Harness({ onClose }: { onClose: (reason: 'escape' | 'outside') => void 
         <Presence value={open || null}>
           {() => (
             <TagPicker
-              tags={[DEPLOY, PROD]}
+              tags={tags}
               selectedIds={[]}
               onChange={vi.fn()}
               onClose={(reason) => {
@@ -50,13 +59,15 @@ function Harness({ onClose }: { onClose: (reason: 'escape' | 'outside') => void 
         </Presence>
       </div>
       <button type="button">after</button>
-    </>
+    </div>
   )
 }
 
-async function openPicker(): Promise<ReturnType<typeof vi.fn>> {
+async function openPicker(
+  props: { tags?: Tag[]; onOuterKey?: (key: string) => void } = {}
+): Promise<ReturnType<typeof vi.fn>> {
   const onClose = vi.fn()
-  unmount = render(<Harness onClose={onClose} />).unmount
+  unmount = render(<Harness onClose={onClose} {...props} />).unmount
   await userEvent.click(screen.getByRole('button', { name: 'Tags' }))
   await screen.findByRole('group', { name: 'Tags for api' })
   return onClose
@@ -85,6 +96,23 @@ describe('TagPicker — keyboard', () => {
     expect(screen.getByRole('button', { name: 'Tags' })).toHaveFocus()
     await userEvent.tab()
     expect(screen.getByRole('button', { name: 'after' })).toHaveFocus()
+  })
+
+  it('with no tags, the list takes focus and Escape closes the list only, back to its button', async () => {
+    const onOuterKey = vi.fn()
+    const onClose = await openPicker({ tags: [], onOuterKey })
+    expect(screen.getByRole('group', { name: 'Tags for api' })).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalledWith('escape')
+    expect(onOuterKey).not.toHaveBeenCalledWith('Escape')
+    expect(screen.getByRole('button', { name: 'Tags' })).toHaveFocus()
+  })
+
+  it('with no tags, Tab closes the list and hands focus back to its button', async () => {
+    const onClose = await openPicker({ tags: [] })
+    await userEvent.tab()
+    expect(onClose).toHaveBeenCalledWith('escape')
+    expect(screen.getByRole('button', { name: 'Tags' })).toHaveFocus()
   })
 
   it('Shift+Tab before the first row closes the list and hands focus back to its button', async () => {
