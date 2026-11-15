@@ -237,6 +237,11 @@ describe('TagPicker — portaled under its trigger', () => {
     expect(wrap()).not.toHaveStyle({ visibility: 'hidden' })
   })
 
+  it("keeps the list's own minimum width, not the small trigger's", () => {
+    const { wrap } = renderWithTrigger(() => AT)
+    expect(wrap()).not.toHaveStyle({ minWidth: `${AT.width}px` })
+  })
+
   it('follows its trigger when a region scrolls', () => {
     let rect = AT
     const { wrap } = renderWithTrigger(() => rect)

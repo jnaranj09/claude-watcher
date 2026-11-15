@@ -75,7 +75,11 @@ export function TagPicker({
   )
   const leaving = useLeaving()
   const listRef = useRef<HTMLDivElement | null>(null)
-  const placement = useAnchoredPlacement(true, triggerRef, listRef, 'end')
+  // The list keeps its own minimum width (TagMenu.module.css), never the small trigger's.
+  const placement = {
+    ...useAnchoredPlacement(true, triggerRef, listRef, 'end'),
+    minWidth: undefined
+  }
   useEffect(() => {
     // Leaving (overlay motion): it is already closing; a second outside click must not close again.
     if (leaving) return
