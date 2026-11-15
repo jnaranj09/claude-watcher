@@ -2,7 +2,7 @@
 // secret is built by joining strings, so no scanner flags the public repo.
 import { describe, expect, it } from 'vitest'
 import { SECRET_MARK } from '../../../shared/schemas/memoryExtract'
-import { SECRET_PATTERNS, hasSecret, redactSecrets } from './secretScan'
+import { SECRET_PATTERNS, hasSecret, namesSecret, redactSecrets } from './secretScan'
 
 const fakeSecrets: [string, string][] = [
   ['an sk- key', 's' + 'k-' + 'a'.repeat(24)],
@@ -257,4 +257,20 @@ describe('SECRET_PATTERNS', () => {
     const dead = SECRET_PATTERNS.filter((p) => !fakeSecrets.some(([, s]) => s.search(p) !== -1))
     expect(dead).toEqual([])
   })
+})
+
+describe('namesSecret', () => {
+  it.each(['db password', 'Admin PWD', 'api-key', 'apikey', 'access key', 'max tokens'])(
+    'finds a secret name in %s',
+    (key) => {
+      expect(namesSecret(key)).toBe(true)
+    }
+  )
+
+  it.each(['tokenizer', 'passwordless', 'keyboard', 'secretary'])(
+    'finds none when the name is only part of a word: %s',
+    (key) => {
+      expect(namesSecret(key)).toBe(false)
+    }
+  )
 })

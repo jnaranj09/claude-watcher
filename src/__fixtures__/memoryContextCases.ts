@@ -2,10 +2,13 @@
 // session should be told about, for the context-index test
 // (`src/main/memory/contextIndexQuality.test.ts`). Every name, host and value is made up. Never
 // shipped. The seed order and every word decide the numbers that test pins: change them only
-// together. The recall seeds are reused by reference; `memoryRecallCases.ts` is not edited.
+// together. The recall seeds are reused by reference; `memoryRecallCases.ts` is not edited. The
+// fake token is built by joining strings, so no scanner flags the public repo.
 import type { MemoryItem, MemoryText } from '../shared/schemas/memory'
 import type { MemorySessionMeta } from '../main/memory/memoryTools'
 import { RECALL_SEEDS } from './memoryRecallCases'
+
+const FAKE_TOKEN = 'gh' + 'p_0123456789abcdefghijABCD'
 
 export type ContextSessionName =
   | 'bare'
@@ -158,7 +161,7 @@ export const CONTEXT_SEEDS: readonly ContextSeed[] = [
       meta
     })
   ),
-  specific('secret-value', 'deploy hook', 'ghp_0123456789abcdefghijABCD', {
+  specific('secret-value', 'deploy hook', FAKE_TOKEN, {
     folder: '/work/shop',
     goalId: 'gA'
   }),
@@ -170,7 +173,7 @@ export const CONTEXT_SEEDS: readonly ContextSeed[] = [
 ]
 
 /** Values the section must never print. */
-export const CONTEXT_HIDDEN: readonly string[] = ['ghp_0123456789abcdefghijABCD', 'hunter2', 'x9k2']
+export const CONTEXT_HIDDEN: readonly string[] = [FAKE_TOKEN, 'hunter2', 'x9k2']
 
 const session = (
   name: ContextSessionName,

@@ -3,6 +3,17 @@
 // (or holds the mark) is dropped. Pure: no I/O, no log (the text is the operator's conversation).
 import { SECRET_MARK } from '../../../shared/schemas/memoryExtract'
 
+/** The names a secret goes by, as the last of `SECRET_PATTERNS` and `namesSecret` read them. */
+const SECRET_NAME_WORDS = [
+  'password',
+  'passwd',
+  'pwd',
+  'secret',
+  'token',
+  'access_key',
+  'private_key'
+] as const
+
 /** One RegExp per kind of secret: the addendum's "Secrets" list plus rulings R10 and R14. Every
  *  one is global, so `replace` takes every match; `search` ignores the flag, so `hasSecret` keeps no
  *  state between calls. Exported for its test, which proves every pattern finds a fake secret.
@@ -48,12 +59,33 @@ export const SECRET_PATTERNS: readonly RegExp[] = [
   // run of 20+ key characters that is not a call or a property path (R14). So code such as
   // `apiKey: config.apiKey` or `apiKey = getApiKeyFromTheEnvironment()` survives.
   /["']?(?:x-)?api[_-]?key[A-Za-z0-9_]{0,20}["']?\s{0,5}[:=]\s{0,5}(?:"[^"\s]{8,}"|'[^'\s]{8,}'|(?=[^\s"'(),;]{0,100}?\d)[^\s"'(),;]{8,}|[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_.(-]))/gi,
-  // A secret-looking name, then `:` or `=`, then a quoted value of 4+ characters taken whole (spaces
-  // included, R14) or an unquoted one of 8+ (`password=`, `"secret": "…"`). No word characters
-  // before the name and bounded runs after it: an unbounded run would scan to the end of the text
-  // once per name it holds.
-  /["']?(?:password|passwd|pwd|secret|token|access_key|private_key)[A-Za-z0-9_]{0,20}["']?\s{0,5}[:=]\s{0,5}(?:"[^"\n]{4,200}"|'[^'\n]{4,200}'|["']?[^\s"']{8,}["']?)/gi
+  // A secret-looking name (`SECRET_NAME_WORDS`), then `:` or `=`, then a quoted value of 4+
+  // characters taken whole (spaces included, R14) or an unquoted one of 8+ (`password=`,
+  // `"secret": "…"`). No word characters before the name and bounded runs after it: an unbounded
+  // run would scan to the end of the text once per name it holds.
+  new RegExp(
+    `["']?(?:${SECRET_NAME_WORDS.join('|')})[A-Za-z0-9_]{0,20}["']?\\s{0,5}[:=]\\s{0,5}(?:"[^"\\n]{4,200}"|'[^'\\n]{4,200}'|["']?[^\\s"']{8,}["']?)`,
+    'gi'
+  )
 ]
+
+/** The pattern `namesSecret` reads, built from `SECRET_NAME_WORDS`. */
+const SECRET_NAME = new RegExp(
+  `(?<![A-Za-z0-9])(?:${[
+    ...SECRET_NAME_WORDS.filter((w) => !w.includes('_')),
+    ...SECRET_NAME_WORDS.filter((w) => w.includes('_')).map((w) => w.replace('_', '[ _-]?')),
+    'api[ _-]?key'
+  ].join('|')})s?(?![A-Za-z0-9])`,
+  'i'
+)
+
+/** A secret name as a whole word in `text`, in any case: a word of `SECRET_NAME_WORDS` (its `_`
+ *  may also be a space, a `-` or nothing), or `api key` / `api_key` / `api-key` / `apikey`; an `s`
+ *  may follow (`max tokens`). Unlike the patterns above, no value has to follow: a key line reads
+ *  it in a key (`db password`), whose value may be short. */
+export function namesSecret(text: string): boolean {
+  return SECRET_NAME.test(text)
+}
 
 /** The text with every match of every pattern replaced by SECRET_MARK. */
 export function redactSecrets(text: string): string {
