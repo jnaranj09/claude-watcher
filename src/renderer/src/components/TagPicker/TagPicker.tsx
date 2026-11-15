@@ -11,11 +11,15 @@
 // The list is PORTALED to document.body and placed under its trigger by `useAnchoredPlacement`,
 // as Select's is (spec 2026-11-14 memory context index, ruling C4): drawn inside its anchor, a
 // form's scroll body (the Memory dialog's Tags field) would cut it. It follows the trigger on
-// scroll and resize.
+// scroll and resize. Out of the DOM order, Tab from the trigger no longer reaches it, so opening
+// it moves focus to its first row (once it is placed and seen), as Select's list does; Tab and
+// Shift+Tab walk the rows.
 //
 // Mechanics mirror the card's move menu and WorkspaceSwitcher: Escape closes and STOPS (it must not
-// also close a dialog or leave the focused view), a mousedown outside both the anchor and the list
-// closes. Clicks and Enter/Space keydowns stop propagating, because on a board card this list is a
+// also close a dialog or leave the focused view), and so does Tab past the last row or Shift+Tab
+// before the first; each hands focus back to the trigger first, so the next Tab continues from
+// there (Select has no Tab rule: its list sits last in the page). A mousedown outside both the
+// anchor and the list closes and leaves focus where the operator clicked. Clicks and Enter/Space keydowns stop propagating, because on a board card this list is a
 // React child of the card's own role="button" (a portal still bubbles React events to it) —
 // without that, ticking a tag would also open the session.
 import {
@@ -47,6 +51,8 @@ export interface TagPickerProps {
   sessionId?: string | undefined
   /** The new tag list, in the order of `tags`. */
   onChange: (tagIds: string[]) => void
+  /** `escape`: a key closed it (Escape, or Tab past either end), and focus is already back on the
+   *  trigger; `outside`: a mousedown outside the anchor and the list. */
   onClose: (reason: 'escape' | 'outside') => void
   /** The element holding the trigger — a mousedown outside it and outside the list closes the
    *  list. */
@@ -80,6 +86,15 @@ export function TagPicker({
     ...useAnchoredPlacement(true, triggerRef, listRef, 'end'),
     minWidth: undefined
   }
+  // Focus the first row once the list is placed: a list still hidden for its first measure cannot
+  // take focus.
+  const measured = placement.visibility !== 'hidden'
+  const focusedOnOpen = useRef(false)
+  useEffect(() => {
+    if (!measured || focusedOnOpen.current) return
+    focusedOnOpen.current = true
+    listRef.current?.querySelector<HTMLElement>('[data-popover-item]')?.focus()
+  }, [measured])
   useEffect(() => {
     // Leaving (overlay motion): it is already closing; a second outside click must not close again.
     if (leaving) return
@@ -103,10 +118,27 @@ export function TagPicker({
     onChange(tags.filter((t) => next.has(t.id)).map((t) => t.id))
   }
 
+  /** A key closed the list: focus goes back to the trigger first. */
+  function closeFromKey(): void {
+    triggerRef.current?.focus()
+    onClose('escape')
+  }
+
   function handleKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
     if (e.key === 'Escape') {
       e.stopPropagation()
-      onClose('escape')
+      closeFromKey()
+      return
+    }
+    if (e.key === 'Tab') {
+      const rows = [...(listRef.current?.querySelectorAll('[data-popover-item]') ?? [])]
+      const at = rows.findIndex((row) => row === document.activeElement)
+      const pastEnd = e.shiftKey ? at === 0 : at === rows.length - 1
+      if (at !== -1 && pastEnd) {
+        e.preventDefault()
+        e.stopPropagation()
+        closeFromKey()
+      }
       return
     }
     // Do NOT preventDefault: the row button's own click (Enter / Space) must still happen.

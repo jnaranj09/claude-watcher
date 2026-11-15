@@ -230,7 +230,9 @@ Tags dialog rail uses `TagPathLabel` instead.
   (`menuitemcheckbox`, several tags), picker = `group` (`role="checkbox"`). The picker's list (a
   card's `Tags…`, the rail peek's `+ tag`) is portaled to `document.body` and placed under its
   trigger, right edges lined up, by `useAnchoredPlacement`, as `Select`'s list is: drawn inside
-  its anchor, a form's scroll body would cut it. The filter's list stays under its pill.
+  its anchor, a form's scroll body would cut it. Out of the DOM order, it takes focus when it
+  opens (its first row); Escape, or Tab past either end, closes it and hands focus back to its
+  trigger. The filter's list stays under its pill.
 - Rail row name reserves `--rail-tools-width` while tools show.
 - Tags dialog rail: `TagPathLabel` (`acme/` secondary, `prod` primary, indent `depth ×
 --space-3`, accessible name = full name). Display only.

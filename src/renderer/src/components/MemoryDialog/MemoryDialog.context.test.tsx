@@ -223,6 +223,19 @@ describe('MemoryDialog — an item placed by folder, goal and tags', () => {
     expect(screen.queryByTestId('memory-folder')).not.toBeInTheDocument()
   })
 
+  it("the form's tag list takes focus on open, Space ticks, Escape returns to its button", async () => {
+    await openItem()
+    const button = screen.getByTestId('memory-tags-button')
+    await userEvent.click(button)
+    expect(screen.getByTestId('memory-tag-picker-row-t1')).toHaveFocus()
+    await userEvent.keyboard(' ')
+    await userEvent.keyboard('{Escape}')
+    expect(button).toHaveFocus()
+    expect(screen.getByTestId('memory-form')).toBeInTheDocument()
+    await save()
+    expect(editContext()).toEqual({ tagIds: ['t1'] })
+  })
+
   it('a stored goal that is gone shows No goal and is not sent', async () => {
     bridge.items = [specificItem({ meta: { ...META, goalId: 'gone' } })]
     await openItem()
