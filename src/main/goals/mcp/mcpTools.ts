@@ -101,7 +101,12 @@ const PROPOSE_SPLIT_DEF: McpToolDef = {
   }
 }
 
-const refused = (code: string): McpToolOutcome => ({ kind: 'result', text: code, isError: true })
+const refused = (code: string): McpToolOutcome => ({
+  kind: 'result',
+  text: code,
+  isError: true,
+  code
+})
 
 const ok = (text: string): McpToolOutcome => ({ kind: 'result', text, isError: false })
 

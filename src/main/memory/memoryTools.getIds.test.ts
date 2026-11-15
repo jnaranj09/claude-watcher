@@ -4,12 +4,12 @@
 // its line cap. Real `:memory:` store; the session and name lookups are stand-ins.
 import { describe, expect, it } from 'vitest'
 import { MEMORY_LIMITS, type MemoryText } from '../../shared/schemas/memory'
-import type { McpToolOutcome } from '../mcp/mcpEndpoint'
+import { createMcpEndpoint, type McpToolOutcome, type McpTools } from '../mcp/mcpEndpoint'
 import { formatDay } from './formatDay'
 import { createMemoryActivity, type MemoryActivityLog } from './memoryActivity'
 import { openMemoryDb } from './memoryDb'
 import { createMemoryStore } from './memoryStore'
-import { createMemoryTools, type MemorySessionMeta } from './memoryTools'
+import { createMemoryTools, type MemoryGrant, type MemorySessionMeta } from './memoryTools'
 
 const NOW = 1_762_800_000_000
 
@@ -34,6 +34,7 @@ const port = (id: string, key = 'api port', value = '9281'): Seed => ({
 function setUp(seeds: readonly Seed[]): {
   call: (name: string, args: unknown) => McpToolOutcome
   activity: MemoryActivityLog
+  tools: McpTools<MemoryGrant>
 } {
   const open = openMemoryDb(':memory:', { now: () => NOW, log: () => undefined })
   if (!open.ok) throw new Error('open failed')
@@ -80,7 +81,7 @@ function setUp(seeds: readonly Seed[]): {
     now: () => NOW,
     log: () => undefined
   })
-  return { call: (name, args) => tools.call(name, args, { sessionId: 's1' }), activity }
+  return { call: (name, args) => tools.call(name, args, { sessionId: 's1' }), activity, tools }
 }
 
 function text(out: McpToolOutcome): string {
@@ -162,9 +163,47 @@ describe('memory_get with ids', () => {
     expect(call('memory_get', { ids: ['nope-nope', 'nope-nop2'] })).toEqual({
       kind: 'result',
       text: 'item nope-nope: memory_not_found\n\nitem nope-nop2: memory_not_found',
-      isError: true
+      isError: true,
+      code: 'memory_not_found'
     })
     expect(activity.get('s1').entries).toEqual([])
+  })
+
+  it('every id bad in different ways carries one code of its own', () => {
+    const { call } = setUp([port('abcdefgh-0001'), port('abcdefgh-0002')])
+    expect(call('memory_get', { ids: ['abcdefgh', 'nope-nope'] })).toMatchObject({
+      isError: true,
+      code: 'memory_ids_not_read'
+    })
+    expect(call('memory_get', { ids: ['abcdefgh'] })).toMatchObject({
+      isError: true,
+      code: 'memory_id_ambiguous'
+    })
+  })
+
+  it('every id bad logs its code through the endpoint, never an asked id', () => {
+    const { tools } = setUp([port(a)])
+    const lines: string[] = []
+    const endpoint = createMcpEndpoint({
+      serverName: 'claude-watcher-memory',
+      area: 'memory',
+      tokens: { resolve: () => null },
+      tools,
+      log: (l) => lines.push(l)
+    })
+    const ids = ['db password = hunter2-SECRET', 'second\ncode=forged']
+    endpoint.handle(
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'memory_get', arguments: { ids } }
+      },
+      { sessionId: 's1' }
+    )
+    expect(lines).toEqual([
+      '[claude-watcher][memory] route=mcp method=tools/call code=memory_not_found'
+    ])
   })
 
   it('an ambiguous short id gets memory_id_ambiguous and the others are read', () => {
@@ -235,7 +274,8 @@ describe('memory_get with ids', () => {
     expect(out).toEqual({
       kind: 'result',
       text: 'item a item x: memory_not_found: memory_not_found',
-      isError: true
+      isError: true,
+      code: 'memory_not_found'
     })
   })
 

@@ -280,8 +280,10 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   that text came from, `source_*`), else from the writer (agent or extract → `inferred`, operator
   → `stated`, the source cleared); each version keeps its own (`version.basis`), so a restore
   brings it back, and a state or pin change keeps it. An episode is never pinned. Memory off, no store or
-  session not live → `Memory is not available.` (logged as `code=memory_not_available`: an error
-  outcome may carry a log `code`, which the endpoint logs instead of its text). `/clear` moves
+  session not live → `Memory is not available.` (logged as `code=memory_not_available`: the endpoint
+  logs an error outcome's `code` and never a result's text, which can echo model input such as
+  `memory_get`'s ids; an outcome with no code logs `code=tool_error`; a `memory_get` whose ids
+  all missed logs their one code, or `memory_ids_not_read` for a mix). `/clear` moves
   the token, the file, the activity record (kept in RAM, ids and counts only, the section's
   `groups` included; Context's `Memory` page reads it through
   `memory:activity`, with or without the mod's report, and lists again on `memory:changed`, which

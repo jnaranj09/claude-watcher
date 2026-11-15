@@ -90,6 +90,8 @@ const UNKNOWN_TAG = 'unknown tag'
 const BROWSE_BY = ['kind', 'folder', 'tag', 'month'] as const
 /** Two items in scope start with the short id a tool was given: neither is read. */
 const ID_AMBIGUOUS = 'memory_id_ambiguous'
+/** A `memory_get` whose ids all missed, some not found and some ambiguous (its log code). */
+const IDS_NOT_READ = 'memory_ids_not_read'
 /** Throws of the store that a tool answers as a code; any other throw is a bug. */
 const KNOWN_CODES: ReadonlySet<string> = new Set([
   MEMORY_ERROR.notFound,
@@ -300,7 +302,12 @@ const DEFS: Record<MemoryToolName, McpToolDef> = {
   }
 }
 
-const refused = (code: string): McpToolOutcome => ({ kind: 'result', text: code, isError: true })
+const refused = (code: string): McpToolOutcome => ({
+  kind: 'result',
+  text: code,
+  isError: true,
+  code
+})
 /** Every result goes through `wrapperSafe` whole (P3-C15): a field's own `: ` or the line after it
  *  can never complete a tag or the marker a saved text starts. */
 const ok = (text: string): McpToolOutcome & { kind: 'result' } => ({
@@ -488,14 +495,22 @@ export function createMemoryTools(deps: {
       return ok(readItem(c.visible(parsed.data.id), withSource, c).join('\n'))
     }
     let read = 0
+    const misses = new Set<IdMiss>()
     const blocks = [...new Set(parsed.data.ids)].map((id) => {
       const asked = `item ${oneLine(id)}`
       const found = c.find(id)
-      if (typeof found === 'string') return `${asked}: ${found}`
-      read += 1
-      return [asked, ...readItem(found, withSource, c)].join('\n')
+      if (typeof found !== 'string') {
+        read += 1
+        return [asked, ...readItem(found, withSource, c)].join('\n')
+      }
+      misses.add(found)
+      return `${asked}: ${found}`
     })
-    return { ...ok(blocks.join('\n\n')), isError: read === 0 }
+    const text = ok(blocks.join('\n\n'))
+    if (read > 0) return text
+    // Every id missed: the log gets a code, never the text (it echoes the ids the model sent).
+    const [only] = misses
+    return { ...text, isError: true, code: misses.size === 1 && only ? only : IDS_NOT_READ }
   }
 
   /** A session's own report on a task of its workspace: stamped here, never from the input. A done

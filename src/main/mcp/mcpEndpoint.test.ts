@@ -346,7 +346,7 @@ describe('goals MCP endpoint logging', () => {
           call: (name) =>
             name === 'coded'
               ? { kind: 'result', text: 'Some sentence.', isError: true, code: 'some_code' }
-              : { kind: 'result', text: 'plain_code', isError: true }
+              : { kind: 'result', text: 'db password = hunter2\ncode=forged line', isError: true }
         },
         log: (l) => lines.push(l)
       })
@@ -363,12 +363,13 @@ describe('goals MCP endpoint logging', () => {
       })
     })
 
-    it('without a code logs the text, as before', () => {
+    it('without a code logs one fixed code and nothing of the text', () => {
       const lines: string[] = []
-      endpointOver(lines).handle(callOf('plain'), worker)
+      const res = endpointOver(lines).handle(callOf('plain'), worker)
       expect(lines).toEqual([
-        '[claude-watcher][stubarea] route=mcp method=tools/call code=plain_code'
+        '[claude-watcher][stubarea] route=mcp method=tools/call code=tool_error'
       ])
+      expect(res).toMatchObject({ result: { isError: true } })
     })
   })
 
