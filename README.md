@@ -210,7 +210,12 @@ no **Index:** line.
 
 **☰ → Memory** lists the items of the workspace you are in (and the global ones) on four pages,
 **Specifics**, **Facts**, **Episodes** and **Commands**: search, filter by folder, session, tag,
-date or goal, edit, pin, mark stale, see **History** and restore a version, or delete. An item
+date or goal, edit, pin, mark stale, see **History** and restore a version, or delete. A
+specific or fact has **Folder**, **Goal** and **Tags**: sessions in that folder, of that goal or
+with those tags list it in their index; with none, every session of the workspace does. A new
+item starts from the folder, goal and tags the list is filtered by. You can change them on a
+saved item at any time; that adds no version and keeps its dates. Claude and the saves never
+change them. An item
 saved from a session has **Open source**, which shows the words it was taken from. A specific
 that holds the same exact value (at least 4 characters with a digit, `_`, `/` or `.`) as another
 one in the same folder and workspace is marked **Same value**; open it to see the other one under
@@ -218,8 +223,9 @@ one in the same folder and workspace is marked **Same value**; open it to see th
 belongs to one workspace. Each record in **Past sessions** has a **Memory:** line (what
 was saved, `nothing new`, `failed`, `saving…` or `off`) and the session's episode under it. The
 **Context** button of a session has a **Memory** page: the memory index the session got
-(**Index:** its tokens and items), what recall gave it while it ran (**With a prompt** / **With a
-file**), what it read, what it saved and what was dropped; a session that runs without recall for
+(**Index:** its tokens and items, then one row per reason the index listed keys for, such as
+**Same task** or **This folder**, with how many items, how many Claude read and how many were not
+listed), what recall gave it while it ran (**With a prompt** / **With a file**), what it read, what it saved and what was dropped; a session that runs without recall for
 a reason you did not choose (an older claude, or the app could not set up its mod) says so there.
 
 What it costs: each save is a headless `claude -p` call (a long session can take a few) on your
@@ -285,6 +291,8 @@ Known limits:
   pattern shows its first 24 characters.
 - A value that changes while a conversation runs stays as the index listed it until the
   conversation's next window (`/clear`, `/compact`).
+- An item you only move to another folder, goal or tags in the Memory dialog reaches a running
+  conversation at its next window: the change moves no date, so nothing tells the conversation.
 - A value written right before a dotted or hyphenated continuation (`1.2` in `1.2.34`) is
   dropped on purpose: a cut version or address is worse than none.
 - A value inside the cut middle of a very long tool result is not saved.

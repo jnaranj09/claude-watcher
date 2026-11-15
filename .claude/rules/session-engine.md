@@ -256,7 +256,12 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   a workspace id; an item outside answers `memory_not_found`; an id of 8 or more characters that
   is no whole id is taken as an id's start inside that scope, and two matches answer
   `memory_id_ambiguous`); a save is `inferred`, origin
-  `agent` + that session; an update appends a version, never overwrites. An item's basis is its
+  `agent` + that session; an update appends a version, never overwrites. An item's context
+  (`folder`, and `goalId` / `tagIds` in its meta) is stamped from its session when it is saved;
+  only the operator changes it afterwards, in the Memory dialog's form (`memory:create` /
+  `memory:edit` with a `context`, `MemoryStore.setContext`: no version, no date change; a goal or
+  tag new to the item must exist and fit its scope, else `memory_context_invalid`). No tool, save
+  or session writes it; a re-placed item reaches a running conversation at its next window. An item's basis is its
   current text's: an edit takes it from the evidence extraction gives with it (and keeps where
   that text came from, `source_*`), else from the writer (agent or extract → `inferred`, operator
   → `stated`, the source cleared); each version keeps its own (`version.basis`), so a restore

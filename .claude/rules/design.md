@@ -158,7 +158,17 @@ variant="toolbar"` + magnifier, 32px like the board's) + the same `Filter` butto
   Folder, Session, Tag, Updated, Goal, Session deleted), folder / session / goal pick ONE value
   (`single`, radio rows that close: main filters by one), filters per page, never persisted.
 - Memory's pages: `Specifics` and `Facts` edit; an item a save kept with its quote has
-  `Open source` in its action row (the quote opens under the read-only lines). A specific main marks
+  `Open source` in its action row (the quote opens under the read-only lines). After `Check`, the
+  form places the item (spec 2026-11-14 memory context index §8): `Folder` (a `Select`, `No
+  folder` first, then the folders the dialog knows; a row draws the name and its parent path as
+  the Folder filter's rows do, `title` = the whole path), `Goal` (a `Select`, `No goal` first, the
+  workspace's goals; not rendered for a global item or under `Global`), `Tags` (the picked tags'
+  `TagChipRow` and the session card's ghost tag button opening `TagPicker`), then ONE
+  `ManageDialog.Hint` (`Sessions in this folder, goal or with these tags list this item. With
+  none, every session of the workspace does.`). On an open specific or fact these replace the
+  read-only `Folder` and `Tags` lines (`Origin session` and `Workspace` stay; an episode keeps
+  all four). A New form starts from the rail's filters; `Global` on clears the goal and the tags a
+  global item cannot hold. A stored goal or tag that is gone is not drawn, sent or dropped. A specific main marks
   as holding the same value as another one (`twinIds`) draws `Same value` in its row's meta line
   (the `Stale` pill) and, in its form under the action row, `Same value as`: one ghost `sm` Button
   per twin (its key, `title` `Open <key>`, its age beside it; a click opens it), `<n> more` past
@@ -558,8 +568,11 @@ feedbackShown={copied !== null}`. `busy` = disabled + `aria-busy`; busy `Delete`
   tasks` (Switch) and `Memory model` (Select `Haiku` / `Sonnet`), each with its hint; off, the
   four are not rendered.
 - Context → Memory: `Injected` starts with the index the session got (`Index: <n> tokens · <m>
-  items`), then lists each item recall gave while the session ran (`With a prompt` / `With a
-  file`); `Nothing injected.` only when it got neither; a session that runs without recall for a
+  items`), then one row per reason the index listed or counted keys for, in its order (`Pinned`,
+  `Same task`, `Same goal`, `This folder`, `Folders above`, `Whole workspace`, `Same template`,
+  `Same tags`, `Folders below`, `Episodes`; details `<n> items`, `<n> pulled` when claude read any
+  with `memory_get`, `<n> not listed` when the group had a count line), then lists each item
+  recall gave while the session ran (`With a prompt` / `With a file`); `Nothing injected.` only when it got neither; a session that runs without recall for a
   reason the operator did not choose shows an info `Callout` above the lists (`claude_too_old`,
   `mod_not_installed`; none for `setting_off`).
 - Startup load failure = ONE toast naming every store (`Could not load templates, tags and rules.
