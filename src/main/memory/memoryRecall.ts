@@ -1,14 +1,16 @@
 // What memory gives a running session through the `watcher-memory` mod (phase 3 addendum §5,
 // §6): the memory section once per conversation window, recall per operator prompt, recall at use
-// (the keys saved for the folders a tool touches) and the `/remember` save. Per session, main
-// keeps what this window was already told (the index's ids and the ids given since), so nothing is
-// given twice in a window, and how many characters the window got, so recall stops at its budget.
+// (the keys saved for the folders a tool touches, each on the section's key line, `keyLine`) and
+// the `/remember` save. Per session, main keeps what this window was already told (the index's ids
+// and the ids given since), so nothing is given twice in a window, and how many characters the
+// window got, so recall stops at its budget. Recall also skips a key the section showed whole
+// while its text is the one it showed (spec 2026-11-14 memory context index §7).
 // Every block starts with MEMORY_BLOCK_MARKER, so the slice cleaner never takes it as evidence;
 // every saved text in it goes through `oneLine` (P3-C1). A `<private>` span of the prompt is cut
 // (to a space, `privateSpans.ts`) before the terms; the mod sends the text as typed. Memory text and
 // prompt text are sensitive: this module logs `code=` only, and the activity log gets ids and counts.
 import type { GoalsView } from '../../shared/schemas/goal'
-import { MEMORY_ERROR, MEMORY_LIMITS, type MemoryRow } from '../../shared/schemas/memory'
+import { MEMORY_ERROR, MEMORY_LIMITS } from '../../shared/schemas/memory'
 import type {
   ModMemoryAtUse,
   ModMemoryIndex,
@@ -22,7 +24,9 @@ import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 import type { MemoryActivityLog } from './memoryActivity'
 import type { MemoryNames } from './memoryNames'
 import { sessionItemMeta, type MemoryCall } from './memoryGate'
-import { MEMORY_LIVE_RULES, MEMORY_RULES_OF_USE, pinnedLine, specificLine } from './memoryIndex'
+import { MEMORY_LIVE_RULES, MEMORY_RULES_OF_USE, pinnedLine, type MemoryIndex } from './memoryIndex'
+import { keyLine } from './memoryKeyLine'
+import type { KeyRow } from './memoryRows'
 import type { MemoryGrant } from './memoryTools'
 import { cutPrivate } from './privateSpans'
 import { MEMORY_BLOCK_MARKER, oneLine } from './promptText'
@@ -52,6 +56,11 @@ interface WindowState {
   delivered: Set<string>
   /** Characters of recall and at-use blocks the window got. */
   chars: number
+  /** The keys the window's section showed whole, each with the change date it showed (empty for a
+   *  resumed window, whose section the model does not hold). */
+  whole: Map<string, number>
+  /** The id starts two items share (a key line then prints the whole id); null until needed. */
+  clashes: ReadonlySet<string> | null
 }
 
 const LOG_PREFIX = '[claude-watcher][memory]'
@@ -114,7 +123,14 @@ export function createMemoryRecall(deps: {
   function stateFor(sessionId: string, window: number): WindowState {
     const kept = windows.get(sessionId)
     if (kept !== undefined && kept.window === window) return kept
-    const fresh: WindowState = { window, indexed: new Set(), delivered: new Set(), chars: 0 }
+    const fresh: WindowState = {
+      window,
+      indexed: new Set(),
+      delivered: new Set(),
+      chars: 0,
+      whole: new Map(),
+      clashes: null
+    }
     windows.set(sessionId, fresh)
     return fresh
   }
@@ -150,7 +166,8 @@ export function createMemoryRecall(deps: {
   /** The at-use block and the ids it gives (not yet delivered: the window's ceiling decides). */
   function atUseText(
     folders: readonly string[],
-    found: { rows: MemoryRow[]; more: number }
+    found: { rows: KeyRow[]; more: number },
+    clashes: ReadonlySet<string>
   ): { text: string; ids: string[] } {
     const lines: string[] = []
     const ids: string[] = []
@@ -167,7 +184,7 @@ export function createMemoryRecall(deps: {
       // digit, so the header's own characters cannot complete a reminder tag or the marker.
       let header: string | null = `${MEMORY_BLOCK_MARKER} saved for ${oneLine(folder)}`
       for (const row of rows) {
-        const line = specificLine(row)
+        const line = keyLine(row, clashes).text
         // A header goes in only with its folder's first key.
         const add = line.length + 1 + (header === null ? 0 : header.length + 1)
         if (!fits(add, found.more + found.rows.length - given - 1)) break outer
@@ -211,17 +228,19 @@ export function createMemoryRecall(deps: {
         const call = deps.gate(grant)
         if (call === null) return NOT_OK
         const state = stateFor(call.sessionId, req.window)
-        const { text, itemIds } = buildIndex(call)
+        const { text, itemIds, groups, whole } = buildIndex(call)
         // A resumed conversation does not hold this index: nothing of it counts as given.
         const old = stillResumed(call.sessionId, req.window)
         const given = old ? [] : itemIds
         state.indexed = new Set(given)
+        state.whole = new Map(old ? [] : whole.map((w) => [w.id, w.updatedAt]))
+        state.clashes = new Set(call.store.shortIdClashes(call.session.workspaceId))
         const folders = call.store.foldersWithSpecifics(
           call.scope,
           given,
           MEMORY_LIMITS.indexFolders
         )
-        if (!old) deps.activity.injected(call.sessionId, { chars: text.length, itemIds })
+        if (!old) deps.activity.injected(call.sessionId, { chars: text.length, itemIds, groups })
         return { ok: true, text, folders }
       })
     },
@@ -234,12 +253,17 @@ export function createMemoryRecall(deps: {
         const terms = recallTerms(cutPrivate(req.text, ' '))
         if (!deps.operatorOrigins.has(req.origin) || terms.length === 0) return NOTHING
         if (state.chars >= windowChars) return NOTHING
-        const items = call.store.recall(
-          call.scope,
-          terms,
-          [...state.delivered],
-          MEMORY_LIMITS.recallRows
-        )
+        // A key the section showed whole, still with the text it showed, is not given again; ask
+        // for enough rows that such keys never use up the block's rows.
+        const items = call.store
+          .recall(
+            call.scope,
+            terms,
+            [...state.delivered],
+            MEMORY_LIMITS.recallRows + state.whole.size
+          )
+          .filter((item) => state.whole.get(item.id) !== item.updatedAt)
+          .slice(0, MEMORY_LIMITS.recallRows)
         let text = RECALL_HEADER
         const ids: string[] = []
         for (const item of items) {
@@ -270,9 +294,10 @@ export function createMemoryRecall(deps: {
           [...state.indexed, ...state.delivered],
           MEMORY_LIMITS.atUseRows
         )
+        state.clashes ??= new Set(call.store.shortIdClashes(call.session.workspaceId))
         return {
           ok: true,
-          text: give(state, call.sessionId, atUseText(folders, found), 'file')
+          text: give(state, call.sessionId, atUseText(folders, found, state.clashes), 'file')
         }
       })
     },
@@ -335,7 +360,7 @@ export function createMemoryRecall(deps: {
     }
   }
 
-  function buildIndex(call: MemoryCall): { text: string; itemIds: string[] } {
+  function buildIndex(call: MemoryCall): MemoryIndex {
     return buildSessionIndex(
       { tasks: deps.tasks, now: deps.now, names: deps.names },
       call.store,

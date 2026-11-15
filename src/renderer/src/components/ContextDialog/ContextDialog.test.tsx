@@ -423,7 +423,7 @@ describe('ContextDialog — the Memory page', () => {
 
   it('shows the injected token count and the number of items', async () => {
     const memory = await openMemory({
-      injected: { tokens: 1250, itemIds: IDS },
+      injected: { tokens: 1250, itemIds: IDS, groups: [] },
       entries: [],
       recall: null
     })
@@ -435,7 +435,7 @@ describe('ContextDialog — the Memory page', () => {
   })
 
   it('totals the injected tokens on the rail row', async () => {
-    stubMemory({ injected: { tokens: 1250, itemIds: IDS }, entries: [], recall: null })
+    stubMemory({ injected: { tokens: 1250, itemIds: IDS, groups: [] }, entries: [], recall: null })
     await open()
     expect(
       within(screen.getByTestId('context-category-memory')).getByTestId('context-category-tokens')
@@ -555,7 +555,7 @@ describe('ContextDialog — the Memory page', () => {
     const memory = await openMemory(NO_ACTIVITY)
     expect(memory.activity).toHaveBeenCalledTimes(1)
     memory.activity.mockResolvedValue({
-      injected: { tokens: 10, itemIds: ['m1'] },
+      injected: { tokens: 10, itemIds: ['m1'], groups: [] },
       entries: [],
       recall: null
     })
@@ -581,7 +581,7 @@ describe('ContextDialog — the Memory page', () => {
 
 describe('ContextDialog — memory without a setup report', () => {
   const GIVEN: MemoryActivity = {
-    injected: { tokens: 1250, itemIds: IDS },
+    injected: { tokens: 1250, itemIds: IDS, groups: [] },
     recall: null,
     entries: [
       { at: NOW - 60_000, action: 'pulled', tool: 'memory_search', itemId: 'm1', reason: null }

@@ -33,7 +33,7 @@ import type { StorageReporter } from '../persistence/persistedBlob'
 import type { FilterContext } from './filterSql'
 import type { MemoryDb, SqlValue } from './memoryDb'
 import type { RecallTerm } from './recallTerms'
-import { CountRow, ItemRow, selectItems, type EpisodeRow } from './memoryRows'
+import { CountRow, ItemRow, selectItems, type EpisodeRow, type KeyRow } from './memoryRows'
 import {
   agentSpecificsNoSource,
   browseItems,
@@ -148,13 +148,13 @@ export interface MemoryStore {
    *  change, at most `limit`. A pinned specific counts on purpose (`recall` never returns one). */
   foldersWithSpecifics(scope: MemoryScope, excludeIds: readonly string[], limit: number): string[]
   /** Active specifics in scope whose folder is exactly one of `folders`, not in `excludeIds`,
-   *  newest first, at most `limit`; `more` counts the rest. */
+   *  newest first, at most `limit`, as key lines read them; `more` counts the rest. */
   specificsInFolders(
     scope: MemoryScope,
     folders: readonly string[],
     excludeIds: readonly string[],
     limit: number
-  ): { rows: MemoryRow[]; more: number }
+  ): { rows: KeyRow[]; more: number }
   /** The ids of the active specifics in scope that hold the same exact value as another one in
    *  their workspace and folder (`memoryTwins.ts`, the dialog's `Same value` flag). */
   twinIds(scope: MemoryScope): string[]

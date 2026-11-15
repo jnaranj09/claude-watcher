@@ -267,7 +267,11 @@ describe('memory records', () => {
   it('parses an activity with and without an injection', () => {
     expect(
       MemoryActivitySchema.safeParse({
-        injected: { tokens: 3, itemIds: ['m1'] },
+        injected: {
+          tokens: 3,
+          itemIds: ['m1'],
+          groups: [{ reason: 'folder', itemIds: ['m1'], more: 2 }]
+        },
         entries: [{ at: 1, action: 'pulled', tool: 'memory_get', itemId: null, reason: null }],
         recall: null
       }).success

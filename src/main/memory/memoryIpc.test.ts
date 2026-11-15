@@ -281,9 +281,9 @@ describe('remove', () => {
 
 describe('activity', () => {
   it("answers the session's activity record", () => {
-    activity.injected('s1', { chars: 40, itemIds: ['m1'] })
+    activity.injected('s1', { chars: 40, itemIds: ['m1'], groups: [] })
     expect(h.activity({ sessionId: 's1' })).toEqual({
-      injected: { tokens: 10, itemIds: ['m1'] },
+      injected: { tokens: 10, itemIds: ['m1'], groups: [] },
       entries: [],
       recall: null
     })
@@ -452,9 +452,9 @@ describe('while memory is off (no store)', () => {
       activity,
       log: () => undefined
     })
-    activity.injected('s1', { chars: 8, itemIds: ['m1'] })
+    activity.injected('s1', { chars: 8, itemIds: ['m1'], groups: [] })
     expect(off.activity({ sessionId: 's1' })).toEqual({
-      injected: { tokens: 2, itemIds: ['m1'] },
+      injected: { tokens: 2, itemIds: ['m1'], groups: [] },
       entries: [],
       recall: null
     })

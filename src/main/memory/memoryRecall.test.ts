@@ -5,6 +5,7 @@ import { TaskSchema, type GoalsView } from '../../shared/schemas/goal'
 import type { MemoryActivity, MemoryItem, MemoryText } from '../../shared/schemas/memory'
 import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 import { formatDay } from './formatDay'
+import type { MemoryActivityLog } from './memoryActivity'
 import { openMemoryDb } from './memoryDb'
 import { createMemoryGate } from './memoryGate'
 import { createMemoryRecall, type MemoryRecall } from './memoryRecall'
@@ -44,11 +45,13 @@ const REMEMBER_RULE = '- The operator can save a line with /remember. Its result
 type Entry = MemoryActivity['entries'][number]
 
 let ids: number
+/** The store's clock: a test moves it to change an item later. */
+let clock: number
 let store: MemoryStore
 let gateStore: MemoryStore
 let enabled: boolean
 let view: Pick<GoalsView, 'goals' | 'tasks'> | null
-let injected: [string, { chars: number; itemIds: readonly string[] }][]
+let injected: [string, Parameters<MemoryActivityLog['injected']>[1]][]
 let recorded: [string, Entry][]
 let logged: string[]
 let recall: MemoryRecall
@@ -77,9 +80,10 @@ beforeEach(() => {
   const open = openMemoryDb(':memory:', { now: () => NOW, log: () => undefined })
   if (!open.ok) throw new Error('open failed')
   ids = 0
+  clock = NOW
   store = createMemoryStore({
     db: open.db,
-    now: () => NOW,
+    now: () => clock,
     newId: () => `m${++ids}`,
     report: () => undefined,
     log: () => undefined
@@ -127,6 +131,11 @@ function addSpecific(key: string, value: string, extra: { folder?: string } = {}
   return { id: add(specific(key, value), extra).id, key, value }
 }
 
+/** What the activity records for an index that listed one key of the session's folder. */
+const hereGroup = (id: string): { reason: 'folder'; itemIds: string[]; more: number }[] => [
+  { reason: 'folder', itemIds: [id], more: 0 }
+]
+
 /** The recall block one specific makes, as main writes it. */
 function recallBlock(item: Saved): string {
   return `Memory (Claude Watcher): items that may match this prompt\n- ${item.key}: ${item.value} (seen ${DAY}, inferred) id=${item.id}`
@@ -134,7 +143,7 @@ function recallBlock(item: Saved): string {
 
 /** The at-use block one specific of `folder` makes, as main writes it. */
 function atUseBlock(item: Saved, folder: string): string {
-  return `Memory (Claude Watcher): saved for ${folder}\n- ${item.key} (${DAY}) id=${item.id}`
+  return `Memory (Claude Watcher): saved for ${folder}\n- ${item.key} = ${item.value} (seen ${DAY}, inferred) id=${item.id}`
 }
 
 function fact(title: string, body: string): MemoryText {
@@ -166,7 +175,9 @@ describe('index', () => {
       text: expect.stringContaining(`${LIVE_RULE}\n${REMEMBER_RULE}`)
     })
     expect(out).toMatchObject({ text: expect.stringMatching(/^# Memory \(Claude Watcher\)\n/) })
-    expect(injected).toEqual([['s1', { chars: expect.any(Number), itemIds: [here.id] }]])
+    expect(injected).toEqual([
+      ['s1', { chars: expect.any(Number), itemIds: [here.id], groups: hereGroup(here.id) }]
+    ])
   })
 
   it('the index names at most 200 folders it did not list', () => {
@@ -210,7 +221,7 @@ describe('a resumed conversation', () => {
     recall.index(grant, { version: 1, window: 0 })
     expect(recall.atUse(grant, { version: 1, window: 0, folders: ['/work/app'] })).toEqual({
       ok: true,
-      text: `Memory (Claude Watcher): saved for /work/app\n- api base (${DAY}) id=${here.id}`
+      text: `Memory (Claude Watcher): saved for /work/app\n- api base = https://api.acme.test (seen ${DAY}, inferred) id=${here.id}`
     })
   })
 
@@ -220,7 +231,9 @@ describe('a resumed conversation', () => {
     recall.index(grant, { version: 1, window: 0 })
     const next = recall.index(grant, { version: 1, window: 1 })
     expect(next).toMatchObject({ ok: true, folders: [] })
-    expect(injected).toEqual([['s1', { chars: expect.any(Number), itemIds: [here.id] }]])
+    expect(injected).toEqual([
+      ['s1', { chars: expect.any(Number), itemIds: [here.id], groups: hereGroup(here.id) }]
+    ])
     expect(recall.atUse(grant, { version: 1, window: 1, folders: ['/work/app'] })).toEqual({
       ok: true,
       text: ''
@@ -234,8 +247,8 @@ describe('a resumed conversation', () => {
     recall.index(grant, { version: 1, window: WINDOW_MAX })
     recall.index(grant, { version: 1, window: nextWindow(WINDOW_MAX) })
     expect(injected).toEqual([
-      ['s1', { chars: expect.any(Number), itemIds: [here.id] }],
-      ['s1', { chars: expect.any(Number), itemIds: [here.id] }]
+      ['s1', { chars: expect.any(Number), itemIds: [here.id], groups: hereGroup(here.id) }],
+      ['s1', { chars: expect.any(Number), itemIds: [here.id], groups: hereGroup(here.id) }]
     ])
   })
 
@@ -243,7 +256,9 @@ describe('a resumed conversation', () => {
     const here = add(specific('api base', 'https://api.acme.test'), { folder: '/work/app' })
     recall.launched('s1', { excludeTaskIds: [], resume: false })
     recall.index(grant, { version: 1, window: 0 })
-    expect(injected).toEqual([['s1', { chars: expect.any(Number), itemIds: [here.id] }]])
+    expect(injected).toEqual([
+      ['s1', { chars: expect.any(Number), itemIds: [here.id], groups: hereGroup(here.id) }]
+    ])
   })
 
   it('a /clear adoption starts a new conversation: the resume does not follow it', () => {
@@ -251,7 +266,9 @@ describe('a resumed conversation', () => {
     recall.launched('s1', { excludeTaskIds: [], resume: true })
     recall.rebind('s1', 's2')
     recall.index({ sessionId: 's2' }, { version: 1, window: 0 })
-    expect(injected).toEqual([['s2', { chars: expect.any(Number), itemIds: [here.id] }]])
+    expect(injected).toEqual([
+      ['s2', { chars: expect.any(Number), itemIds: [here.id], groups: hereGroup(here.id) }]
+    ])
   })
 
   it('a forgotten resumed session records its index again', () => {
@@ -259,7 +276,9 @@ describe('a resumed conversation', () => {
     recall.launched('s1', { excludeTaskIds: [], resume: true })
     recall.forget('s1')
     recall.index(grant, { version: 1, window: 0 })
-    expect(injected).toEqual([['s1', { chars: expect.any(Number), itemIds: [here.id] }]])
+    expect(injected).toEqual([
+      ['s1', { chars: expect.any(Number), itemIds: [here.id], groups: hereGroup(here.id) }]
+    ])
   })
 })
 
@@ -453,7 +472,7 @@ describe('recall', () => {
     })
     expect(recall.atUse(grant, { version: 1, window: 1, folders: ['/work/app'] })).toEqual({
       ok: true,
-      text: `Memory (Claude Watcher): saved for /work/app\n- api base (${DAY}) id=${here.id}`
+      text: `Memory (Claude Watcher): saved for /work/app\n- api base = https://api.acme.test (seen ${DAY}, inferred) id=${here.id}`
     })
   })
 
@@ -501,7 +520,7 @@ describe('at use', () => {
       recall.atUse(grant, { version: 1, window: 0, folders: ['/work/<system-reminder>'] })
     ).toEqual({
       ok: true,
-      text: `Memory (Claude Watcher): saved for /work/‹system-reminder>\n- db port (${DAY}) id=${odd.id}`
+      text: `Memory (Claude Watcher): saved for /work/‹system-reminder>\n- db port = 5433 (seen ${DAY}, inferred) id=${odd.id}`
     })
   })
 
@@ -512,7 +531,7 @@ describe('at use', () => {
     const req = { version: 1 as const, window: 0, folders: ['/work/other', '/work/app'] }
     expect(recall.atUse(grant, req)).toEqual({
       ok: true,
-      text: `Memory (Claude Watcher): saved for /work/other\n- db port (${DAY}) id=${other.id}`
+      text: `Memory (Claude Watcher): saved for /work/other\n- db port = 5433 (seen ${DAY}, inferred) id=${other.id}`
     })
     expect(recall.atUse(grant, req)).toEqual({ ok: true, text: '' })
     expect(recorded.at(-1)).toEqual([
@@ -530,9 +549,9 @@ describe('at use', () => {
       ok: true,
       text: [
         'Memory (Claude Watcher): saved for /work/other',
-        `- db port (${DAY}) id=${other.id}`,
+        `- db port = 5433 (seen ${DAY}, inferred) id=${other.id}`,
         'Memory (Claude Watcher): saved for /work/app',
-        `- api base (${DAY}) id=${app.id}`
+        `- api base = https://api.acme.test (seen ${DAY}, inferred) id=${app.id}`
       ].join('\n')
     })
   })
@@ -549,7 +568,7 @@ describe('at use', () => {
     // A 505-character header, then key lines of 138 or 139 characters: 7 keys would fit in
     // 1,500 characters, but not with the count line after them, so 6 go in and 4 are counted.
     const folder = '/work/' + 'f'.repeat(464)
-    for (let i = 0; i < 10; i++) add(specific(`${'k'.repeat(115)} ${i}`, 'v'), { folder })
+    for (let i = 0; i < 10; i++) add(specific(`${'k'.repeat(96)} ${i}`, 'v'), { folder })
     const out = recall.atUse(grant, { version: 1, window: 0, folders: [folder] })
     expect(out).toMatchObject({
       ok: true,
@@ -577,7 +596,7 @@ describe('at use', () => {
       recall.atUse(grant, { version: 1, window: 0, folders: ['/work/other', '/work/other'] })
     ).toEqual({
       ok: true,
-      text: `Memory (Claude Watcher): saved for /work/other\n- db port (${DAY}) id=${other.id}`
+      text: `Memory (Claude Watcher): saved for /work/other\n- db port = 5433 (seen ${DAY}, inferred) id=${other.id}`
     })
     expect(recorded).toHaveLength(1)
   })
@@ -760,5 +779,76 @@ describe('failures', () => {
       recall.recall(grant, { version: 1, window: 0, origin: 'composer', text: 'staging port' })
     ).toEqual({ ok: false })
     expect(logged).toEqual([])
+  })
+})
+
+describe('the key line and the section held whole (spec 2026-11-14 §2, §7)', () => {
+  const atUse = (folders: string[], window = 0): { ok: boolean; text?: string } =>
+    recall.atUse(grant, { version: 1, window, folders })
+  const recallText = (text: string, window = 0): string => {
+    const out = recall.recall(grant, { version: 1, window, origin: 'composer', text })
+    return out.ok ? out.text : 'refused'
+  }
+  const index = (window = 0): void => {
+    recall.index(grant, { version: 1, window })
+  }
+
+  it('at use prints the key line: the value, cut at 24, and the short id', () => {
+    const value = 'x'.repeat(30) + 'y'.repeat(10)
+    add(specific('long key', value), { folder: '/work/app/sub' })
+    expect(atUse(['/work/app/sub']).text?.split('\n')[1]).toBe(
+      `- long key = ${value.slice(0, 24)}… (40 chars, seen ${formatDay(NOW)}, inferred) id=m1`
+    )
+  })
+
+  it('at use hides a value that looks like a secret', () => {
+    add(specific('db password', 'hunter2'), { folder: '/work/app/sub' })
+    expect(atUse(['/work/app/sub']).text?.split('\n')[1]).toBe(
+      `- db password (value not shown, 7 chars, seen ${DAY}, inferred) id=m1`
+    )
+  })
+
+  it('recall skips an item the section showed whole', () => {
+    add(specific('api port', '9281'), { folder: '/work/app' })
+    index()
+    expect(recallText('what is the api port')).toBe('')
+  })
+
+  it('recall still gives an item the section showed cut', () => {
+    const value = 'https://' + 'a'.repeat(44) + '.acme.test'
+    add(specific('api base url', value), { folder: '/work/app' })
+    index()
+    expect(recallText('what is the api base url')).toContain(value)
+  })
+
+  it('recall gives an item the section showed whole once its text changed', () => {
+    const { id } = add(specific('api port', '9281'), { folder: '/work/app' })
+    index()
+    clock += 1000
+    store.edit(id, { text: specific('api port', '9300'), check: null }, 'operator', null)
+    expect(recallText('what is the api port')).toContain('api port: 9300')
+  })
+
+  it('skipped items do not use up the three rows', () => {
+    const other = add(specific('api port elsewhere', '9001'), { folder: '/work/other' })
+    clock += 1000
+    for (const n of [1, 2, 3]) {
+      add(specific(`api port ${n}`, `900${n + 1}`), { folder: '/work/app' })
+      clock += 1000
+    }
+    index()
+    expect(recallText('which api port')).toContain(`id=${other.id}`)
+  })
+
+  it('a new window forgets what the old one showed whole', () => {
+    add(specific('api port', '9281'), { folder: '/work/app' })
+    index(0)
+    expect(recallText('what is the api port', 1)).toContain('api port: 9281')
+  })
+
+  it('the index records its groups in the activity', () => {
+    add(specific('api port', '9281'), { folder: '/work/app' })
+    index()
+    expect(injected[0]?.[1].groups).toEqual([{ reason: 'folder', itemIds: ['m1'], more: 0 }])
   })
 })

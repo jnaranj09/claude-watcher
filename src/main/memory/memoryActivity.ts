@@ -1,10 +1,12 @@
 // What memory did for each session, kept in memory only: the index claude got (at launch, or the
-// mod's last index ask; none in the window a resume came back into, P3-C28), how it gets memory
+// mod's last index ask; none in the window a resume came back into, P3-C28) with what each of its
+// groups listed and counted (`groups`, spec 2026-11-14 memory context index §9), how it gets memory
 // (the recall mode), and every item it pulled, saved or had injected since. The
 // Context dialog reads it, and lists again on the `memory:changed` push its `onChange` drives (a pull changes no stored item, so the store's own
 // push would miss it). Holds ids and counts, never memory text (memory text is sensitive); logs
 // only a `code=` when a listener throws.
 import type { MemoryActivity, MemoryRecallMode } from '../../shared/schemas/memory'
+import type { IndexGroupRecord } from './memoryIndex'
 
 type ActivityEntry = MemoryActivity['entries'][number]
 
@@ -13,7 +15,10 @@ const MAX_ENTRIES = 200
 const CHARS_PER_TOKEN = 4
 
 export interface MemoryActivityLog {
-  injected(sessionId: string, value: { chars: number; itemIds: readonly string[] }): void
+  injected(
+    sessionId: string,
+    value: { chars: number; itemIds: readonly string[]; groups: readonly IndexGroupRecord[] }
+  ): void
   record(sessionId: string, entry: ActivityEntry): void
   /** How the session gets memory: the mod, or the launch index with the reason. */
   recallMode(sessionId: string, mode: MemoryRecallMode): void
@@ -26,6 +31,10 @@ export interface MemoryActivityLog {
 }
 
 const LOG_PREFIX = '[claude-watcher][memory]'
+
+function copyGroups(groups: readonly IndexGroupRecord[]): IndexGroupRecord[] {
+  return groups.map((g) => ({ ...g, itemIds: [...g.itemIds] }))
+}
 
 export function createMemoryActivity(
   log: (line: string) => void = (line) => console.warn(line)
@@ -52,10 +61,11 @@ export function createMemoryActivity(
   }
 
   return {
-    injected(sessionId, { chars, itemIds }) {
+    injected(sessionId, { chars, itemIds, groups }) {
       recordOf(sessionId).injected = {
         tokens: Math.ceil(chars / CHARS_PER_TOKEN),
-        itemIds: [...itemIds]
+        itemIds: [...itemIds],
+        groups: copyGroups(groups)
       }
       emit()
     },
@@ -73,7 +83,11 @@ export function createMemoryActivity(
       const found = records.get(sessionId)
       if (!found) return { injected: null, entries: [], recall: null }
       return {
-        injected: found.injected && { ...found.injected, itemIds: [...found.injected.itemIds] },
+        injected: found.injected && {
+          ...found.injected,
+          itemIds: [...found.injected.itemIds],
+          groups: copyGroups(found.injected.groups)
+        },
         entries: found.entries.map((e) => ({ ...e })),
         recall: found.recall && { ...found.recall }
       }

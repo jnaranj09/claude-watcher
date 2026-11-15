@@ -205,7 +205,7 @@ describe('card state', () => {
     const d = deps()
     const token = d.memoryTokens.mint({ sessionId: 'old' })
     const path = d.memoryMcp.configs.write('old', token, MEMORY_MCP_URL) ?? ''
-    d.memoryActivity.injected('old', { chars: 40, itemIds: [] })
+    d.memoryActivity.injected('old', { chars: 40, itemIds: [], groups: [] })
     const route = mcpRoute(MEMORY_MCP_PATH, d.memoryMcp.endpoint, () => {})
     const save = (key: string): unknown =>
       route.open(`Bearer ${token}`)?.({
@@ -237,7 +237,7 @@ describe('card state', () => {
   it('a removed card revokes its memory token and forgets its activity, and keeps its items', () => {
     const d = deps()
     const token = d.memoryTokens.mint({ sessionId: 'gone' })
-    d.memoryActivity.injected('gone', { chars: 40, itemIds: [] })
+    d.memoryActivity.injected('gone', { chars: 40, itemIds: [], groups: [] })
     const item = d.memoryStore.add({
       text: { kind: 'specific', key: 'k', value: 'v' },
       workspaceId: 'w1',

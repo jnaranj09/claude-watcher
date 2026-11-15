@@ -16,8 +16,7 @@ import {
   MEMORY_LIMITS,
   type IndexReason,
   type KeyReason,
-  type MemoryItem,
-  type MemoryRow
+  type MemoryItem
 } from '../../shared/schemas/memory'
 import { formatDay, localDaysBetween } from './formatDay'
 import { keyLine } from './memoryKeyLine'
@@ -63,11 +62,6 @@ export function pinnedLine(item: MemoryItem): string {
   return wrapperSafe(
     `- ${oneLine(head)}: ${oneLine(text)} (seen ${formatDay(item.lastSeenAt)}, ${item.basis})${check}${deleted}`
   )
-}
-
-/** A specific of the folder: its head, the day it was last written and its id. */
-export function specificLine(row: MemoryRow): string {
-  return `- ${oneLine(row.head)} (${formatDay(row.updatedAt)}) id=${row.id}`
 }
 
 /** A recent session: its title, the day it ended (never the day its episode was written) and its

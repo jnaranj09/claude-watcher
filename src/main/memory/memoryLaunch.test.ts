@@ -16,7 +16,7 @@ import { createGoalTokens } from '../goals/mcp/goalTokens'
 import { MCP_SERVER_NAME, createMcpConfigs } from '../goals/mcp/mcpConfigFile'
 import { META, T0, createHarness, flush, prompt, said } from '../../__fixtures__/extractorHarness'
 import { formatDay } from './formatDay'
-import { createMemoryActivity } from './memoryActivity'
+import { createMemoryActivity, type MemoryActivityLog } from './memoryActivity'
 import { openMemoryDb } from './memoryDb'
 import { createMemoryStore, type MemoryStore } from './memoryStore'
 import {
@@ -61,7 +61,7 @@ function openStore(): MemoryStore {
   })
 }
 
-type Injected = [string, { chars: number; itemIds: readonly string[] }]
+type Injected = [string, Parameters<MemoryActivityLog['injected']>[1]]
 
 function spawnDeps(over: Partial<Omit<MemorySpawnDeps, 'tokens'>> = {}): MemorySpawnDeps & {
   tokens: SessionTokens<MemoryGrant>
@@ -143,7 +143,9 @@ describe('memorySpawnExtras', () => {
     expect(out.appendPrompt).toContain('# Memory (Claude Watcher)')
     expect(out.mcpConfigPath).not.toBeNull()
     expect(existsSync(out.mcpConfigPath ?? '')).toBe(true)
-    expect(on.injected).toEqual([['s1', { chars: out.appendPrompt?.length, itemIds: [] }]])
+    expect(on.injected).toEqual([
+      ['s1', { chars: out.appendPrompt?.length, itemIds: [], groups: [] }]
+    ])
   })
 
   it('the index lists the items saved for the launch folder in its workspace', () => {
@@ -168,6 +170,8 @@ describe('memorySpawnExtras', () => {
     const out = memorySpawnExtras(on, 's1', launch, null)
     expect(out.appendPrompt).toContain('test key')
     expect(on.injected[0]?.[1].itemIds).toEqual([item?.id])
+    // The launch path records the section's groups too (Context's rows per reason).
+    expect(on.injected[0]?.[1].groups).toEqual([{ reason: 'folder', itemIds: [item?.id], more: 0 }])
   })
 
   it('the index lists the open tasks of the launch folder in its workspace, with no item id', () => {

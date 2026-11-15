@@ -302,10 +302,11 @@ describe('the memory mod’s contract with main', () => {
       const recall = liveRecall()
       const grant = { sessionId: 's1' }
       const index = recall.index(grant, ModMemoryIndexSchema.parse(JSON.parse(indexBody(0))))
+      // A later window: the index's window skips a key its section showed whole.
       const prompt = recall.recall(
         grant,
         ModMemoryRecallSchema.parse(
-          JSON.parse(recallBody(0, 'composer', 'which staging port?') ?? '')
+          JSON.parse(recallBody(1, 'composer', 'which staging port?') ?? '')
         )
       )
       const saved = recall.remember(
@@ -343,7 +344,7 @@ describe('the memory mod’s contract with main', () => {
       )
       expect([folders, readTextAnswer(JSON.stringify(answer))]).toEqual([
         ['/work/other'],
-        `${MEMORY_BLOCK_MARKER} saved for /work/other\n- db port (${formatDay(NOW)}) id=m1`
+        `${MEMORY_BLOCK_MARKER} saved for /work/other\n- db port = 5433 (seen ${formatDay(NOW)}, inferred) id=m1`
       ])
     })
 

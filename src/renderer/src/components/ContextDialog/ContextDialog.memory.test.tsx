@@ -38,7 +38,7 @@ describe('ContextDialog — the Memory page, recall', () => {
 
 describe('ContextDialog — the Memory page, what recall gave a session', () => {
   const RECALLED: MemoryActivity = {
-    injected: { tokens: 120, itemIds: ['m1'] },
+    injected: { tokens: 120, itemIds: ['m1'], groups: [] },
     recall: { mode: 'mod' },
     entries: [
       { at: NOW - 60_000, action: 'injected', tool: 'prompt', itemId: 'm2', reason: null },

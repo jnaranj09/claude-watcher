@@ -173,7 +173,11 @@ export function memorySpawnExtras(
       },
       excludeTaskIds: launch.excludeTaskIds
     })
-    deps.activity.injected(sessionId, { chars: index.text.length, itemIds: index.itemIds })
+    deps.activity.injected(sessionId, {
+      chars: index.text.length,
+      itemIds: index.itemIds,
+      groups: index.groups
+    })
     deps.activity.recallMode(sessionId, { mode: 'launch', reason: mod.skip })
     return {
       appendPrompt: index.text,

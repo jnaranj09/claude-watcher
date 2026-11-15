@@ -36,13 +36,13 @@ describe('memory activity', () => {
 
   it('6,000 injected characters read back as 1,500 tokens', () => {
     const log = createMemoryActivity()
-    log.injected('s1', { chars: 6000, itemIds: ['a', 'b'] })
-    expect(log.get('s1').injected).toEqual({ tokens: 1500, itemIds: ['a', 'b'] })
+    log.injected('s1', { chars: 6000, itemIds: ['a', 'b'], groups: [] })
+    expect(log.get('s1').injected).toEqual({ tokens: 1500, itemIds: ['a', 'b'], groups: [] })
   })
 
   it('a character count that is not a multiple of 4 rounds the tokens up', () => {
     const log = createMemoryActivity()
-    log.injected('s1', { chars: 5, itemIds: [] })
+    log.injected('s1', { chars: 5, itemIds: [], groups: [] })
     expect(log.get('s1').injected?.tokens).toBe(2)
   })
 
@@ -77,12 +77,12 @@ describe('memory activity', () => {
 
   it('rebind moves the record to the new session id', () => {
     const log = createMemoryActivity()
-    log.injected('old', { chars: 8, itemIds: ['a'] })
+    log.injected('old', { chars: 8, itemIds: ['a'], groups: [] })
     log.record('old', entry(1))
     log.rebind('old', 'new')
     expect([log.get('old'), log.get('new')]).toEqual([
       { injected: null, entries: [], recall: null },
-      { injected: { tokens: 2, itemIds: ['a'] }, entries: [entry(1)], recall: null }
+      { injected: { tokens: 2, itemIds: ['a'], groups: [] }, entries: [entry(1)], recall: null }
     ])
   })
 
@@ -95,7 +95,7 @@ describe('memory activity', () => {
 
   it('forget empties the record', () => {
     const log = createMemoryActivity()
-    log.injected('s1', { chars: 8, itemIds: ['a'] })
+    log.injected('s1', { chars: 8, itemIds: ['a'], groups: [] })
     log.record('s1', entry(1))
     log.forget('s1')
     expect(log.get('s1')).toEqual({ injected: null, entries: [], recall: null })
@@ -105,7 +105,7 @@ describe('memory activity', () => {
     const log = createMemoryActivity()
     const listener = vi.fn()
     log.onChange(listener)
-    log.injected('s1', { chars: 8, itemIds: ['a'] })
+    log.injected('s1', { chars: 8, itemIds: ['a'], groups: [] })
     log.record('s1', entry(1))
     log.rebind('s1', 's2')
     log.forget('s2')
@@ -139,5 +139,18 @@ describe('memory activity', () => {
     log.record('s1', entry(1))
     expect(log.get('s1').entries).toEqual([entry(1)])
     expect(lines).toEqual(['[claude-watcher][memory] code=memory_activity_listener_failed'])
+  })
+
+  it('get answers a copy of the groups: changing the answer does not change the record', () => {
+    const log = createMemoryActivity()
+    log.injected('s1', {
+      chars: 8,
+      itemIds: ['a'],
+      groups: [{ reason: 'folder', itemIds: ['a'], more: 2 }]
+    })
+    const answer = log.get('s1').injected
+    answer?.groups[0]?.itemIds.push('b')
+    answer?.groups.push({ reason: 'tags', itemIds: [], more: 1 })
+    expect(log.get('s1').injected?.groups).toEqual([{ reason: 'folder', itemIds: ['a'], more: 2 }])
   })
 })

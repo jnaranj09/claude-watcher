@@ -558,14 +558,15 @@ export function specificFolders(
 }
 
 /** Active specifics in scope whose folder EQUALS one of `folders` (never at or under it), not in
- *  `excludeIds`, newest first, at most `limit`; `more` counts the rest. */
+ *  `excludeIds`, newest first, at most `limit`, as their key lines read them; `more` counts the
+ *  rest. */
 export function folderSpecifics(
   db: MemoryDb,
   scope: MemoryScope,
   folders: readonly string[],
   excludeIds: readonly string[],
   limit: number
-): { rows: MemoryRow[]; more: number } {
+): { rows: KeyRow[]; more: number } {
   const where = and([
     scopeClause(scope),
     ACTIVE,
@@ -575,7 +576,7 @@ export function folderSpecifics(
   ])
   const rows = db.all(
     `${selectItems()} WHERE ${where.sql} ORDER BY ${NEWEST_FIRST} LIMIT ?`,
-    ListRow,
+    KeyListRow,
     [...where.params, limit]
   )
   return { rows, more: count(db, where) - rows.length }

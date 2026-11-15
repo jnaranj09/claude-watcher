@@ -267,7 +267,21 @@ export type MemoryRecallMode = z.infer<typeof MemoryRecallModeSchema>
 export const MemoryActivitySchema = z
   .object({
     injected: z
-      .object({ tokens: z.number(), itemIds: z.array(z.string().min(1)) })
+      .object({
+        tokens: z.number(),
+        itemIds: z.array(z.string().min(1)),
+        // Per group of the section (pinned, each key reason, recent sessions): the ids it listed
+        // and how many its count line named. Ids and counts only.
+        groups: z.array(
+          z
+            .object({
+              reason: z.enum(INDEX_REASONS),
+              itemIds: z.array(z.string().min(1)),
+              more: z.number().int().min(0)
+            })
+            .strict()
+        )
+      })
       .strict()
       .nullable(),
     entries: z.array(
