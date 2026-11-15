@@ -134,3 +134,60 @@ describe('ContextDialog — the Memory page, what recall gave a session', () => 
     expect(screen.queryByTestId('context-memory-recall-off')).not.toBeInTheDocument()
   })
 })
+
+// Spec 2026-11-14 memory context index §9: under `Injected`, after the `Index:` line, one row per
+// group the section listed or counted, in main's order: how many items, how many claude read with
+// `memory_get`, how many the group's count line named.
+describe('ContextDialog — the Memory page, why keys were listed', () => {
+  const GROUPED: MemoryActivity = {
+    injected: {
+      tokens: 300,
+      itemIds: ['m1', 'm2', 'm3'],
+      groups: [
+        { reason: 'task', itemIds: ['m1', 'm2'], more: 0 },
+        { reason: 'folder', itemIds: ['m3'], more: 12 }
+      ]
+    },
+    recall: { mode: 'mod' },
+    entries: [
+      { at: NOW - 50_000, action: 'pulled', tool: 'memory_get', itemId: 'm2', reason: null },
+      { at: NOW - 40_000, action: 'pulled', tool: 'memory_get', itemId: 'm2', reason: null },
+      { at: NOW - 30_000, action: 'pulled', tool: 'memory_search', itemId: null, reason: null }
+    ]
+  }
+
+  async function openMemoryPage(activity: MemoryActivity): Promise<void> {
+    stubMemory(activity)
+    await openContext()
+    await userEvent.click(screen.getByTestId('context-category-memory'))
+  }
+
+  it('lists one row per reason under the index line, in the order main gave', async () => {
+    await openMemoryPage(GROUPED)
+    const rows = await screen.findAllByTestId('context-memory-reason')
+    expect(rows.map((r) => r.textContent)).toEqual([
+      expect.stringMatching(/^Same task.*2 items.*1 pulled$/),
+      expect.stringMatching(/^This folder.*1 item.*12 not listed$/)
+    ])
+    const section = within(screen.getByTestId('context-memory-injected-section'))
+    expect(section.getAllByTestId('context-memory-reason')).toHaveLength(2)
+  })
+
+  it('an item pulled twice counts once; a search counts for no reason', async () => {
+    await openMemoryPage(GROUPED)
+    const rows = await screen.findAllByTestId('context-memory-reason')
+    expect(rows.map((r) => r.textContent)).not.toContainEqual(expect.stringContaining('2 pulled'))
+    expect(rows[1]).not.toHaveTextContent('pulled')
+  })
+
+  it('no groups, no reason rows', async () => {
+    await openMemoryPage({
+      ...GROUPED,
+      injected: { tokens: 300, itemIds: ['m1'], groups: [] }
+    })
+    expect(await screen.findByTestId('context-memory-injected')).toHaveTextContent(
+      /^Index: 300 tokens · 1 item$/
+    )
+    expect(screen.queryAllByTestId('context-memory-reason')).toHaveLength(0)
+  })
+})

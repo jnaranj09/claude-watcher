@@ -6,10 +6,10 @@ import {
   MIN_MOD_CLAUDE_VERSION
 } from '../../../../shared/launch/claudeVersion'
 import type { ContextRefusalCode, ModSkipReason } from '../../../../shared/ipc/contract'
-import type { DropReason, MemoryRecallSkip } from '../../../../shared/schemas/memory'
+import type { DropReason, IndexReason, MemoryRecallSkip } from '../../../../shared/schemas/memory'
 import { CONTEXT_REFUSAL_CODES } from '../../../../shared/schemas/contextIpc'
 import { BRIDGE_MOD_FAILED_COPY, STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
-import { CONTEXT_TERMS, HISTORY_TERMS, MEMORY_TERMS } from '../../copy/terms'
+import { CONTEXT_TERMS, FAVORITE_TERMS, HISTORY_TERMS, MEMORY_TERMS } from '../../copy/terms'
 
 export type ContextCategoryId =
   | 'instructions'
@@ -66,8 +66,28 @@ export const CONTEXT_COPY = {
    *  resume came back into, whose conversation keeps its first index), not recall's rows. */
   injectedSummary: (tokens: number, items: number) =>
     `Index: ${tokens.toLocaleString('en-US')} tokens · ${items.toLocaleString('en-US')} ${items === 1 ? 'item' : 'items'}`,
-  empty: (what: string) => `Claude listed no ${what}.`
+  empty: (what: string) => `Claude listed no ${what}.`,
+  /** A reason row's details (spec 2026-11-14 memory context index §9): how many keys the group
+   *  listed, how many of them claude read with `memory_get`, how many its count line named. */
+  reasonItems: (n: number) => `${n.toLocaleString('en-US')} ${n === 1 ? 'item' : 'items'}`,
+  reasonPulled: (n: number) => `${n.toLocaleString('en-US')} pulled`,
+  reasonNotListed: (n: number) => `${n.toLocaleString('en-US')} not listed`
 } as const
+
+/** Why the section listed a group of keys, as Context names its row (spec 2026-11-14 memory
+ *  context index §9), in `INDEX_REASONS` order. */
+export const INDEX_REASON_COPY: Readonly<Record<IndexReason, string>> = {
+  pinned: FAVORITE_TERMS.marker,
+  task: 'Same task',
+  goal: 'Same goal',
+  folder: 'This folder',
+  folder_above: 'Folders above',
+  workspace: 'Whole workspace',
+  template: 'Same template',
+  tags: 'Same tags',
+  folder_below: 'Folders below',
+  episode: MEMORY_TERMS.episodes
+}
 
 /** Why extraction dropped a candidate (memory phase 2), in plain words, in `DROP_REASONS` order. */
 export const DROP_REASON_COPY: Readonly<Record<DropReason, string>> = {

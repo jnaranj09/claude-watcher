@@ -14,6 +14,7 @@ import { isAbsolutePath, isInstructionPath } from '../../../../shared/schemas/co
 import {
   CONTEXT_COPY,
   DROP_REASON_COPY,
+  INDEX_REASON_COPY,
   MEMORY_RECALL_OFF_COPY,
   contextErrorCopy,
   fileName,
@@ -162,8 +163,11 @@ const LIST_OF: Readonly<
   injected: 'injected'
 }
 
-/** What this session was given (the index it got, labelled `Index:`, then one row per item recall
- *  gave while it ran; `Nothing injected.` only when it got neither), then what it pulled, what it
+/** What this session was given (the index it got, labelled `Index:`, then one row per reason the
+ *  index listed or counted keys for, in main's order, with how many items, how many of them claude
+ *  read with `memory_get` (each item once) and how many the group's count line named; then one row
+ *  per item recall gave while it ran; `Nothing injected.` only when it got neither), then what it
+ *  pulled, what it
  *  saved and what extraction dropped, each entry under exactly one of them. `at` is when the answer
  *  came, the "now" its times are measured from. A row names the tool, how recall gave the item, or
  *  for a drop the reason in plain words; it never needs an item id (a task report has none). Above
@@ -209,6 +213,13 @@ export function MemoryPage({
       {rowsOf(list) ?? <p className={styles.empty}>{none}</p>}
     </section>
   )
+  // Ids claude read whole (`memory_get`); a search names no item and counts for no reason.
+  const pulledIds = new Set(
+    activity.entries
+      .filter((e) => e.action === 'pulled' && e.tool === 'memory_get' && e.itemId !== null)
+      .map((e) => e.itemId)
+  )
+  const reasons = activity.injected?.groups ?? []
   const recall = activity.recall
   // `Nothing injected.` only when the session got no index AND recall gave it nothing (P3-C26).
   const recalled = rowsOf('injected')
@@ -231,6 +242,25 @@ export function MemoryPage({
               activity.injected.itemIds.length
             )}
           </p>
+        ) : null}
+        {reasons.length > 0 ? (
+          <div data-settings-group="">
+            {reasons.map((g) => {
+              const pulled = g.itemIds.filter((id) => pulledIds.has(id)).length
+              return (
+                <Row
+                  key={g.reason}
+                  testId="context-memory-reason"
+                  name={INDEX_REASON_COPY[g.reason]}
+                  details={[
+                    CONTEXT_COPY.reasonItems(g.itemIds.length),
+                    pulled > 0 ? CONTEXT_COPY.reasonPulled(pulled) : null,
+                    g.more > 0 ? CONTEXT_COPY.reasonNotListed(g.more) : null
+                  ]}
+                />
+              )
+            })}
+          </div>
         ) : null}
         {recalled ??
           (activity.injected === null ? (

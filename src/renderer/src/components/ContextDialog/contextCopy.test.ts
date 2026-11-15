@@ -5,10 +5,11 @@ import { CONTEXT_REFUSAL_CODES } from '../../../../shared/schemas/contextIpc'
 import {
   CONTEXT_COPY,
   DROP_REASON_COPY,
+  INDEX_REASON_COPY,
   MEMORY_RECALL_OFF_COPY,
   contextRefusal
 } from './contextCopy'
-import { DROP_REASONS, type DropReason } from '../../../../shared/schemas/memory'
+import { DROP_REASONS, INDEX_REASONS, type DropReason } from '../../../../shared/schemas/memory'
 
 describe('contextRefusal', () => {
   it.each(CONTEXT_REFUSAL_CODES)('reads %s from a wrapped rejection', (code) => {
@@ -70,5 +71,30 @@ describe('recall copy', () => {
       claude_too_old: 'Update claude to 2.1.323 or newer for memory recall in this session.',
       mod_not_installed: 'The app could not set up its Claude mod. Reopen the app to try again.'
     })
+  })
+})
+
+// Spec 2026-11-14 memory context index §9: Context names each reason the section listed keys for.
+describe('INDEX_REASON_COPY', () => {
+  it('has a name for every reason, in the spec words', () => {
+    expect(INDEX_REASONS.map((r) => INDEX_REASON_COPY[r])).toEqual([
+      'Pinned',
+      'Same task',
+      'Same goal',
+      'This folder',
+      'Folders above',
+      'Whole workspace',
+      'Same template',
+      'Same tags',
+      'Folders below',
+      'Episodes'
+    ])
+  })
+
+  it('counts items, pulls and the ones not listed', () => {
+    expect(CONTEXT_COPY.reasonItems(1)).toBe('1 item')
+    expect(CONTEXT_COPY.reasonItems(1200)).toBe('1,200 items')
+    expect(CONTEXT_COPY.reasonPulled(3)).toBe('3 pulled')
+    expect(CONTEXT_COPY.reasonNotListed(12)).toBe('12 not listed')
   })
 })
