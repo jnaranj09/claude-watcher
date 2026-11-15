@@ -846,6 +846,34 @@ describe('the key line and the section held whole (spec 2026-11-14 §2, §7)', (
     expect(recallText('what is the api port', 1)).toContain('api port: 9281')
   })
 
+  it('a prompt never gets more than 3 items, even when keys shown whole changed since', () => {
+    const ids = [1, 2, 3, 4, 5].map(
+      (n) => add(specific(`api port ${n}`, `900${n}`), { folder: '/work/app' }).id
+    )
+    index()
+    clock += 1000
+    for (const [i, id] of ids.entries()) {
+      store.edit(
+        id,
+        { text: specific(`api port ${i + 1}`, `910${i}`), check: null },
+        'operator',
+        null
+      )
+    }
+    expect(
+      recallText('which api port')
+        .split('\n')
+        .filter((l) => l.startsWith('- '))
+    ).toHaveLength(3)
+  })
+
+  it('a resumed window skips nothing: its model never saw the section', () => {
+    add(specific('api port', '9281'), { folder: '/work/app' })
+    recall.launched('s1', { excludeTaskIds: [], resume: true })
+    index(0)
+    expect(recallText('what is the api port', 0)).toContain('api port: 9281')
+  })
+
   it('the index records its groups in the activity', () => {
     add(specific('api port', '9281'), { folder: '/work/app' })
     index()
