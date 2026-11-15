@@ -279,7 +279,27 @@ describe('namesSecret', () => {
     expect(namesSecret(key)).toBe(true)
   })
 
-  it.each(['tokenizer', 'passwordless', 'keyboard', 'secretary', 'tokenizerVersion', 'keyApi'])(
+  it.each([
+    'PGPASSWORD',
+    'dbpassword',
+    'passwordlessLogin',
+    'MYPASSWD',
+    'clientsecret',
+    'secretary'
+  ])('finds password, passwd or secret anywhere in the key: %s', (key) => {
+    expect(namesSecret(key)).toBe(true)
+  })
+
+  // `DBPassword` holds `password` anyway; `DBToken` needs the split of an acronym before a
+  // capitalised word (`DB` + `Token`), since `token` must be a whole word part
+  it.each(['DBPassword', 'DBToken', 'JWTToken'])(
+    'splits an acronym from the word after it: %s',
+    (key) => {
+      expect(namesSecret(key)).toBe(true)
+    }
+  )
+
+  it.each(['tokenizer', 'keyboard', 'tokenizerVersion', 'keyApi', 'db pass', 'mytoken'])(
     'finds none when the name is only part of a word: %s',
     (key) => {
       expect(namesSecret(key)).toBe(false)

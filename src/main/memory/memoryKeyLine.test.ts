@@ -109,8 +109,17 @@ describe('keyLine', () => {
   })
 
   it('7c. a secret word that is only inside a longer part shows the value', () => {
-    for (const head of ['tokenizerVersion', 'passwordlessLogin']) {
+    for (const head of ['tokenizerVersion', 'db pass']) {
       expect(keyLine(row({ head, body: '0.19' }), NONE).whole).toBe(true)
+    }
+  })
+
+  it('7d. password, passwd or secret anywhere in the key hides the value', () => {
+    for (const head of ['PGPASSWORD', 'dbpassword', 'passwordlessLogin', 'DBPassword']) {
+      const out = keyLine(row({ head, body: 'hunter2' }), NONE)
+      expect(out.text).toBe(
+        `- ${head} (value not shown, 7 chars, seen ${formatDay(DAY)}, observed) id=3f2b9c1e`
+      )
     }
   })
 

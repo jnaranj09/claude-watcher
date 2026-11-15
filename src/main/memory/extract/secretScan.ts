@@ -87,12 +87,23 @@ function wordParts(text: string): string[] {
     .map((p) => p.toLowerCase())
 }
 
-/** A secret name is one of the key's word parts, in any case: a word of `SECRET_NAME_WORDS`
- *  or its plural (`dbPassword`, `password2`, `db-password`, `max tokens`), or `access` / `private` / `api` then
- *  `key`, as two parts or one (`API_KEY`, `apiKey`, `apikey`). A word only inside a longer part
- *  is not one (`tokenizer`, `passwordless`). Unlike the patterns above, no value has to follow: a
- *  key line reads it in a key (`db password`), whose value may be short. */
+/** The secret words a key may hold anywhere, glued to other letters too (`PGPASSWORD`,
+ *  `dbpassword`, `passwordlessLogin`). Ruling C9: a password under a glued key would reach every
+ *  window's prompt, while a harmless key hidden this way (`secretary`) costs one `memory_get`.
+ *  `token`, `key` and the other words stay word-part matches: as substrings they hit `tokenizer`
+ *  or `monkey`. */
+const SECRET_ANYWHERE = ['password', 'passwd', 'secret'] as const
+
+/** A secret name is in the key, in any case: `password`, `passwd` or `secret` anywhere in it
+ *  (`SECRET_ANYWHERE`); or one of its word parts is a word of `SECRET_NAME_WORDS` or its plural
+ *  (`authToken`, `DBToken`, `max tokens`, `Admin PWD`), or `access` / `private` / `api` then `key`,
+ *  as two parts or one (`API_KEY`, `apiKey`, `apikey`). Any other word only inside a longer part
+ *  is not one (`tokenizer`, `mytoken`), and a word the list lacks is not one (`db pass`). Unlike
+ *  the patterns above, no value has to follow: a key line reads it in a key (`db password`),
+ *  whose value may be short. */
 export function namesSecret(text: string): boolean {
+  const lower = text.toLowerCase()
+  if (SECRET_ANYWHERE.some((word) => lower.includes(word))) return true
   const parts = wordParts(text)
   /** `part` is `word`, or its plural (`tokens`) when it ends a name. */
   const is = (part: string | undefined, word: string, last: boolean): boolean =>

@@ -160,7 +160,8 @@ saved for its tasks, for its goal, in its folder, in the folders above, for ever
 workspace (saved with no folder, goal or tags), from the same template, with the same tags, in
 the folders below; then its recent sessions. Each value is
 shown, cut at 24 characters (Claude reads the rest with its memory tools); a fact shows its title;
-a value that looks like a secret, or whose key names one (`password`, `token`, …), is not shown.
+a value that looks like a secret, or whose key names one (`password`, `token`, …), is not shown,
+but a short secret under a key that names none is shown (see Known limits for which keys count).
 Memory is a record of what was seen and when, so Claude gives the date with what it takes from
 it.
 
@@ -293,9 +294,17 @@ Known limits:
   file that shows an opening `<private>` with no closing tag (documentation, source code)
   hides the rest of that tool result from a save. Text inside the tag that Claude's own reply
   splits over two text parts is cut only in the first part; the rest is read.
-- The index hides a value only when it matches a secret pattern, holds a `<private>` tag, or its
-  key holds a secret word (`dbPassword`, `API_KEY`): a secret under a harmless key that matches no
-  pattern shows its first 24 characters.
+- The index hides a value (`value not shown`) only when the value, or `key = value`, matches a
+  secret pattern (a known token format such as `ghp_…`, or a secret name, `=` and an unquoted
+  value of 8 or more characters), either holds a `<private>` tag, or the key names a secret. A
+  key names one when it holds `password`, `passwd` or `secret` anywhere, in any case
+  (`PGPASSWORD`, `dbpassword`, `clientSecret`), or when one of its words, split at spaces, `_`,
+  `-`, digits and camelCase, is `token`, `pwd`, `api key`, `access key` or `private key`
+  (`authToken`, `API_KEY`, `max tokens`). `token` or `pwd` glued into a longer word does not
+  count (`authtoken`, `tokenizer`), and no other word does (`db pass`, `passphrase`,
+  `signing key`, `credentials`). A short secret under any other key matches no pattern and is
+  printed, its first 24 characters in every session that lists it, so check those items in the
+  Memory dialog.
 - A key saved or changed while a conversation runs reaches it with your next prompt, in a block
   of at most 5 keys (`saved or changed since this conversation started`), not one the same
   session saved or updated itself. A session without recall (`Memory recall` off, the memory mod

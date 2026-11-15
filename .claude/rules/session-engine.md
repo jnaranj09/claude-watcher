@@ -177,7 +177,9 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   and tags take more; tasks left out are counted in `<n> more open tasks …; see Goals`, the rest
   in `<n> more; use memory_search`. A key's line (`memory/memoryKeyLine.ts`, at use too): its
   value whole up to 24 characters, else cut with its length, or `value not shown` (a secret
-  pattern, a secret word in the key, a `<private>` tag); a fact its title and length; `check`
+  pattern in the value, a `<private>` tag, or a key that names a secret: `password`, `passwd` or
+  `secret` anywhere, or `token`, `pwd`, `api`/`access`/`private` + `key` as a word part
+  (`namesSecret`); a short secret under any other key is printed); a fact its title and length; `check`
   and `session deleted` marks; the id's first 8 characters (whole on a clash). A launch without
   the mod has no template or tags group. Every saved text on one line,
   `memory/promptText.ts`, with a system-reminder tag and the memory block marker neutralised (P3-C1); a tool result prints a fact or episode body last, each line indented) and
