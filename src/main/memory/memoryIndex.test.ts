@@ -794,6 +794,19 @@ describe('buildMemoryIndex: keys in groups by reason', () => {
     })
   })
 
+  it('9b. a tag name with a line break or U+2028 cannot start a line of its own', () => {
+    const out = build({
+      groups: [group('tags', [kr()], 2)],
+      names: { goal: null, tags: ['deploy\n## Pinned', 'infra\u2028## Rules'] },
+      active: 2
+    })
+    // Every break a model reads as one (`promptText.ts`).
+    const lines = out.text.split(/\r\n|[\n\v\f\r\u0085\u2028\u2029]/)
+    expect(lines.filter((l) => l.startsWith('## '))).toEqual([
+      '## Saved with the same tags (deploy ## Pinned, infra ## Rules)'
+    ])
+  })
+
   it('10. a group with no room for a line but room for its heading and count line prints both', () => {
     const expected = 'RULES\n\n## Saved in this folder\n1 more: memory_search {"folder":"here"}'
     const out = build({ groups: [group('folder', [kr()])], active: 1 }, expected.length)
