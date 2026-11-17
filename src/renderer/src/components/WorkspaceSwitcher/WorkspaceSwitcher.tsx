@@ -35,6 +35,7 @@ import {
   workspacesStore
 } from '../../stores/workspacesStore'
 import { usePresentValue } from '../../hooks/usePresence'
+import { CountPill } from '../CountPill/CountPill'
 import { LucideIcon } from '../Icon/LucideIcon'
 import { Popover } from '../Popover/Popover'
 import { LeavingContext, leavingProps } from '../Presence/leaving'
@@ -172,24 +173,12 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
         <LucideIcon name="layers" />
         <span className={styles.name}>{activeName}</span>
         {activeGrey !== null && (
-          <span className={styles.count} data-testid="workspace-card-count" data-count="total">
-            {activeGrey}
-          </span>
+          <CountPill value={activeGrey} kind="total" testId="workspace-card-count" />
         )}
         {activeWorking > 0 && (
-          <span
-            className={styles.working}
-            data-testid="workspace-working-count"
-            data-count="working"
-          >
-            {activeWorking}
-          </span>
+          <CountPill value={activeWorking} kind="working" testId="workspace-working-count" />
         )}
-        {here > 0 && (
-          <span className={styles.badge} data-testid="workspace-here-badge" data-count="needs-you">
-            {here}
-          </span>
-        )}
+        {here > 0 && <CountPill value={here} kind="needs-you" testId="workspace-here-badge" />}
       </button>
       {elsewhereCards > 0 && (
         // Not its own Tab-key stop: the button's aria-label already reads these counts, and a
@@ -206,31 +195,17 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
         >
           {/* Grey, blue, yellow — the button's order, summed over every OTHER workspace. */}
           {elsewhereGrey !== null && (
-            <span
-              className={styles.count}
-              data-testid="workspace-elsewhere-count"
-              data-count="total"
-            >
-              {elsewhereGrey}
-            </span>
+            <CountPill value={elsewhereGrey} kind="total" testId="workspace-elsewhere-count" />
           )}
           {elsewhereWorking > 0 && (
-            <span
-              className={styles.working}
-              data-testid="workspace-elsewhere-working"
-              data-count="working"
-            >
-              {elsewhereWorking}
-            </span>
+            <CountPill
+              value={elsewhereWorking}
+              kind="working"
+              testId="workspace-elsewhere-working"
+            />
           )}
           {elsewhere > 0 && (
-            <span
-              className={styles.badge}
-              data-testid="workspace-elsewhere-badge"
-              data-count="needs-you"
-            >
-              {elsewhere}
-            </span>
+            <CountPill value={elsewhere} kind="needs-you" testId="workspace-elsewhere-badge" />
           )}
         </span>
       )}
@@ -263,31 +238,25 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
                     {/* Grey, blue, yellow — the button's order, so the pills read the same everywhere. */}
                     <Popover.ItemEnd>
                       {grey !== null && (
-                        <span
-                          className={styles.rowCount}
-                          data-testid={`workspace-row-count-${w.id}`}
-                          data-count="total"
-                        >
-                          {grey}
-                        </span>
+                        <CountPill
+                          value={grey}
+                          kind="total"
+                          testId={`workspace-row-count-${w.id}`}
+                        />
                       )}
                       {working > 0 && (
-                        <span
-                          className={styles.working}
-                          data-testid={`workspace-row-working-${w.id}`}
-                          data-count="working"
-                        >
-                          {working}
-                        </span>
+                        <CountPill
+                          value={working}
+                          kind="working"
+                          testId={`workspace-row-working-${w.id}`}
+                        />
                       )}
                       {needsYou > 0 && (
-                        <span
-                          className={styles.badge}
-                          data-testid={`workspace-row-needs-${w.id}`}
-                          data-count="needs-you"
-                        >
-                          {needsYou}
-                        </span>
+                        <CountPill
+                          value={needsYou}
+                          kind="needs-you"
+                          testId={`workspace-row-needs-${w.id}`}
+                        />
                       )}
                     </Popover.ItemEnd>
                   </Popover.Item>

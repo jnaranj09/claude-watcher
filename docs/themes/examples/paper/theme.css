@@ -86,11 +86,13 @@ button[data-variant][data-lit]:hover:not(:disabled) {
   font-family: var(--font-mono);
   font-size: 10px;
 }
-/* One size for every count square (the switcher's, the tab's, a menu row's, a column header's).
+/* One size for every count square (the switcher's, the tab's, a menu row's, a column header's, the
+   Goals button's).
    The session count text in the toolbar carries `data-count` too, so it is left out. */
 [data-count='total']:not([data-session-count]),
 [data-count='working'],
-[data-count='needs-you'] {
+[data-count='needs-you'],
+[data-count='open-tasks'] {
   display: inline-grid;
   place-items: center;
   min-width: 18px;

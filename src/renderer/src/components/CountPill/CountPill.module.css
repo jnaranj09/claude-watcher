@@ -1,0 +1,41 @@
+/* The count pill — ONE shape for every count in the app. The grey, blue and yellow pills differ only
+   by fill, so they read as a set; a bare grey digit beside a pill looked unfinished.
+   `min-width` is the switcher's `--switcher-pill` (WorkspaceSwitcher.module.css): the widest digit
+   of the 10px font, the base of that sheet's width math. A test pins the pair. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Never squeezed by a long name beside it (the menu row's pills were `flex: none` too). */
+  flex: none;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 var(--inset-pill-tight);
+  border-radius: var(--rounded-full);
+  font-size: 10px;
+  font-weight: var(--font-weight-heading);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* The idle cards (the blue and yellow pills count the rest) and a goals button's open tasks. A
+   neutral fill from the raised-surface family; --text-primary on it measures ~7:1. */
+.grey {
+  background: var(--border-strong);
+  color: var(--text-primary);
+}
+
+/* The working pill — the same --working blue as the Working column's status dot. Its ink is the
+   one every filled --working surface uses (the primary button). */
+.working {
+  background: var(--working);
+  color: var(--text-on-accent);
+}
+
+/* The needs-you pill — in the switcher's button (this workspace), on its tab (other workspaces)
+   and on each menu row. Same visual weight as the needs-you accent used elsewhere on the board
+   (StatusDot/AttentionRail), so "something needs you" reads consistently. */
+.needsYou {
+  background: var(--needs-you);
+  color: var(--text-on-lit);
+}

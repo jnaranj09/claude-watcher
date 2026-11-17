@@ -395,8 +395,9 @@ What you can target:
   - `[data-column-header][data-accent]` — a column's header, `data-accent` its status;
     `[data-column-label]` — its name; `[data-column-mark]` — its status dot (hidden by the app);
     `[data-count-sep]` — the `·` before its count.
-  - `[data-count="total|working|needs-you"]` — every count badge: the workspace switcher, its
-    tab and menu rows, the column headers, the Filter count.
+  - `[data-count="total|working|needs-you|open-tasks"]` — every count badge: the workspace
+    switcher, its tab and menu rows, the column headers, the Filter count, the Goals button's
+    open tasks.
   - `[data-session-count]` — the Filter bar's count of sessions shown.
   - `[data-filter-chips]` — the boxed row of filter pills (the board's filter bar and the Active /
     Past rail of the Sessions dialog; `[data-wrap]` on the rail, where pills wrap);

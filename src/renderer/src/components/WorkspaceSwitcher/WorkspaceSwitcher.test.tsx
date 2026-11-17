@@ -365,7 +365,7 @@ describe('WorkspaceSwitcher', () => {
   // three pills was wider than the button, so it showed left of the button while it tucked (owner,
   // 2026-10-12). The button's min-width keeps the tucked tab's left edge strictly inside the
   // button, in the app's tokens and in every bundled theme's. The tab width is read from the
-  // TAB's own rules, so a change to its padding, gap or pills that outgrows the button fails here.
+  // TAB's own rules, so a change to its padding, gap or pills (CountPill's `.pill`) that outgrows the button fails here.
   // Each pill is sized for a two-digit count (up to 99): two of the widest digit (--switcher-digit,
   // measured on the widest UI font) plus the pill's own side padding.
   it('the button is always wider than the tucked tab with its three two-digit pills', () => {
@@ -402,9 +402,12 @@ describe('WorkspaceSwitcher', () => {
       const pad = shorthandParts(decl('.tab', 'padding'))
       const tabPadding = px(pad[1] ?? '') + px(pad[3] ?? pad[1] ?? '')
       const tabBorder = 2 * px(shorthandParts(decl('.tab', 'border'))[0] ?? '')
-      const pillPadding = 2 * px(shorthandParts(decl('.badge', 'padding'))[1] ?? '')
+      const pillRule = cssRule('components/CountPill/CountPill.module.css', '.pill')
+      const pillDecl = (prop: string): string =>
+        new RegExp(`(?:^|[;\\s])${prop}\\s*:\\s*([^;]+);`).exec(pillRule)?.[1]?.trim() ?? ''
+      const pillPadding = 2 * px(shorthandParts(pillDecl('padding'))[1] ?? '')
       const pill = Math.max(
-        px(decl('.badge', 'min-width')),
+        px(pillDecl('min-width')),
         2 * px('var(--switcher-digit)') + pillPadding
       )
       const gap = px(decl('.tab', 'gap'))
