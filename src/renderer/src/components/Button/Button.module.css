@@ -108,6 +108,10 @@
   white-space: nowrap;
   padding-right: var(--inset-compact-x);
 }
+/* A count pill sits between the icon and the name: the name starts a gap after it. */
+.reveal [data-count] + .revealTrack .revealText {
+  padding-left: var(--gap-inline-tight);
+}
 .reveal:hover .revealTrack,
 .reveal:focus-visible .revealTrack {
   grid-template-columns: 1fr;

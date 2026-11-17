@@ -9,6 +9,7 @@
 // card's reveal-on-hover) is the call site's layout, on a wrapper — the button never takes a
 // `className`, or the drift this replaces comes straight back through it.
 import type { ButtonHTMLAttributes, JSX, ReactNode, Ref } from 'react'
+import { CountPill, type CountKind } from '../CountPill/CountPill'
 import styles from './Button.module.css'
 
 /** `primary` is the ONE main action of a surface (`+ New session`, Save). `secondary` is every
@@ -36,6 +37,12 @@ export interface ButtonProps extends Omit<
    *  always in the button, so it is the accessible name; no `aria-label` is needed. Not with
    *  `icon` (that square has no room for text) or `feedback`. */
   reveal?: string | undefined
+  /** Only with `reveal`: a count pill between the icon and the name (the header's open tasks on
+   *  Goals). It shows at rest and stays while the name is open. `kind` is the caller's (its pill
+   *  fill and `data-count`). `label` is the count in words (`3 open tasks`): the pill is
+   *  `aria-hidden`, so the label is appended to the name (`Goals, 3 open tasks`). At `value <= 0`
+   *  nothing is drawn and the name is the reveal text alone. */
+  count?: { value: number; label: string; kind: CountKind } | undefined
   /** `danger` only: the armed second-press state — solid red, `Confirm delete`. */
   armed?: boolean | undefined
   /** A toggle that is ON (the Filter button while its row is open, an open rail peek):
@@ -66,6 +73,7 @@ export function Button({
   size = 'md',
   icon = false,
   reveal,
+  count,
   armed = false,
   lit = false,
   type = 'button',
@@ -93,6 +101,9 @@ export function Button({
     reveal !== undefined ? (
       <>
         <span className={styles.revealIcon}>{children}</span>
+        {count !== undefined && count.value > 0 && (
+          <CountPill value={count.value} kind={count.kind} hidden />
+        )}
         {/* A grid track that opens from 0fr to 1fr: the button grows to the text's own width
             without measuring it. */}
         <span className={styles.revealTrack}>
@@ -100,6 +111,7 @@ export function Button({
             <span className={styles.revealText}>{reveal}</span>
           </span>
         </span>
+        {count !== undefined && count.value > 0 && <span className="sr-only">, {count.label}</span>}
       </>
     ) : hasFeedback ? (
       // Both layers ALWAYS, while a result exists: the cell is max(label, result) from the first
