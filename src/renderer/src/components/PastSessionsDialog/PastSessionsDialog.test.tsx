@@ -230,7 +230,7 @@ describe('PastSessionsDialog', () => {
     expect(row?.querySelectorAll('[data-testid="tag-chip"]')).toHaveLength(1)
   })
 
-  it('Open is not rendered with no selection; selecting fills the read-only form', async () => {
+  it('Open is not rendered with no selection; selecting fills the form', async () => {
     const { r } = render()
     await flush()
     expect(q(r, '[data-testid="past-session-open"]')).toBeNull()
@@ -248,7 +248,7 @@ describe('PastSessionsDialog', () => {
     expect(
       q(r, '[data-testid="past-session-form-tags"]')?.querySelectorAll('[data-testid="tag-chip"]')
     ).toHaveLength(1)
-    // The form is read-only: nothing in it can be typed into.
+    // Nothing in the form can be typed into (its one editable field, Tags, is a picker).
     expect(q(r, '[data-testid="past-session-form"]')?.querySelector('input, textarea')).toBeNull()
   })
 

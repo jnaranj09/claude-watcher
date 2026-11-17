@@ -134,8 +134,9 @@ closing the window — is archived too. A session is also on record while it run
 or a power loss leaves it in Past sessions.
 
 **☰ → Past sessions** lists them (it keeps the 200 most recent). **Open** brings one back as a
-live card with `claude --resume`, under the same id; **Forget** removes it from the list. Open is
-refused, with a line saying why, when the folder is gone, when claude no longer has the
+live card with `claude --resume`, under the same id; **Forget** removes it from the list.
+A record's tags can be changed there, with the tag button in its form, without opening it. Open
+is refused, with a line saying why, when the folder is gone, when claude no longer has the
 conversation, or when that conversation is running in another terminal outside the app.
 
 When claude exits inside an open terminal, the pane says how it exited (the exit code or signal)

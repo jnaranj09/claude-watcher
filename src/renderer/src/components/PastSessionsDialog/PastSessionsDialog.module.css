@@ -1,5 +1,5 @@
 /* Past sessions — what is this dialog's own in the Manage shell: the three-line rail row, the empty
-   sentence and the read-only form's values. The shell, rail, form, footer and every button are
+   sentence and the form's values. The shell, rail, form, footer and every button are
    ManageDialog.module.css (.claude/rules/design.md). Text on the raised panel is --text-secondary,
    never --text-muted. */
 
@@ -33,8 +33,8 @@
   color: var(--text-secondary);
 }
 
-/* The read-only form. Label + value, with the form's own gap between them — TemplateForm's rhythm,
-   so no margin of its own. A value is operator-typed and unbounded: one line, ellipsis, `title`. */
+/* The form: tags editable, the rest read-only. Label + value, with the form's own gap between
+   them — TemplateForm's rhythm, so no margin of its own. A value is operator-typed and unbounded: one line, ellipsis, `title`. */
 .value {
   margin: 0;
   min-width: 0;

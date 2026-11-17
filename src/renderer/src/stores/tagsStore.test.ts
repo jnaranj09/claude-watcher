@@ -96,4 +96,19 @@ describe('tagsStore — IPC', () => {
     await setSessionTags('s1', ['a'], () => [])
     expect(warn).toHaveBeenCalledWith('[claude-watcher][tags] code=set_tags_failed')
   })
+
+  it("a custom writer and onError are used instead of the card's", async () => {
+    tagsStore.setState({ tags: [GLOBAL, IN_A], pendingBySession: new Map() })
+    const launchSetTags = vi.fn(() => Promise.resolve())
+    ;(window as unknown as { launch: { setTags: unknown } }).launch = { setTags: launchSetTags }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const write = vi.fn(() => Promise.reject(new Error('store_write_failed')))
+    const onError = vi.fn()
+    await setSessionTags('s1', ['g'], () => [], { write, onError })
+    expect(write).toHaveBeenCalledWith('s1', ['g'])
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'store_write_failed' }))
+    expect(launchSetTags).not.toHaveBeenCalled()
+    expect(warn).not.toHaveBeenCalled()
+    expect(tagsStore.getState().pendingBySession.get('s1')).toBeUndefined()
+  })
 })

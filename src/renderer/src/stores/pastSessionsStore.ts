@@ -50,6 +50,12 @@ export async function forgetPastSession(id: string): Promise<void> {
   pastSessionsStore.getState().hydrate(await window.pastSessions.forget(id))
 }
 
+/** Replace a record's tags (the Past sessions form's picker). Hydrates with the list main answers;
+ *  rethrows: the caller (`setSessionTags`'s `onError`) maps the code to copy. */
+export async function setPastSessionTags(id: string, tagIds: string[]): Promise<void> {
+  pastSessionsStore.getState().hydrate(await window.pastSessions.setTags(id, tagIds))
+}
+
 /** Open's tail, shared with Resume by id: the launch's workspace becomes the active one first,
  *  then the terminal opens exactly like the `+ New session` popover's. */
 async function openResumed(result: PastSessionOpenResult): Promise<PastSessionOpenResult> {

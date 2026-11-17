@@ -121,13 +121,24 @@ const writeChains = new Map<string, Promise<void>>()
  * `readBase() ⊕ pending` as read when it RUNS: main applies a write to its reducer and ships the
  * delta before it answers (index.ts `sessionSetTags`), so the next write builds on the last one.
  * Only catalog ids are diffed — an id the catalog does not know is never touched.
- * `readBase` reads the card's tag ids from boardStore (which imports this store — hence a getter).
- * A refusal reverts the ✓ (the pending entry goes) and says so. Never rejects.
+ * `readBase` reads the session's tag ids (a card's from boardStore, which imports this store —
+ * hence a getter; a Past record's from pastSessionsStore).
+ * Defaults are the card's: the write is `window.launch.setTags` and a refusal logs
+ * `code=set_tags_failed` and toasts `Could not update tags.`. `options.write` replaces the writer
+ * and `options.onError` the refusal's surface (the Past sessions form: `window.pastSessions.setTags`
+ * and the dialog's own result toast). A refusal reverts the ✓ (the pending entry goes) and says
+ * so. Never rejects.
  */
+export interface SetSessionTagsOptions {
+  write?: (sessionId: string, tagIds: string[]) => Promise<unknown>
+  onError?: (err: unknown) => void
+}
+
 export function setSessionTags(
   sessionId: string,
   next: readonly string[],
-  readBase: () => readonly string[]
+  readBase: () => readonly string[],
+  options: SetSessionTagsOptions = {}
 ): Promise<void> {
   const s = tagsStore.getState()
   const shown = new Set(applyPendingTags(readBase(), s.pendingBySession.get(sessionId)))
@@ -143,10 +154,13 @@ export function setSessionTags(
   const write = previous.then(async (): Promise<void> => {
     const ids = applyPendingTags(readBase(), tagsStore.getState().pendingBySession.get(sessionId))
     try {
-      await window.launch.setTags(sessionId, ids)
-    } catch {
-      console.warn(`${LOG_PREFIX} code=set_tags_failed`)
-      toast.error('Could not update tags.')
+      await (options.write ?? window.launch.setTags)(sessionId, ids)
+    } catch (err) {
+      if (options.onError !== undefined) options.onError(err)
+      else {
+        console.warn(`${LOG_PREFIX} code=set_tags_failed`)
+        toast.error('Could not update tags.')
+      }
     } finally {
       tagsStore.getState().settlePending(sessionId, changes)
     }

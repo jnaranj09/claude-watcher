@@ -2,22 +2,26 @@
 // ManageDialog: a header scope filter (`All sessions` · each workspace — no Global, no orphans:
 // every record has a workspace and the delete cascade keeps it so), a search box over the NAME
 // with the rail's `Filter` beside it (tag, folder, launched, ended; RailFilter, spec 2026-10-16),
-// a FLAT list newest first, a READ-ONLY form, and a [Forget] [Open] footer. Importing a session
+// a FLAT list newest first, a form (tags editable, the rest read-only), and a [Forget] [Open] footer. Importing a session
 // the app did not launch is the dialog's Import page. No `+ New` (there is nothing to create) and
 // no RowActions. Opened on a record (an episode's `Past sessions`, memory phase 2: the store's
 // `pastSessionTarget`), the page selects it once it is listed, on its own workspace, and consumes
 // the target. UX-DR14: App.tsx guards it against the other modals and closes it on the quit guard.
 // Never logs a record value.
-import { useEffect, useRef, useState, type FormEvent, type JSX } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import type { PastSession, Workspace } from '../../../../shared/ipc/contract'
+import type { PastSession, Tag, Workspace } from '../../../../shared/ipc/contract'
 import { PAST_SESSIONS_MAX } from '../../../../shared/schemas/pastSession'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { Callout } from '../Callout/Callout'
 import type { DialogPageProps } from '../ManageDialog/dialogPage'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
 import { workspaceScope, type ScopeFilterValue } from '../ScopeFilter/scope'
+import { Button } from '../Button/Button'
+import { Presence } from '../Presence/Presence'
 import { TagChipRow } from '../TagChip/TagChipRow'
+import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
+import { TagPicker } from '../TagPicker/TagPicker'
 import { SearchIcon } from '../Icon/MenuIcons'
 import { TextInput } from '../TextInput/TextInput'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
@@ -26,7 +30,15 @@ import { effectiveFilters, type FilterType, type SessionFilters } from '../../li
 import { RailFilter } from '../SessionsDialog/RailFilter'
 import { railTags, type ScopedFilters } from '../SessionsDialog/railFilters'
 import { boardStore, selectPastSessionTarget, useBoard } from '../../stores/boardStore'
-import { selectTags, tagsForIds, useTags } from '../../stores/tagsStore'
+import {
+  applyPendingTags,
+  selectTags,
+  setSessionTags,
+  tagsForIds,
+  tagsStore,
+  useTags
+} from '../../stores/tagsStore'
+import { keepVisibleTags, visibleTags } from '../../../../shared/tags/tagScope'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
 import {
   focusLiveSession,
@@ -35,6 +47,8 @@ import {
   openPastSession,
   selectPastSessions,
   selectPastSessionsLoaded,
+  setPastSessionTags,
+  pastSessionsStore,
   usePastSessions
 } from '../../stores/pastSessionsStore'
 import {
@@ -44,6 +58,7 @@ import {
   isAlreadyOpenError,
   pastMemoryLine,
   pastSessionErrorMessage,
+  pastSessionTagsErrorMessage,
   pastSessionsCapNote,
   pastSessionsEmptyCopy,
   relativeEnded,
@@ -274,7 +289,12 @@ export function PastSessionsPage({
         {selected !== null ? (
           <ManageDialog.Form testId="past-session-form" onSubmit={(e) => void resume(e)}>
             {/* Keyed by record: nothing one record read (its episode) is shown for another. */}
-            <PastSessionDetails key={selected.id} session={selected} workspaces={workspaces} />
+            <PastSessionDetails
+              key={selected.id}
+              session={selected}
+              workspaces={workspaces}
+              setError={dialog.actions.setError}
+            />
             <ManageDialog.Footer>
               <ManageDialog.Delete
                 testId="past-session-forget"
@@ -328,19 +348,46 @@ function useEpisode(episodeId: string | null): Episode | null {
   return episode !== null && episode.id === episodeId ? episode : null
 }
 
-/** The read-only form: name, full folder, workspace (its name in its tint, WorkspaceLabel), tags,
+/** The record's form: name, full folder, workspace (its name in its tint, WorkspaceLabel), tags,
  *  times, then what memory kept from the session (PICK.md look 2: the `Memory:` line as a label,
  *  the episode's title as a value and its body as a wrapping paragraph; no colour for any state).
- *  No editable field — name and tags change on the live card after Open. */
+ *  Tags are the one editable field: the Memory form's tag button and picker, writing through
+ *  `setSessionTags` to `window.pastSessions.setTags` (a refusal is the dialog's result toast).
+ *  The name changes on the live card after Open. */
 function PastSessionDetails({
   session,
-  workspaces
+  workspaces,
+  setError
 }: {
   session: PastSession
   workspaces: Workspace[]
+  setError: (message: string) => void
 }): JSX.Element {
   const tags = useTags(selectTags)
-  const shownTags = tagsForIds(tags, session.tagIds)
+  const pending = useTags((s) => s.pendingBySession.get(session.id))
+  const shownTags = tagsForIds(tags, applyPendingTags(session.tagIds, pending))
+  const offeredTags = visibleTags(tags, session.workspaceId)
+  const tagPickerId = useId()
+  const [tagsOpen, setTagsOpen] = useState(false)
+  const tagsAnchorRef = useRef<HTMLDivElement | null>(null)
+  const tagsButtonRef = useRef<HTMLButtonElement | null>(null)
+
+  function closeTags(reason: 'escape' | 'outside'): void {
+    setTagsOpen(false)
+    // Only Escape hands focus back; an outside click leaves focus where the operator clicked.
+    if (reason === 'escape') tagsButtonRef.current?.focus()
+  }
+
+  /** The record's tags as main holds them now, without an id the catalog lost or its workspace
+   *  cannot see: a stale id is never sent (main would refuse it `tag_not_found`). */
+  function readRecordTags(): string[] {
+    const record = pastSessionsStore.getState().sessions.find((s) => s.id === session.id)
+    if (record === undefined) return []
+    const lookup = (id: string): Tag | null =>
+      tagsStore.getState().tags.find((t) => t.id === id) ?? null
+    return keepVisibleTags(record.tagIds, record.workspaceId, lookup)
+  }
+
   const workspace = workspaces.find((w) => w.id === session.workspaceId) ?? null
   const memoryLine = pastMemoryLine(session.memory)
   const episode = useEpisode(session.memory?.episodeId ?? null)
@@ -366,7 +413,7 @@ function PastSessionDetails({
         />
       </p>
       <ManageDialog.Label>Tags</ManageDialog.Label>
-      <div className={styles.valueRow}>
+      <div className={styles.valueRow} ref={tagsAnchorRef} data-testid="past-session-tags-field">
         {shownTags.length > 0 ? (
           <TagChipRow tags={shownTags} testId="past-session-form-tags" />
         ) : (
@@ -374,6 +421,41 @@ function PastSessionDetails({
             No tags
           </span>
         )}
+        <Button
+          variant="ghost"
+          size="xs"
+          icon
+          buttonRef={tagsButtonRef}
+          testId="past-session-tags-button"
+          aria-expanded={tagsOpen}
+          aria-controls={tagPickerId}
+          aria-label="Tags"
+          title="Tags"
+          onClick={() => setTagsOpen((open) => !open)}
+        >
+          <TagGlyphIcon />
+        </Button>
+        <Presence value={tagsOpen || null}>
+          {() => (
+            <TagPicker
+              id={tagPickerId}
+              tags={offeredTags}
+              selectedIds={session.tagIds}
+              sessionId={session.id}
+              onChange={(next) =>
+                void setSessionTags(session.id, next, readRecordTags, {
+                  write: setPastSessionTags,
+                  onError: (err) => setError(pastSessionTagsErrorMessage(err))
+                })
+              }
+              onClose={closeTags}
+              anchorRef={tagsAnchorRef}
+              triggerRef={tagsButtonRef}
+              testId="past-session-tag-picker"
+              label="Tags"
+            />
+          )}
+        </Presence>
       </div>
       <ManageDialog.Label>Launched</ManageDialog.Label>
       <p className={styles.value}>{new Date(session.launchedAt).toLocaleString()}</p>

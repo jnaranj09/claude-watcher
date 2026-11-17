@@ -1,8 +1,9 @@
 // Past sessions — PURE helpers behind PastSessionsPage.tsx: the scope, name and session filters
 // (spec 2026-10-16), the three empty sentences, the relative time, the `Memory:` line (memory
-// phase 2) and the error copy. No React, no store.
+// phase 2) and the error copy (open, resume by id, tag edits). No React, no store.
 import { formatVersion, MIN_CLAUDE_VERSION } from '../../../../shared/launch/claudeVersion'
 import type { PastSession } from '../../../../shared/ipc/contract'
+import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 import { matchesFilters, type SessionFilters } from '../../lib/sessionFilters'
 
 /** The two ScopeFilter values this dialog offers: every record has a workspace, so there is no
@@ -139,6 +140,19 @@ export function pastSessionErrorMessage(err: unknown): string {
 /** Resume by id's error copy — the same matching as Open, its own copy. */
 export function resumeByIdErrorMessage(err: unknown): string {
   return copyForCode(err, RESUME_BY_ID_COPY, 'Could not resume the session')
+}
+
+// Tag edits: in match order — `tag_not_found` contains `not_found`, so it comes first.
+const TAGS_COPY: Readonly<Record<string, string>> = {
+  store_write_failed: STORE_WRITE_FAILED_COPY,
+  tag_not_found: 'That tag no longer exists.',
+  not_found: ERROR_COPY.not_found
+}
+
+/** The Past form's tag edit refusal (`not_found`, `tag_not_found`, `tag_out_of_scope`,
+ *  `store_write_failed`), matched like `pastSessionErrorMessage`. */
+export function pastSessionTagsErrorMessage(err: unknown): string {
+  return copyForCode(err, TAGS_COPY, 'Could not update tags.')
 }
 
 /** Open's `already_open` refusal — the session is live on the board (spec Open step 3: the
