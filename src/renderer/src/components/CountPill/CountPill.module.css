@@ -1,7 +1,7 @@
 /* The count pill — ONE shape for every count in the app. The grey, blue and yellow pills differ only
    by fill, so they read as a set; a bare grey digit beside a pill looked unfinished.
-   `min-width` is the switcher's `--switcher-pill` (WorkspaceSwitcher.module.css): the widest digit
-   of the 10px font, the base of that sheet's width math. A test pins the pair. */
+   `min-width` is the least width of a pill: the base of the switcher's tab-width math, which a
+   WorkspaceSwitcher test reads from here. */
 .pill {
   display: inline-flex;
   align-items: center;

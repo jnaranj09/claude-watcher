@@ -29,11 +29,4 @@ describe('CountPill', () => {
     expect(switcher).not.toMatch(/height:\s*14px/)
     expect(switcher).not.toMatch(/border-radius:\s*var\(--rounded-full\)/)
   })
-
-  it('the pill min width matches the switcher width math', () => {
-    const pillMin = /min-width:\s*([^;]+);/.exec(cssRule(PILL_CSS, '.pill'))?.[1]?.trim()
-    const switcherPill = /--switcher-pill:\s*([^;]+);/.exec(readCss(SWITCHER_CSS))?.[1]?.trim()
-    expect(switcherPill).toBe('14px')
-    expect(pillMin).toBe(switcherPill)
-  })
 })

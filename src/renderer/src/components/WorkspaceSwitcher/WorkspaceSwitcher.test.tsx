@@ -365,7 +365,8 @@ describe('WorkspaceSwitcher', () => {
   // three pills was wider than the button, so it showed left of the button while it tucked (owner,
   // 2026-10-12). The button's min-width keeps the tucked tab's left edge strictly inside the
   // button, in the app's tokens and in every bundled theme's. The tab width is read from the
-  // TAB's own rules, so a change to its padding, gap or pills (CountPill's `.pill`) that outgrows the button fails here.
+  // TAB's own rules and CountPill's `.pill`, so a change to its padding, gap or pills that
+  // outgrows the button fails here.
   // Each pill is sized for a two-digit count (up to 99): two of the widest digit (--switcher-digit,
   // measured on the widest UI font) plus the pill's own side padding.
   it('the button is always wider than the tucked tab with its three two-digit pills', () => {
