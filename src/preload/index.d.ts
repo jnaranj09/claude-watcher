@@ -42,7 +42,7 @@ declare global {
     launch: LaunchApi
     // Session templates — the templates CRUD bridge (list/save/remove/setFavorite via CH.templates*).
     templates: TemplatesApi
-    // Past sessions — the history bridge (list/forget/open via CH.pastSessions*).
+    // Past sessions — the history bridge (list/forget/setTags/open via CH.pastSession*).
     pastSessions: PastSessionsApi
     // Phrase shortcuts — the shortcuts CRUD bridge (list/save/remove/setFavorite via CH.shortcuts*).
     shortcuts: ShortcutsApi

@@ -77,6 +77,7 @@ import type {
   PastSessionImportRequest,
   PastSessionOpenRequest,
   PastSessionResumeTerminalRequest,
+  PastSessionSetTagsRequest,
   PastSessionOpenResult,
   ThemeSummary,
   ThemeBundle,
@@ -416,7 +417,7 @@ const templatesApi = {
 }
 export type TemplatesApi = typeof templatesApi
 
-// Past sessions — typed invoke wrappers over CH.pastSessions*. `forget`, not `delete`
+// Past sessions — typed invoke wrappers over CH.pastSession*. `forget`, not `delete`
 // (reserved word and a different act: Delete is the card's exit; Forget drops a record).
 const pastSessionsApi = {
   list(): Promise<PastSession[]> {
@@ -425,6 +426,12 @@ const pastSessionsApi = {
   forget(id: string): Promise<PastSession[]> {
     const req: PastSessionForgetRequest = { id }
     return ipcRenderer.invoke(CH.pastSessionsForget, req)
+  },
+  /** Set the tags of an ended record. Rejects with `not_found` / `tag_not_found` /
+   *  `tag_out_of_scope` / `store_write_failed`; resolves with the new list. */
+  setTags(id: string, tagIds: string[]): Promise<PastSession[]> {
+    const req: PastSessionSetTagsRequest = { id, tagIds }
+    return ipcRenderer.invoke(CH.pastSessionSetTags, req)
   },
   /** Resume a record as a live card. Rejects with `not_found` / `folder_missing` /
    *  `already_open` (mapped to copy in the dialog; `already_open` first takes the view to the live
@@ -886,7 +893,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('launch', launchApi)
     // Session templates — the templates CRUD bridge (templates:list/save/delete/set-favorite).
     contextBridge.exposeInMainWorld('templates', templatesApi)
-    // Past sessions — the history bridge (list/forget/open via CH.pastSessions*).
+    // Past sessions — the history bridge (list/forget/setTags/open via CH.pastSession*).
     contextBridge.exposeInMainWorld('pastSessions', pastSessionsApi)
     // Phrase shortcuts — the shortcuts CRUD bridge (shortcuts:list/save/delete/set-favorite). The phrase
     // itself never crosses here: a matched chord posts it on the terminal's existing port.

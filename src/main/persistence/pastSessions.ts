@@ -89,6 +89,11 @@ export interface PastSessionsStore {
   /** Sets a record's `memory` (live or ended), in the memory state file only. No record:
    *  nothing. A background write (a refused one reports `past_sessions_memory` `write_failed`). */
   setMemory(sessionId: string, memory: PastSessionMemory): void
+  /** Sets the tags of a listed record (an ended one in a visible workspace). Throws `not_found`
+   *  for a missing, live or hidden record; the caller checked the tags themselves
+   *  (`parseSessionSetTags`). A refused write is undone and throws `store_write_failed`.
+   *  Returns the new list. */
+  setTags(id: string, tagIds: readonly string[]): PastSession[]
   /** Idempotent. Returns the new list. */
   remove(id: string): PastSession[]
   /** Workspaces — delete every record in `workspaceId`. Called ONLY by the workspaces store's
@@ -342,6 +347,16 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
     return list()
   }
 
+  function setTags(id: string, tagIds: readonly string[]): PastSession[] {
+    const record = byId.get(id)
+    if (record === undefined || record.live === true || !workspaceExists(record.workspaceId)) {
+      throw new Error('not_found')
+    }
+    byId.set(id, { ...record, tagIds: [...tagIds] })
+    commit(() => byId.set(id, record))
+    return list()
+  }
+
   function removeByWorkspace(workspaceId: string): number {
     const removed: string[] = []
     for (const [id, record] of byId) {
@@ -355,7 +370,7 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
     return removed.length
   }
 
-  return { list, get, archive, markLive, dropLive, setMemory, remove, removeByWorkspace }
+  return { list, get, archive, markLive, dropLive, setMemory, setTags, remove, removeByWorkspace }
 }
 
 /** The record without its `memory`: what the Past sessions file holds (R50). */

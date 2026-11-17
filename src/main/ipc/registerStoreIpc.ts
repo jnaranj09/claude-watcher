@@ -240,13 +240,14 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
   }
 
   // Past sessions — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
-  // persistence/pastSessionsIpc.ts (unit-tested); this only binds `list`/`forget` to CH.* channels.
+  // persistence/pastSessionsIpc.ts (unit-tested); this only binds `list`/`forget`/`setTags` to CH.* channels.
   // `session:archive`, `session:delete` and `past-sessions:open` get their bridges now but their
   // main handlers are wired later — they need the launch service and the reducer.
   function registerPastSessionsIpc(): void {
-    const handlers = createPastSessionsIpcHandlers(requirePastSessionsStore())
+    const handlers = createPastSessionsIpcHandlers(requirePastSessionsStore(), requireTagsStore())
     ipc.handle(CH.pastSessionsList, () => handlers.list())
     ipc.handle(CH.pastSessionsForget, (_evt, raw: unknown) => handlers.forget(raw))
+    ipc.handle(CH.pastSessionSetTags, (_evt, raw: unknown) => handlers.setTags(raw))
     // CH.pastSessionOpen is bound in registerLaunchIpc (it needs the launch service) — Task 9.
   }
 

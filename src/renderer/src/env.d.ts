@@ -186,6 +186,7 @@ declare global {
     pastSessions: {
       list(): Promise<PastSession[]>
       forget(id: string): Promise<PastSession[]>
+      setTags(id: string, tagIds: string[]): Promise<PastSession[]>
       open(id: string): Promise<PastSessionOpenResult>
       // UX-10 — the dead pane's Resume (main resolves the session id from the terminal).
       resumeTerminal(terminalId: string): Promise<PastSessionOpenResult>

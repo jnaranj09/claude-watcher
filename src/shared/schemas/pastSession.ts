@@ -4,6 +4,7 @@
 // the filesystem layout — log issue path + code only.
 import { z } from 'zod'
 import { SessionNameSchema } from './launch'
+import { TagIdSchema } from './tag'
 import { WorkspaceIdSchema } from './workspace'
 
 /** Not `.uuid()` — existence is the store's call (`not_found`), same reasoning as TemplateIdSchema. */
@@ -71,6 +72,14 @@ export type PastSession = z.infer<typeof PastSessionSchema>
 /** `past-sessions:forget` and `past-sessions:open` args. */
 export const PastSessionForgetSchema = z.object({ id: PastSessionIdSchema })
 export type PastSessionForgetRequest = z.infer<typeof PastSessionForgetSchema>
+/** `past-sessions:set-tags` args. Duplicate ids collapse here, so main stores each tag once. */
+export const PastSessionSetTagsSchema = z
+  .object({
+    id: PastSessionIdSchema,
+    tagIds: z.array(TagIdSchema).transform((ids) => [...new Set(ids)])
+  })
+  .strict()
+export type PastSessionSetTagsRequest = z.infer<typeof PastSessionSetTagsSchema>
 export const PastSessionOpenSchema = z.object({ id: PastSessionIdSchema })
 export type PastSessionOpenRequest = z.infer<typeof PastSessionOpenSchema>
 

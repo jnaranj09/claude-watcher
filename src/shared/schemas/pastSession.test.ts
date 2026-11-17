@@ -3,6 +3,7 @@ import {
   PAST_SESSIONS_FILE_VERSION,
   PAST_SESSIONS_MAX,
   PastSessionSchema,
+  PastSessionSetTagsSchema,
   PastSessionsFileSchema
 } from './pastSession'
 
@@ -62,5 +63,22 @@ describe('PastSessionSchema', () => {
     expect(PAST_SESSIONS_MAX).toBe(200)
     expect(PastSessionsFileSchema.safeParse({ version: 1, sessions: [ROW] }).success).toBe(true)
     expect(PastSessionsFileSchema.safeParse({ version: 2, sessions: [] }).success).toBe(false)
+  })
+})
+
+describe('PastSessionSetTagsSchema', () => {
+  it('rejects an extra key', () => {
+    expect(PastSessionSetTagsSchema.safeParse({ id: 's1', tagIds: [], extra: 1 }).success).toBe(
+      false
+    )
+  })
+  it('rejects an empty tag id', () => {
+    expect(PastSessionSetTagsSchema.safeParse({ id: 's1', tagIds: [''] }).success).toBe(false)
+  })
+  it('collapses duplicates', () => {
+    expect(PastSessionSetTagsSchema.parse({ id: 's1', tagIds: ['a', 'b', 'a'] }).tagIds).toEqual([
+      'a',
+      'b'
+    ])
   })
 })

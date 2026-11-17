@@ -145,6 +145,8 @@ export const CH = {
   // through the popover's own path (D-12: Open takes the view).
   pastSessionsList: 'past-sessions:list',
   pastSessionsForget: 'past-sessions:forget',
+  // Edit the tags of an ended record (a live card's tags go through `session:set-tags`).
+  pastSessionSetTags: 'past-sessions:set-tags',
   pastSessionOpen: 'past-sessions:open',
   // UX-10 — the dead pane's Resume: the conversation a dead terminal last ran (main resolves it).
   pastSessionResumeTerminal: 'past-sessions:resume-terminal',
@@ -907,7 +909,8 @@ export type {
   PastSessionForgetRequest,
   PastSessionImportRequest,
   PastSessionOpenRequest,
-  PastSessionResumeTerminalRequest
+  PastSessionResumeTerminalRequest,
+  PastSessionSetTagsRequest
 } from '../schemas/pastSession'
 
 // Workspaces — `session:set-workspace` request. Defined (via z.infer) at

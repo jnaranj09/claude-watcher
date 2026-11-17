@@ -395,3 +395,30 @@ describe('createPastSessionsStore — archive / get / remove', () => {
     expect(past.get('s1')).toBeNull()
   })
 })
+
+describe('createPastSessionsStore — setTags', () => {
+  it('setTags writes the tags and returns the list', () => {
+    const fake = fakeBlob()
+    const store = createPastSessionsStore({ blobStore: fake.blobStore })
+    store.archive(ROW)
+    const next = store.setTags('s1', ['t1', 't2'])
+    expect(next).toEqual([{ ...ROW, tagIds: ['t1', 't2'] }])
+    expect(store.get('s1')?.tagIds).toEqual(['t1', 't2'])
+    expect(JSON.stringify(fake.current())).toContain('"t2"')
+  })
+  it('throws not_found for a live record and changes nothing', () => {
+    const store = createPastSessionsStore()
+    store.markLive(ROW)
+    expect(() => store.setTags('s1', ['t1'])).toThrow('not_found')
+    expect(store.get('s1')?.tagIds).toEqual([])
+  })
+  it('throws not_found for a hidden record', () => {
+    const store = createPastSessionsStore({ workspaceExists: () => false })
+    store.archive(ROW)
+    expect(() => store.setTags('s1', ['t1'])).toThrow('not_found')
+  })
+  it('throws not_found for an unknown id', () => {
+    const store = createPastSessionsStore()
+    expect(() => store.setTags('nope', [])).toThrow('not_found')
+  })
+})

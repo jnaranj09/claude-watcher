@@ -157,6 +157,23 @@ describe('a dialog Save / Delete the disk refused is undone (UX-06)', () => {
     expect(() => s.remove('s1')).toThrow(STORE_WRITE_FAILED)
     expect(s.list()).toHaveLength(1)
   })
+
+  it("past sessions: a refused tag change keeps the record's tags", () => {
+    const b = blob()
+    const s = createPastSessionsStore({ blobStore: b.store, log })
+    s.archive({
+      id: 's1',
+      name: 'n',
+      cwd: '/w',
+      workspaceId: 'default',
+      tagIds: ['t1'],
+      launchedAt: 1,
+      endedAt: 2
+    })
+    b.fail()
+    expect(() => s.setTags('s1', ['t2'])).toThrow(STORE_WRITE_FAILED)
+    expect(s.get('s1')?.tagIds).toEqual(['t1'])
+  })
 })
 
 describe('every other write keeps the change and tells storage health (UX-06)', () => {
