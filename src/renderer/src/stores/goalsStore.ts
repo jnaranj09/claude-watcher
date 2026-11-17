@@ -87,6 +87,12 @@ export const selectLooseTasks =
   (s: GoalsState): Task[] =>
     s.tasks.filter((t) => t.workspaceId === workspaceId && t.goalId === null)
 
+/** The workspace's open tasks, goal and loose alike: the header Goals button's count. */
+export const selectOpenTaskCount =
+  (workspaceId: string) =>
+  (s: GoalsState): number =>
+    s.tasks.filter((t) => t.workspaceId === workspaceId && t.status !== 'done').length
+
 /** The proposals waiting on a goal (one per planner session on it). */
 export const selectProposalsOfGoal =
   (goalId: string) =>

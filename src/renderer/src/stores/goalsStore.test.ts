@@ -72,6 +72,24 @@ beforeEach(() => {
 })
 
 describe('goalsStore', () => {
+  it('counts open tasks of the workspace, goal and loose, not done ones or other workspaces', () => {
+    m.goalsStore
+      .getState()
+      .hydrate(
+        view(
+          [goal()],
+          [
+            task({ id: 'a', goalId: null }),
+            task({ id: 'b', goalId: 'g1' }),
+            task({ id: 'c', status: 'done' }),
+            task({ id: 'd', workspaceId: 'w2' })
+          ]
+        )
+      )
+    expect(m.selectOpenTaskCount('w1')(m.goalsStore.getState())).toBe(2)
+    expect(m.selectOpenTaskCount('w2')(m.goalsStore.getState())).toBe(1)
+  })
+
   it('subscribes to the push once, at module load', () => {
     expect(bridge.onChanged).toHaveBeenCalledTimes(1)
   })

@@ -411,7 +411,7 @@ lit>`, word + 16px filter-list icon, 32px (same as the search box beside it — 
 ## Header ☰ menu (`components/AppMenu/AppMenu.tsx`)
 
 The header holds the `Goals` icon button (lucide `circle-check-big`, a Button `reveal`: its name
-`Goals` slides out on hover or focus, lit while the sheet is open; it opens AND closes the Goals sheet,
+`Goals` slides out on hover or focus, lit while the sheet is open, with the active workspace's open-task count as a `CountPill` between the icon and the name, none at 0; it opens AND closes the Goals sheet,
 `ManageDialog.Frame size="drop"`: rendered inside `<main>`, it floats a page gutter under the header
 (never touching it), centred, 75% of the body each way (goals rail 2fr : tasks 3fr), and the header stays in view — only its other controls go inert), `+ New session` and this ☰ menu, last. The menu filters nothing.
 The Goals sheet's rail starts with `Daily tasks` (the tasks with no goal): it is open on every open
@@ -613,7 +613,7 @@ Reopen the app to try again.`); each dialog says `Could not load <x>.`
   ROUND `secondary` — the ☰'s look as a circle in every theme; `ghost` stays for icons inside a
   card or row. `reveal="<name>"` = an icon button whose name slides out to the right of the icon on
   hover or keyboard focus (the focused bar's Context / Shell / Tasks / Archive / Delete, the
-  header's Goals); the name is the button's text, so it needs no `aria-label`. `count={{ value, label, kind }}` (reveal only) adds a `CountPill` between the icon and the name (Goals' open tasks), `aria-hidden` with `, {label}` in the name; nothing at 0. `lit` = toggle ON
+  header's Goals); the name is the button's text, so it needs no `aria-label`. `count={{ value, label, kind }}` (reveal only) adds a `CountPill` between the icon and the name (Goals' open tasks), `aria-hidden` with `, {label}` in the name; nothing at 0; on a `lit` button the grey pill swaps its fill and ink. `lit` = toggle ON
   (`data-lit` present only when on — test `hasAttribute`). The favorite pin (`FavoriteToggle`) is
   `ghost xs icon` with `aria-pressed`; its filled pin IS the on look, never `lit`. **No `className`** — layout goes on a
   wrapper. Refs via `buttonRef`. `Button.test.tsx` fails on any other button class.

@@ -6,6 +6,8 @@ import { act } from 'react'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { unmountRendered } from './test/renderComponent'
+import { goalsStore, loadGoals } from './stores/goalsStore'
+import { workspacesStore } from './stores/workspacesStore'
 import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 
 beforeEach(() => {
@@ -66,5 +68,103 @@ describe('App — the Goals button', () => {
     expect(screen.queryByTestId('goals-overlay')).not.toBeInTheDocument()
     expect(goals).toHaveAttribute('aria-expanded', 'false')
     expect(actions).not.toHaveAttribute('inert')
+  })
+})
+
+describe('App — the Goals button count', () => {
+  const task = (id: string, over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    id,
+    workspaceId: 'default',
+    goalId: null,
+    title: id,
+    status: 'open',
+    sessionIds: [],
+    createdAt: 1,
+    doneAt: null,
+    doneBy: null,
+    check: null,
+    leftWith: null,
+    lastSeenAt: null,
+    report: null,
+    originSessionId: null,
+    folder: null,
+    ...over
+  })
+  const view = (tasks: unknown[]): unknown => ({
+    goals: [],
+    tasks,
+    proposals: [],
+    fileProblems: []
+  })
+  const three = [task('a'), task('b'), task('c'), task('x', { workspaceId: 'w2' })]
+  // The pill is the only bare number in the button (its name is the text `Goals`).
+  const pill = (): HTMLElement | null =>
+    within(screen.getByTestId('header-goals')).queryByText(/^\d+$/)
+  const pillCount = (): string | null => pill()?.getAttribute('data-count') ?? null
+
+  beforeEach(() => {
+    workspacesStore.setState({ activeId: 'default' })
+    goalsStore.getState().hydrate({ goals: [], tasks: [], proposals: [], fileProblems: [] })
+  })
+
+  it('the Goals button shows the open-task count of the active workspace', async () => {
+    stubAppBridges({ goals: { list: () => Promise.resolve(view(three) as never) } })
+    await renderApp()
+    await act(async () => {
+      await loadGoals()
+    })
+    expect(pill()).toHaveTextContent('3')
+    expect(pillCount()).toBe('open-tasks')
+    expect(screen.getByTestId('header-goals')).toHaveAccessibleName('Goals, 3 open tasks')
+  })
+
+  it('no pill when every task is done', async () => {
+    stubAppBridges({
+      goals: { list: () => Promise.resolve(view([task('a', { status: 'done' })]) as never) }
+    })
+    await renderApp()
+    await act(async () => {
+      await loadGoals()
+    })
+    expect(pill()).toBeNull()
+  })
+
+  it('the count follows a goals push', async () => {
+    stubAppBridges({ goals: { list: () => Promise.resolve(view(three) as never) } })
+    await renderApp()
+    await act(async () => {
+      await loadGoals()
+    })
+    // goalsStore subscribes to the push once, at module load (goalsStore.test pins that), and
+    // the push handler is `hydrate`: calling it is what a push does.
+    act(() => {
+      goalsStore
+        .getState()
+        .hydrate(view([task('a'), task('b'), task('c', { status: 'done' })]) as never)
+    })
+    expect(pill()).toHaveTextContent('2')
+  })
+
+  it('the count follows a workspace switch', async () => {
+    stubAppBridges({ goals: { list: () => Promise.resolve(view(three) as never) } })
+    await renderApp()
+    await act(async () => {
+      await loadGoals()
+    })
+    act(() => {
+      workspacesStore.setState({ activeId: 'w2' })
+    })
+    expect(pill()).toHaveTextContent('1')
+    expect(screen.getByTestId('header-goals')).toHaveAccessibleName('Goals, 1 open task')
+  })
+
+  it('no pill when the goals load failed', async () => {
+    stubAppBridges({ goals: { list: () => Promise.reject(new Error('x')) } })
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await renderApp()
+    await act(async () => {
+      await loadGoals()
+    })
+    expect(pill()).toBeNull()
   })
 })

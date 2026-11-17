@@ -330,6 +330,17 @@ describe('Button owns every button style', () => {
     )
   })
 
+  // The lit button is a light fill with dark ink (`--text-on-lit`); the grey pill's own light ink
+  // on its translucent fill measured ~1.6:1 there (liquid glass), so a lit button inverts it.
+  it('inverts the grey count pill on a lit button', () => {
+    const rule = cssRule(
+      'components/Button/Button.module.css',
+      ".button[data-lit] [data-count='open-tasks']"
+    )
+    expect(rule).toMatch(/background: var\(--text-on-lit\);/)
+    expect(rule).toMatch(/color: var\(--text-primary\);/)
+  })
+
   it('opens the reveal name on hover and on keyboard focus', () => {
     expect(cssRule('components/Button/Button.module.css', '.revealTrack')).toMatch(
       /grid-template-columns: 0fr;/

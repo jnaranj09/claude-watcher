@@ -122,6 +122,8 @@ import { submitLaunch, submitRename } from './lib/namePromptFlow'
 import { moveCardToWorkspace } from './lib/cardActions'
 import { runStartupLoads } from './lib/startupLoads'
 import { toast } from './stores/toastStore'
+import { selectOpenTaskCount, useGoals } from './stores/goalsStore'
+import { selectActiveWorkspaceId, useWorkspaces } from './stores/workspacesStore'
 import { openMemoryForSession, showExtractResult } from './lib/memoryToasts'
 import { useAsyncAction } from './hooks/useAsyncAction'
 
@@ -196,6 +198,8 @@ function App(): React.JSX.Element {
   // Workspaces — whether the Manage-workspaces dialog is open.
   const workspacesDialogOpen = useBoard(selectWorkspacesDialogOpen)
   const goalsDialogOpen = useBoard(selectGoalsDialogOpen)
+  const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
+  const openTaskCount = useGoals(selectOpenTaskCount(activeWorkspaceId))
   // Memory — whether the Memory dialog is open.
   const memoryDialogOpen = useBoard(selectMemoryDialogOpen)
   // Tags — the Tags dialog's open page (Tags · Rules), or null.
@@ -737,11 +741,17 @@ function App(): React.JSX.Element {
         </div>
         <div className={styles.headerActions}>
           {/* Goals opens and closes the planning sheet under the header (spec 2026-10-19-goals): an
-              icon button whose name slides out on hover or focus, lit while the sheet is open. */}
+              icon button whose name slides out on hover or focus, lit while the sheet is open, with
+              the active workspace's open-task count as a pill (none at 0). */}
           <Button
             variant="secondary"
             reveal={GOAL_TERMS.label}
             lit={goalsDialogOpen}
+            count={{
+              value: openTaskCount,
+              label: GOAL_TERMS.openTasks(openTaskCount),
+              kind: 'open-tasks'
+            }}
             testId="header-goals"
             aria-expanded={goalsDialogOpen}
             onClick={handleToggleGoals}

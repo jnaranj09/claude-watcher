@@ -37,6 +37,8 @@ export const GOAL_TERMS = {
   label: 'Goals',
   /** The filter bar's type row and the pill's first word. */
   filterLabel: 'Goal',
+  /** The header Goals button's count, read aloud after its name: `Goals, 3 open tasks`. */
+  openTasks: (n: number): string => `${n} open ${n === 1 ? 'task' : 'tasks'}`,
   newGoal: '+ New goal',
   newTask: '+ New task',
   /** The tasks with no goal (the code calls them loose): the sheet's first rail row, open on
