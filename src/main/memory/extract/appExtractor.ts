@@ -35,7 +35,8 @@ export interface AppExtractorIo {
   push: ExtractorDeps['push']
   /** claude's projects folder on disk (`transcriptLookupDepsFromFs`). */
   lookup: () => TranscriptLookupDeps
-  /** A transcript file's size (`statSync(p).size`), null when it cannot be read: a yes/no read. */
+  /** A transcript file's size (`statSync(p).size`), null when it cannot be read (the extractor
+   *  logs that, `memory_extract_seed_skipped reason=size`). */
   fileSize: ExtractorDeps['size']
   readSlice: ExtractorDeps['read']
   /** `claude --version` (R35, R37): `read` probes (and keeps the answer for the launch path too);

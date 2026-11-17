@@ -714,6 +714,14 @@ describe('an end needs a turn', () => {
     expect(h.state.get('s1')?.phase).toBe('done')
   })
 
+  it('StopFailures count nothing toward a checkpoint', async () => {
+    firstPart()
+    for (let i = 0; i < 15; i += 1) h.ex.stopFailed('s1')
+    await flush()
+    expect(h.calls).toHaveLength(0)
+    expect(h.state.get('s1')).toBeNull()
+  })
+
   it('a StopFailure counts as a turn', async () => {
     firstPart()
     h.ex.stopFailed('s1')
@@ -855,6 +863,16 @@ describe('a resumed session with no save row starts at the transcript end', () =
     h.ex.resumed('s1', 'w1')
     expect(h.state.get('s1')).toEqual(
       expect.objectContaining({ byteOffset: size, phase: 'done', workspaceId: 'w1' })
+    )
+  })
+
+  it('resumed whose transcript size cannot be read makes no row and logs it', () => {
+    oldHistory()
+    h.deps.size = () => null
+    h.ex.resumed('s1', 'w1')
+    expect(h.state.get('s1')).toBeNull()
+    expect(h.logs).toContain(
+      '[claude-watcher][memory] code=memory_extract_seed_skipped reason=size'
     )
   })
 

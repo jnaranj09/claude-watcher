@@ -168,8 +168,8 @@ it.
 **Saving by itself.** The app also saves from a session on its own: every few turns while it runs
 (the checkpoint), when it ends (Archive, `/exit`, `/clear`), and at the next start for anything
 a quit or crash left owed. An end saves only when Claude finished a turn (with Memory on) since
-the session was launched or resumed, so a session you open, only look at and archive is not
-saved. A session you resume from **Past sessions**, **Resume conversation** or **Import** that
+the session was launched or resumed, or since its last `/clear`, so a session you open, only look
+at and archive is not saved. A session you resume from **Past sessions**, **Resume conversation** or **Import** that
 has no save yet starts its save there: only what happens after the resume is saved, never its
 older conversation. A session with fewer than two prompts is not saved. A model reads
 what is new in the session's transcript and proposes what to keep; the app keeps a value only
@@ -335,8 +335,9 @@ Known limits:
   no save yet is read from the start of its transcript: only the app's resumes start a save at
   the resume.
 - Turns made while Memory was off, after a session's last save (or, with no resume between, in
-  a session with no save yet), are not left out: once Memory is on and Claude finishes a turn,
-  the next save reads from the last save (or the transcript's start), Memory-off text included.
+  a session with no save yet), are not left out: when Claude finished any turn with Memory on
+  since that save, before or after the Memory-off turns, the next save with Memory on reads from
+  the last save (or the transcript's start), Memory-off text included.
 - Going back to an older version keeps Past sessions, Goals and Settings readable: it drops the
   memory settings and task fields it does not know. It will not open the newer memory database:
   it refuses it without changing it.

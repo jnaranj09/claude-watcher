@@ -642,7 +642,8 @@ const { extractor, start: startMemoryCatchUp } = createAppExtractor({
   activity: memoryActivity,
   push: (result) => extractResults.push(result),
   lookup: () => transcriptLookupDepsFromFs(),
-  // A yes/no read: a file that cannot be stat'ed has no size to start from (no log).
+  // A file that cannot be stat'ed has no size to start from: null, which the extractor logs
+  // (`memory_extract_seed_skipped reason=size`).
   fileSize: (p) => {
     try {
       return statSync(p).size

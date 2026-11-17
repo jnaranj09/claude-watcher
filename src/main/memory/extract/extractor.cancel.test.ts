@@ -199,6 +199,18 @@ describe('a session that goes away', () => {
     expect(h.state.get('s2')?.phase).toBe('done')
   })
 
+  it('a workspace delete drops the turns of its sessions', async () => {
+    conversation('s1')
+    stops(h, 's1', 1)
+    h.ex.forgetWorkspace('w1')
+    h.ex.ended('s1')
+    await h.ex.idle()
+    expect(h.calls).toHaveLength(0)
+    expect(h.logs).toContain(
+      '[claude-watcher][memory] code=memory_extract_skipped reason=no_activity'
+    )
+  })
+
   it('Memory switched off between two chunks stops the job before its next call and closes an end as off (R2)', async () => {
     for (let i = 0; i < 30; i += 1) h.write('s1', prompt(`step ${i} ${'word '.repeat(780)}`))
     // After the first call, its write asks for the card's stamp: Memory goes off right then.

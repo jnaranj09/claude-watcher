@@ -313,7 +313,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   start (`claudeSpawnCommand` → `memoryResumed` → `Extractor.resumed` → `ExtractState.seedAt`, a
   `done` row with no meta, `ON CONFLICT DO NOTHING`), Memory on or off and in the spawn's resolved
   workspace, so only text after the resume is saved; no row is made with the database closed or
-  no transcript (or an empty one); an in-claude `/resume` is not seeded. Catch-up: the start saves every row the
+  no transcript (or an empty one), and a found transcript whose size cannot be read logs
+  `memory_extract_seed_skipped reason=size`; an in-claude `/resume` is not seeded. Catch-up: the start saves every row the
   last run owed, after the goals and past-sessions stores exist (`memory_catchup_not_ready`
   otherwise). A checkpoint needs Memory on, the database open and a live app-launched card; an
   end needs a turn, then the same; an end after a turn, or a catch-up, with Memory off writes `off`
@@ -385,7 +386,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `spawn`/`timeout`/`exit`/`envelope`/`output`/`cancelled`, `claude_version`, `write` R21,
   `internal` R32), `memory_extract_invalid path= issue=`, `memory_extract_gave_up`,
   `memory_extract_no_transcript`, `memory_extract_skipped reason=off|guard|not_launched|nothing_new|no_activity`,
-  `memory_extract_queue_full`, `memory_extract_end_missing`, `memory_extract_state_invalid count=`
+  `memory_extract_queue_full`, `memory_extract_end_missing`,
+  `memory_extract_seed_skipped reason=size` (a resume seed with no size), `memory_extract_state_invalid count=`
   (a bad save row is skipped, R33), `memory_candidates_dropped reason= count=`,
   `memory_extract_cancelled`, `memory_extract_result_invalid` (the push),
   `memory_extract_result_held_dropped` (a full hold in main or the preload buffer drops its oldest),
@@ -399,11 +401,12 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   inside claude is saved at the next start, and one with no save row is read from the start of
   its transcript (only a resume spawn is seeded); the start's catch-up has no cap on how many owed
   sessions it saves; a session with turns while Memory was off after its last save point (a
-  session with no row, not seeded since, or one with a row), then Memory on and a turn, is saved
-  from its row's offset (0 with no row), so its Memory-off text is read (existing before the
-  resume seed; fixing it needs to know whether Memory was ever off for the card, and seeding at
-  the first Memory-on `Stop` would drop a normal session's first turn); there is no job watchdog
-  beyond the call's own time limit. A
+  session with no row, not seeded since, or one with a row) is saved from its row's offset (0
+  with no row) by its next save that runs, so its Memory-off text is read: any turn with Memory
+  on since that save point, before or after the Memory-off turns, lets an end with Memory on run
+  (older behaviour, not from the resume seed or the turn rule; fixing it needs to know whether
+  Memory was ever off for the card, and seeding at the first Memory-on `Stop` would drop a normal
+  session's first turn); there is no job watchdog beyond the call's own time limit. A
   deleted session (Past sessions `Forget`, or a card's `Delete`) has its save forgotten and keeps
   its items and commands, marked
   `Session deleted` (`pastSessions.ts` `onRemove` → `markSessionsDeletedInMemory`), and so does a

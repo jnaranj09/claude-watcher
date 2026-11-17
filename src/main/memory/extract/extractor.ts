@@ -73,7 +73,9 @@ export interface Extractor {
   /** A resume spawn (`resumeSessionId`) of `sessionId` into `workspaceId`: a session with no save
    *  row gets one at its transcript's current size (`ExtractState.seedAt`), so its history from
    *  before the resume is never read; a session with a row, no transcript or an empty one, or the
-   *  database not open: nothing. Memory off seeds too: it records a position only. */
+   *  database not open: nothing; a size that cannot be read: nothing, logged
+   *  (`memory_extract_seed_skipped reason=size`). Memory off seeds too: it records a position
+   *  only. */
   resumed(sessionId: string, workspaceId: string): void
   /** The card left with reason `archive`, or `/clear` ended this id: an end. Called while the
    *  card still holds this id (before `rebind`), since it reads the card's stamp. An end needs a
@@ -264,7 +266,13 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
         const path = deps.locate(sessionId)
         if (path === null) return
         const size = deps.size(path)
-        if (size === null || size === 0) return
+        if (size === null) {
+          // The file was found but its size could not be read: no seed, so the session's next
+          // save reads it from the start. Logged, since that is the bug the seed prevents.
+          log('memory_extract_seed_skipped reason=size')
+          return
+        }
+        if (size === 0) return
         mem.state.seedAt({ sessionId, workspaceId, byteOffset: size, at: deps.now() })
       }),
 

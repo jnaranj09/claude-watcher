@@ -2,7 +2,8 @@
 // is asked once per 10 minutes and never costs an attempt, a corrupt save row never stops the
 // catch-up of the others, a second end with no turn since or with an end already owed makes no
 // job, and a `/clear` reported in the wrong order keeps the old transcript owed. R49: a session
-// that never said anything ends quietly when it has no transcript. Same harness as the other extractor tests.
+// that never said anything ends quietly when it has no transcript. Same harness as the other
+// extractor tests.
 import { beforeEach, describe, expect, it } from 'vitest'
 import { NO_COUNTS } from '../../../shared/schemas/memory'
 import { EXTRACT_LIMITS } from '../../../shared/schemas/memoryExtract'
@@ -224,6 +225,25 @@ describe('/clear in the wrong order', () => {
     start.catchUp()
     await start.idle()
     expect(h.state.get('old')?.counts.specifics).toBe(1)
+  })
+
+  it('a rebind before the end leaves the turn with the old id', async () => {
+    conversation('old')
+    h.meta.set('old', META)
+    h.meta.set('new', META)
+    stops(h, 'old', 1)
+    h.ex.rebind('old', 'new')
+    h.ex.ended('old')
+    await flush()
+    expect(h.calls).toHaveLength(1)
+    h.ex.ended('new')
+    await h.ex.idle()
+    expect(
+      h.logs.filter(
+        (l) => l === '[claude-watcher][memory] code=memory_extract_skipped reason=no_activity'
+      )
+    ).toHaveLength(1)
+    expect(h.calls).toHaveLength(1)
   })
 
   it('a rebind after the end logs nothing', async () => {
