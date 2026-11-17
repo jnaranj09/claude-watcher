@@ -1,8 +1,8 @@
 // The extractor's fix round 1 (rulings R30–R34): a given-up chunk is a failure, a too-old claude
 // is asked once per 10 minutes and never costs an attempt, a corrupt save row never stops the
-// catch-up of the others, a second end with nothing new makes no job, and a `/clear` reported in
-// the wrong order keeps the old transcript owed. R49: a session that never said anything ends
-// quietly when it has no transcript. Same harness as the other extractor tests.
+// catch-up of the others, a second end with no turn since or with an end already owed makes no
+// job, and a `/clear` reported in the wrong order keeps the old transcript owed. R49: a session
+// that never said anything ends quietly when it has no transcript. Same harness as the other extractor tests.
 import { beforeEach, describe, expect, it } from 'vitest'
 import { NO_COUNTS } from '../../../shared/schemas/memory'
 import { EXTRACT_LIMITS } from '../../../shared/schemas/memoryExtract'
@@ -105,6 +105,7 @@ describe('R31: a too-old answer is kept for 10 minutes', () => {
   it('a job within 10 minutes is not asked again; one after 10 minutes is', async () => {
     h.set.version = false
     conversation('s1')
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await h.ex.idle()
     h.clock.now += EXTRACT_LIMITS.versionRecheckMs - 1
@@ -138,10 +139,11 @@ describe('R33: a corrupt save row', () => {
   })
 })
 
-describe('R34: an end with nothing new', () => {
-  it('a second end with nothing new makes no job, no call and no push', async () => {
+describe('R34: a second end', () => {
+  it('a second end with no turn since the first makes no job, no call and no push', async () => {
     conversation('s1')
     h.answers.push(answer([episode('api port', 'The api port moved.', 'moved the api')]))
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await h.ex.idle()
     h.ex.ended('s1')
@@ -150,7 +152,7 @@ describe('R34: an end with nothing new', () => {
     expect(h.pushed).toHaveLength(1)
     expect(h.logs.filter((l) => l.includes('memory_extract_started'))).toHaveLength(1)
     expect(h.logs).toContain(
-      '[claude-watcher][memory] code=memory_extract_skipped reason=nothing_new'
+      '[claude-watcher][memory] code=memory_extract_skipped reason=no_activity'
     )
   })
 
@@ -159,31 +161,43 @@ describe('R34: an end with nothing new', () => {
     h.meta.set('s0', META)
     conversation('s0', 'the db listens on port 5433')
     conversation('s1')
+    stops(h, 's0', 1)
     h.ex.ended('s0')
+    stops(h, 's1', 1)
     h.ex.ended('s1')
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     h.set.manual = false
     h.calls[0]?.resolve(answer([]))
     await h.ex.idle()
     expect(h.calls).toHaveLength(2)
     expect(h.pushed.map((p) => p.trigger)).toEqual(['end', 'end'])
+    expect(h.logs).toContain(
+      '[claude-watcher][memory] code=memory_extract_skipped reason=nothing_new'
+    )
   })
 
   it('a second end while the first runs makes no second job and no second push', async () => {
     h.set.manual = true
     conversation('s1')
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await flush()
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     h.calls[0]?.resolve(answer([episode('api port', 'The api port moved.', 'moved the api')]))
     await h.ex.idle()
     expect(h.calls).toHaveLength(1)
     expect(h.pushed).toHaveLength(1)
     expect(h.setMemory).toHaveBeenLastCalledWith('s1', expect.objectContaining({ state: 'saved' }))
+    expect(h.logs).toContain(
+      '[claude-watcher][memory] code=memory_extract_skipped reason=nothing_new'
+    )
   })
 
   it('a resumed session with a new turn ends normally', async () => {
     conversation('s1')
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await h.ex.idle()
     h.write('s1', prompt('the api listens on port 9281 again'), said('ok'))
@@ -215,6 +229,7 @@ describe('/clear in the wrong order', () => {
   it('a rebind after the end logs nothing', async () => {
     conversation('old')
     h.meta.set('old', META)
+    stops(h, 'old', 1)
     h.ex.ended('old')
     h.ex.rebind('old', 'new')
     await h.ex.idle()
@@ -226,6 +241,7 @@ describe('what the reviewer found untested', () => {
   it('the substance guard waits for a read that left lines unread', async () => {
     conversation('s1')
     h.set.linesPerRead = 2
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await h.ex.idle()
     expect(h.calls).toHaveLength(1)

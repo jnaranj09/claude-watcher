@@ -301,12 +301,17 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   Nth `Stop` since its last save point (`settings.memoryCheckpoint`, 0 = never), counted after its
   status is shipped. End: once per card exit (archive, a pty exit after `/exit` included) and once
   per `/clear`, each while the card still holds the id: the kept `SessionEnd` calls `ended(old)`
-  BEFORE the rebind moves the card (R34; a rebind that finds the old row still owed keeps it owed
-  for the next start and logs `memory_extract_end_missing`); a second end with nothing new makes
-  no job (`memory_extract_skipped reason=nothing_new`). Catch-up: the start saves every row the
+  BEFORE the rebind moves the card (R34; a rebind that finds the old row still owed, with no job
+  of the old id queued or running, keeps it owed for the next start and logs
+  `memory_extract_end_missing`). An end needs a finished turn (`Stop`, or `StopFailure` through
+  `stopFailed`, either while Memory was on) since launch or resume, or since that id's last end
+  (`rebind` does not carry it): with none it makes no job, no row and no record, not even `off`
+  (`memory_extract_skipped reason=no_activity`); an end while one of the same id is already queued
+  or running makes no second job (`reason=nothing_new`). Catch-up: the start saves every row the
   last run owed, after the goals and past-sessions stores exist (`memory_catchup_not_ready`
-  otherwise). A checkpoint or an end needs Memory on, the database open and a live app-launched
-  card; an end or a catch-up with Memory off writes `off` on the record and closes the row (R2).
+  otherwise). A checkpoint needs Memory on, the database open and a live app-launched card; an
+  end needs a turn, then the same; an end after a turn, or a catch-up, with Memory off writes `off`
+  on the record and closes the row (R2).
   The transcript is found by its id (`locateTranscript`, D1), never by a hook's `transcript_path`,
   read once per job from the row's byte offset (`transcriptReader.ts`, at most
   `EXTRACT_LIMITS.readBytesPerJob`), cleaned (`sliceCleaner.ts`: no thinking, web, MCP,
@@ -373,7 +378,7 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `memory_extract_done trigger= saved= dropped=`, `memory_extract_failed reason=` (the call's
   `spawn`/`timeout`/`exit`/`envelope`/`output`/`cancelled`, `claude_version`, `write` R21,
   `internal` R32), `memory_extract_invalid path= issue=`, `memory_extract_gave_up`,
-  `memory_extract_no_transcript`, `memory_extract_skipped reason=off|guard|not_launched|nothing_new`,
+  `memory_extract_no_transcript`, `memory_extract_skipped reason=off|guard|not_launched|nothing_new|no_activity`,
   `memory_extract_queue_full`, `memory_extract_end_missing`, `memory_extract_state_invalid count=`
   (a bad save row is skipped, R33), `memory_candidates_dropped reason= count=`,
   `memory_extract_cancelled`, `memory_extract_result_invalid` (the push),
@@ -381,9 +386,12 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `memory_task_write_failed`, `memory_cascade_failed step=forget|rows` (a workspace delete's memory
   step; `memoryStartup.ts` logs it with no step), `memory_extract_kill_failed signal=`
   (`headlessClaude.ts`); the Past sessions store adds `past_sessions_memory_<problem>`. Known
-  limits: a resumed turn interrupted with Esc sends no `Stop`, so its text waits for a later
-  resume's save; a `/resume` inside claude is saved at the next start; the start's catch-up has no
-  cap on how many owed sessions it saves; a session from before phase 2 that is resumed is read
+  limits: a turn interrupted with Esc sends no `Stop`, so its text waits for a later resume that
+  finishes a turn, except in a session with no save row yet (it never finished a turn while
+  Memory was on: archived or quit during its first turn, or only Esc-stopped turns), whose text
+  is never saved, since its next resume starts reading at the transcript's end; a `/resume`
+  inside claude is saved at the next start; the start's catch-up has no cap on how many owed
+  sessions it saves; a session from before phase 2 that is resumed is read
   from the start of its transcript, so old text gets today's date; there is no job watchdog beyond
   the call's own time limit. A
   deleted session (Past sessions `Forget`, or a card's `Delete`) has its save forgotten and keeps
