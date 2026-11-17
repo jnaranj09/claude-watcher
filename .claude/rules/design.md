@@ -229,7 +229,8 @@ Tags dialog rail uses `TagPathLabel` instead.
   row, `✓` at right when on, no native checkbox. Drawn with `Popover`. Filter = `menu`
   (`menuitemcheckbox`, several tags), picker = `group` (`role="checkbox"`). The picker's list (a
   card's `Tags…`, the rail peek's `+ tag`) is portaled to `document.body` and placed under its
-  trigger, right edges lined up, by `useAnchoredPlacement`, as `Select`'s list is: drawn inside
+  trigger, right edges lined up (left edges when that would leave the window: the rail's `+ tag`
+  sits near its left edge), by `useAnchoredPlacement`, as `Select`'s list is: drawn inside
   its anchor, a form's scroll body would cut it. Out of the DOM order, it takes focus when it
   opens (its first row, or the list itself when no tag is in scope); Escape, or Tab past either
   end, closes it and hands focus back to its trigger. The filter's list stays under its pill.

@@ -1,5 +1,6 @@
 // Where a portaled popover sits: under its trigger, or over it when there is no room below, and
-// never taller than the room it got. A popover drawn INSIDE its caller is cut by the first
+// never taller than the room it got. Lined up with the trigger edge the caller asks for, or the
+// other edge when the asked one would push it out of the window. A popover drawn INSIDE its caller is cut by the first
 // ancestor that clips (the Settings pane scrolls, the dead terminal frame is `overflow: clip`) and
 // by the window edge (the empty board's `+ New session` sits low). So the caller portals its
 // wrapper to document.body, gives it `position: fixed`, and spreads the style returned here.
@@ -29,6 +30,16 @@ function naturalHeight(popup: HTMLElement): number {
   return total - list.clientHeight + listNatural
 }
 
+/** The trigger edge the popover lines up with: the asked one, unless the popover would then pass
+ *  the window's far edge and the other edge keeps it inside (the rail's `+ tag` sits near the
+ *  left edge, so its right-aligned list ran off the window). */
+function sideFor(align: 'start' | 'end', rect: DOMRect, width: number): 'start' | 'end' {
+  const fitsEnd = rect.right - width >= 0
+  const fitsStart = rect.left + width <= window.innerWidth
+  if (align === 'end') return !fitsEnd && fitsStart ? 'start' : 'end'
+  return !fitsStart && fitsEnd ? 'end' : 'start'
+}
+
 export function useAnchoredPlacement(
   open: boolean,
   triggerRef: RefObject<HTMLElement | null>,
@@ -53,10 +64,10 @@ export function useAnchoredPlacement(
         ? { top: rect.bottom + GAP, maxHeight: Math.max(0, below) }
         : { bottom: window.innerHeight - rect.top + GAP, maxHeight: Math.max(0, above) }
       const horizontal: CSSProperties =
-        align === 'end'
-          ? { right: window.innerWidth - rect.right }
-          : align === 'center'
-            ? { left: rect.left + rect.width / 2, transform: 'translateX(-50%)' }
+        align === 'center'
+          ? { left: rect.left + rect.width / 2, transform: 'translateX(-50%)' }
+          : sideFor(align, rect, popup.getBoundingClientRect().width) === 'end'
+            ? { right: window.innerWidth - rect.right }
             : { left: rect.left }
       setStyle({ ...vertical, ...horizontal, minWidth: rect.width })
     }

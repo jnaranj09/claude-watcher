@@ -228,6 +228,19 @@ describe('TagPicker — portaled under its trigger', () => {
     expect(wrap()).not.toHaveStyle({ visibility: 'hidden' })
   })
 
+  // The rail's `+ tag` sits near the window's left edge: lined up by right edges, the list ran off
+  // the window (owner screenshot, 2026-11-16).
+  it("lines up left edges when right-aligning would push the list past the window's left edge", () => {
+    const NEAR_LEFT = { top: 100, bottom: 128, left: 40, right: 90, width: 50, height: 28 }
+    const { wrap } = renderWithTrigger(() => NEAR_LEFT)
+    wrap().getBoundingClientRect = () => ({ width: 240, height: 120 }) as DOMRect
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
+    expect(wrap()).toHaveStyle({ left: `${NEAR_LEFT.left}px` })
+    expect(wrap()).not.toHaveStyle({ right: `${window.innerWidth - NEAR_LEFT.right}px` })
+  })
+
   it("keeps the list's own minimum width, not the small trigger's", () => {
     const { wrap } = renderWithTrigger(() => AT)
     expect(wrap()).not.toHaveStyle({ minWidth: `${AT.width}px` })

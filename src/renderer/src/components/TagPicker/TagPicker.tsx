@@ -57,7 +57,8 @@ export interface TagPickerProps {
   /** The element holding the trigger — a mousedown outside it and outside the list closes the
    *  list. */
   anchorRef: RefObject<HTMLElement | null>
-  /** The button that opens the list: the list sits under it, its right edges lined up. */
+  /** The button that opens the list: the list sits under it, its right edges lined up (left edges when
+   *  that would leave the window). */
   triggerRef: RefObject<HTMLElement | null>
   testId: string
   /** The accessible name, e.g. "Tags for billing api". */
