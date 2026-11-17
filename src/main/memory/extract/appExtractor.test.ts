@@ -64,6 +64,7 @@ function app(
     activity: h.activity,
     push: () => true,
     lookup,
+    fileSize: h.deps.size,
     readSlice: h.deps.read,
     version: { read: versionReads, held: () => undefined },
     shell: '/bin/sh',
@@ -104,6 +105,7 @@ describe('the app extractor', () => {
     const a = app(h)
     const { extractor } = createAppExtractor(a.io)
     conversation(h)
+    extractor.stop(ID)
     extractor.ended(ID)
     await flush()
     expect(a.spawned).toHaveLength(1)
@@ -116,6 +118,7 @@ describe('the app extractor', () => {
     const a = app(h)
     const { extractor } = createAppExtractor(a.io)
     conversation(h)
+    extractor.stop(ID)
     extractor.ended(ID)
     await flush()
     expect(a.mkdirs).toEqual([['/data/app/memory-extract', { recursive: true, mode: 0o700 }]])
@@ -140,6 +143,7 @@ describe('the app extractor', () => {
     })
     for (const id of IDS) {
       conversation(h, id)
+      extractor.stop(id)
       extractor.ended(id)
     }
     await extractor.idle()
@@ -152,6 +156,7 @@ describe('the app extractor', () => {
     const a = app(h)
     const { extractor } = createAppExtractor(a.io)
     conversation(h)
+    extractor.stop(ID)
     extractor.ended(ID)
     await flush()
     expect(a.versionReads).toHaveBeenCalledTimes(1)

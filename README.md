@@ -168,7 +168,11 @@ it.
 
 **Saving by itself.** The app also saves from a session on its own: every few turns while it runs
 (the checkpoint), when it ends (Archive, `/exit`, `/clear`), and at the next start for anything
-a quit or crash left owed. A session with fewer than two prompts is not saved. A model reads
+a quit or crash left owed. An end saves only when Claude finished a turn (with Memory on) since
+the session was launched or resumed, or since its last `/clear`, so a session you open, only look
+at and archive is not saved. A session you resume from **Past sessions**, **Resume conversation** or **Import** that
+has no save yet starts its save there: only what happens after the resume is saved, never its
+older conversation. A session with fewer than two prompts is not saved. A model reads
 what is new in the session's transcript and proposes what to keep; the app keeps a value only
 when the quote it gives is found in the transcript, and drops the rest (Context → **Memory**
 lists what was dropped and why, while the session is on the board). A save updates a fact only
@@ -180,7 +184,8 @@ session ends, a toast says how its save went: **Memory saved from "…"** with w
 and how many tasks (**Show**, offered only when something went to memory, opens Memory on that session),
 **Nothing new to remember**, or **Could not save memory**. A save at a checkpoint or at the next
 start shows a toast only when it fails. A session with no name or with fewer than two prompts
-gets no toast, and one that never got a prompt ends quietly.
+gets no toast, one that never got a prompt ends quietly, and so does one you opened and archived
+with no finished turn.
 
 **Keeping text out of memory.** Wrap text in `<private>` and `</private>` and Memory never
 reads it: a save does not send it to the model, recall does not match on it, and a Bash
@@ -322,12 +327,18 @@ Known limits:
 - **Same value** also marks two different things that share a value (two ports that are both
   `8080` in one folder), and it cannot be dismissed. It compares items of one folder only: a
   value saved again from another folder is not marked.
-- A resumed turn you stop with Esc sends no turn end, so its text is saved only after a later
-  resume.
-- A conversation switched with `/resume` inside claude is saved at the next start.
+- A turn you stop with Esc sends no turn end, so its text is saved only by a later resume that
+  finishes a turn. A session that never finished a turn while Memory was on (archived or quit
+  during its first turn, or only turns stopped with Esc) has no save yet, and its text is never
+  saved: its next resume from the app starts reading at the transcript's end.
 - A session larger than one read (32 MiB) is finished at the next start.
-- A session started before this version and resumed later is read from the start of its
-  transcript, so its old text is saved with today's date.
+- A conversation switched with `/resume` inside claude is saved at the next start, and one with
+  no save yet is read from the start of its transcript: only the app's resumes start a save at
+  the resume.
+- Turns made while Memory was off, after a session's last save (or, with no resume between, in
+  a session with no save yet), are not left out: when Claude finished any turn with Memory on
+  since that save, before or after the Memory-off turns, the next save with Memory on reads from
+  the last save (or the transcript's start), Memory-off text included.
 - Going back to an older version keeps Past sessions, Goals and Settings readable: it drops the
   memory settings and task fields it does not know. It will not open the newer memory database:
   it refuses it without changing it.

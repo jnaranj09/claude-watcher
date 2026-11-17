@@ -48,6 +48,8 @@ export interface ExtractorDeps {
   sessionMeta: (sessionId: string) => MemorySessionMeta | null
   /** The transcript's path, found by id (D1); null when there is none. */
   locate: (sessionId: string) => string | null
+  /** The transcript file's size in bytes; null when it cannot be read. */
+  size: (path: string) => number | null
   read: (path: string, fromOffset: number, maxBytes: number) => Promise<TranscriptSlice | null>
   /** false only for a claude known to be older than MIN_EXTRACT_CLAUDE_VERSION. Blocking (a login
    *  shell `--version`): called at most once per job (R7). */
@@ -62,19 +64,31 @@ export interface ExtractorDeps {
 }
 
 export interface Extractor {
-  /** A `Stop` of a launched session: counts it; at the Nth since its last save point, a checkpoint. */
+  /** A `Stop` of a launched session: with Memory on, a finished turn (the next `ended` may save)
+   *  and a count; at the Nth since its last save point, a checkpoint. */
   stop(sessionId: string): void
+  /** A `StopFailure` of a launched session (an API error ended the turn with no `Stop`, ST-3):
+   *  with Memory on, a finished turn, like `stop`, but it counts nothing toward a checkpoint. */
+  stopFailed(sessionId: string): void
+  /** A resume spawn (`resumeSessionId`) of `sessionId` into `workspaceId`: a session with no save
+   *  row gets one at its transcript's current size (`ExtractState.seedAt`), so its history from
+   *  before the resume is never read; a session with a row, no transcript or an empty one, or the
+   *  database not open: nothing; a size that cannot be read: nothing, logged
+   *  (`memory_extract_seed_skipped reason=size`). Memory off seeds too: it records a position
+   *  only. */
+  resumed(sessionId: string, workspaceId: string): void
   /** The card left with reason `archive`, or `/clear` ended this id: an end. Called while the
-   *  card still holds this id (before `rebind`), since it reads the card's stamp. An end with
-   *  nothing new since the last one of this id (its row `done`, no `Stop` since), or with an end
-   *  already queued or running, makes no job (R34). */
+   *  card still holds this id (before `rebind`), since it reads the card's stamp. An end needs a
+   *  finished turn (`stop` or `stopFailed` with Memory on) since this spawn or this id's last end:
+   *  with none it makes no job, no row and no record (`reason=no_activity`). An end with one
+   *  already queued or running makes no second job (R34, `reason=nothing_new`). */
   ended(sessionId: string): void
   /** Card Delete, `Forget`, a dropped record: cancel its job, delete its rows. */
   forget(sessionId: string): void
   forgetWorkspace(workspaceId: string): void
   /** `/clear`: the card's id changed. Rows, queued jobs and a running job follow. Call it after
    *  `ended(oldId)`; called first, the old transcript's row is kept owed for the next start
-   *  (`code=memory_extract_end_missing`). */
+   *  (`code=memory_extract_end_missing`), unless a job of the old id is queued or running. */
   rebind(oldId: string, newId: string): void
   /** Memory was switched off (R51): `cancel()` on the running call; the job then writes nothing
    *  of it, and every queued job stops at its own check. */
@@ -83,7 +97,7 @@ export interface Extractor {
   catchUp(): void
   /** The app is quitting: `killNow()` on the running call (R17: SIGKILL to its group at once,
    *  synchronously; never `cancel()`, whose SIGKILL timer dies with the app), start nothing more.
-   *  `ended` after this only marks the row `ending`. */
+   *  `ended` after this (only after a turn) only marks the row `ending`. */
   quit(): void
   /** Resolves when nothing is queued or running. A test keeps this on purpose. */
   idle(): Promise<void>
@@ -119,6 +133,10 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
   let quitting = false
   /** `Stop`s since the last save point, by card id. */
   const stops = new Map<string, number>()
+  /** Card ids with a finished turn (`Stop` or `StopFailure`) while Memory was on, since this
+   *  spawn or the id's last end. `rebind` does not move it: after `ended(old)` the new
+   *  conversation has had no turn. */
+  const turned = new Set<string>()
   const shared: JobRun['shared'] = { versionPushed: false, versionBadAt: null }
   let waiters: (() => void)[] = []
 
@@ -135,10 +153,14 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
     }
   }
 
+  /** A job of this transcript is queued or running. */
+  function jobOf(id: string): Job | undefined {
+    return running?.id === id ? running : queue.find((j) => j.id === id)
+  }
+
   /** An end of this transcript is queued or running. */
   function endOwed(id: string): boolean {
-    const job = running?.id === id ? running : queue.find((j) => j.id === id)
-    return job !== undefined && job.trigger === 'end'
+    return jobOf(id)?.trigger === 'end'
   }
 
   function settleIdle(): void {
@@ -218,7 +240,9 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
   return {
     stop: (sessionId) =>
       guarded(() => {
-        if (!deps.enabled() || tracked(sessionId, 'live') === null || quitting) return
+        if (!deps.enabled()) return
+        turned.add(sessionId)
+        if (tracked(sessionId, 'live') === null || quitting) return
         const every = deps.checkpoint()
         if (every === 0) return
         const count = (stops.get(sessionId) ?? 0) + 1
@@ -230,9 +254,37 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
         enqueue(sessionId, 'checkpoint')
       }),
 
+    stopFailed: (sessionId) =>
+      guarded(() => {
+        if (deps.enabled()) turned.add(sessionId)
+      }),
+
+    resumed: (sessionId, workspaceId) =>
+      guarded(() => {
+        const mem = deps.memory()
+        if (mem === null || mem.state.get(sessionId) !== null) return
+        const path = deps.locate(sessionId)
+        if (path === null) return
+        const size = deps.size(path)
+        if (size === null) {
+          // The file was found but its size could not be read: no seed, so the session's next
+          // save reads it from the start. Logged, since that is the bug the seed prevents.
+          log('memory_extract_seed_skipped reason=size')
+          return
+        }
+        if (size === 0) return
+        mem.state.seedAt({ sessionId, workspaceId, byteOffset: size, at: deps.now() })
+      }),
+
     ended: (sessionId) =>
       guarded(() => {
         stops.delete(sessionId)
+        if (!turned.delete(sessionId)) {
+          // No finished turn since this spawn or the last end: opened, looked at, archived.
+          // Nothing is written, so a row's offset and a record's state stay as they were.
+          log('memory_extract_skipped reason=no_activity')
+          return
+        }
         if (!deps.enabled()) {
           // R2 / D37: off means no extraction, now or at a later start.
           log('memory_extract_skipped reason=off')
@@ -243,9 +295,8 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
           mem?.state.setPhase(sessionId, 'done', deps.now())
           return
         }
-        // R34: a row closed by the last end, with no `Stop` since (a `Stop` makes it `live`
-        // again), has nothing new to read; an end already owed needs no second one.
-        if (deps.memory()?.state.get(sessionId)?.phase === 'done' || endOwed(sessionId)) {
+        // R34: an end already owed needs no second one (a queued one would merge anyway).
+        if (endOwed(sessionId)) {
           log('memory_extract_skipped reason=nothing_new')
           return
         }
@@ -259,6 +310,7 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
     forget: (sessionId) =>
       guarded(() => {
         stops.delete(sessionId)
+        turned.delete(sessionId)
         const ids = new Set([sessionId])
         try {
           for (const id of deps.memory()?.state.remove(sessionId) ?? []) ids.add(id)
@@ -270,7 +322,10 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
     forgetWorkspace: (workspaceId) =>
       guarded(() => {
         const ids = new Set(deps.memory()?.state.removeByWorkspace(workspaceId) ?? [])
-        for (const id of ids) stops.delete(id)
+        for (const id of ids) {
+          stops.delete(id)
+          turned.delete(id)
+        }
         cancelJobs(ids)
       }),
 
@@ -284,8 +339,9 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
         mem.state.rebindOrigin(oldId, newId)
         // `ended(old)` must come first. When it did not, the old transcript's row is still `live`:
         // it is kept owed (`ending`, under the card's new id) for the next start's catch-up, and
-        // the wrong order is logged.
-        if (mem.state.get(oldId)?.phase === 'live' && !endOwed(oldId)) {
+        // the wrong order is logged, only when no job of the old id is queued or running (a
+        // no-turn end of a resumed session leaves its queued catch-up to save the row).
+        if (mem.state.get(oldId)?.phase === 'live' && jobOf(oldId) === undefined) {
           log('memory_extract_end_missing')
           mem.state.setPhase(oldId, 'ending', deps.now())
         }

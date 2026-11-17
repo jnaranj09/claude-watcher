@@ -174,6 +174,9 @@ export interface LaunchIpcDeps {
     },
     previousSessionId: string | null
   ) => MemorySpawnExtras
+  /** Memory: a resume spawn of `sessionId` into `workspaceId` (`Extractor.resumed`: a session
+   *  with no save row starts its save at the transcript's current end). Never throws. */
+  memoryResumed: (sessionId: string, workspaceId: string) => void
   /** The workspace a launch that names none lands in (main's active one, read at spawn). */
   activeWorkspaceId: () => string
   /** `settings.claudeAutoMemory`, read at spawn: claude's own auto memory off, on, or left to
@@ -215,6 +218,7 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     bridgeMod,
     goalSpawnExtras,
     memorySpawnExtras,
+    memoryResumed,
     activeWorkspaceId,
     claudeAutoMemory,
     isSessionLive,
@@ -355,6 +359,7 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     bridgeMod,
     goalSpawnExtras,
     memorySpawnExtras,
+    memoryResumed,
     activeWorkspaceId,
     claudeAutoMemory,
     hookSettingsPath: hookSettingsPathForSpawn,

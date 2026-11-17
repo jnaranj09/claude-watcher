@@ -7,7 +7,8 @@
 // still holds the id. On `/clear` the kept `SessionEnd` (reason `clear`) of the OLD id ends it
 // here, before a hook of the new id adopts the card (`adoptCard` → `moveCardState` → `rebind`); on
 // a removal the end runs before the card leaves the board. Memory never moves, adds or delays a
-// status transition: a `Stop`'s status is shipped first, then it counts toward a checkpoint.
+// status transition: a `Stop`'s or a `StopFailure`'s status is shipped first, then it counts as a
+// finished turn (an end saves only after one), and a `Stop` also toward a checkpoint.
 import type { HookEvent } from '../../shared/schemas/hookEvent'
 import type { Extractor } from '../memory/extract/extractor'
 import { memoryStep } from '../memory/memoryLaunch'
@@ -25,8 +26,9 @@ function savePoint(log: (line: string) => void, call: () => void): void {
  * launch service or the terminal manager is not up): a kept `/clear` of a known, launched session
  * ends that id for memory, and nothing else runs. Any other removal is archived (the removal
  * chokepoint, `runRemoval`). Any other change is applied, and a `Stop` of a known, launched session
- * then counts toward a checkpoint. Any other kept `SessionEnd` (an `/exit` before its pty exits)
- * makes no save point: the pty's exit archives the card, and that removal ends it.
+ * then counts toward a checkpoint and as a finished turn; a `StopFailure` (an API error ended the
+ * turn, ST-3) counts only as a finished turn. Any other kept `SessionEnd` (an `/exit` before its
+ * pty exits) makes no save point: the pty's exit archives the card, and that removal ends it.
  */
 export function routeHookEnd(route: {
   sessionId: string
@@ -38,7 +40,7 @@ export function routeHookEnd(route: {
   keep: (() => boolean) | null
   archive(): void
   apply(): void
-  extractor: Pick<Extractor, 'stop' | 'ended'>
+  extractor: Pick<Extractor, 'stop' | 'stopFailed' | 'ended'>
   log: (line: string) => void
 }): void {
   const { sessionId, evt } = route
@@ -54,8 +56,11 @@ export function routeHookEnd(route: {
     return
   }
   route.apply()
-  if (route.knownLaunched && evt.hook_event_name === 'Stop') {
+  if (!route.knownLaunched) return
+  if (evt.hook_event_name === 'Stop') {
     savePoint(route.log, () => route.extractor.stop(sessionId))
+  } else if (evt.hook_event_name === 'StopFailure') {
+    savePoint(route.log, () => route.extractor.stopFailed(sessionId))
   }
 }
 

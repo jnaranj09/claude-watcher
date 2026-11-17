@@ -32,6 +32,7 @@ function deps(over: Partial<ClaudeSpawnDeps> = {}): ClaudeSpawnDeps & { skips: s
     },
     goalSpawnExtras: () => NO_GOAL,
     memorySpawnExtras: () => ({ ...NO_MEMORY_EXTRAS, env: {} }),
+    memoryResumed: () => undefined,
     activeWorkspaceId: () => 'w1',
     claudeAutoMemory: () => 'claude',
     hookSettingsPath: () => '/data/hooks.json',
@@ -131,4 +132,24 @@ describe('claudeSpawnCommand', () => {
       expect(asked).toEqual([{ cwd: '/work/app', workspaceId: 'w1', excludeTaskIds: [], resume }])
     }
   )
+
+  it('a resume spawn calls memoryResumed with the resolved workspace', () => {
+    const seen: string[][] = []
+    const d = deps({
+      activeWorkspaceId: () => 'w-active',
+      memoryResumed: (id, ws) => seen.push([id, ws])
+    })
+    claudeSpawnCommand(
+      d,
+      request({ resume: true, launch: { cwd: '/work/app', workspaceId: null } })
+    )
+    expect(seen).toEqual([[SID, 'w-active']])
+  })
+
+  it('a fresh spawn does not call memoryResumed', () => {
+    const seen: string[][] = []
+    const d = deps({ memoryResumed: (id, ws) => seen.push([id, ws]) })
+    claudeSpawnCommand(d, request({ resume: false }))
+    expect(seen).toEqual([])
+  })
 })

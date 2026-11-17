@@ -2,7 +2,7 @@ import { app, shell, BrowserWindow, ipcMain, nativeTheme, Menu } from 'electron'
 import { join } from 'path'
 import { randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, statSync } from 'node:fs'
 import { electronApp, is } from '@electron-toolkit/utils'
 import type { IPty } from 'node-pty'
 import icon from '../../resources/icon.png?asset'
@@ -642,6 +642,15 @@ const { extractor, start: startMemoryCatchUp } = createAppExtractor({
   activity: memoryActivity,
   push: (result) => extractResults.push(result),
   lookup: () => transcriptLookupDepsFromFs(),
+  // A file that cannot be stat'ed has no size to start from: null, which the extractor logs
+  // (`memory_extract_seed_skipped reason=size`).
+  fileSize: (p) => {
+    try {
+      return statSync(p).size
+    } catch {
+      return null
+    }
+  },
   readSlice: (path, fromOffset, maxBytes) =>
     readTranscriptSlice(transcriptFsOnDisk, path, fromOffset, maxBytes),
   version: { read: claudeVersionReads.read, held: claudeVersionReads.last },
@@ -1352,6 +1361,8 @@ app
           launch,
           previousSessionId
         ),
+      // A resume of a session with no memory save row starts its save at the transcript's end.
+      memoryResumed: (sessionId, workspaceId) => extractor.resumed(sessionId, workspaceId),
       activeWorkspaceId: () => requireWorkspacesStore().activeId(),
       claudeAutoMemory: () => (settingsStore?.get() ?? DEFAULT_SETTINGS).claudeAutoMemory,
       isSessionLive,

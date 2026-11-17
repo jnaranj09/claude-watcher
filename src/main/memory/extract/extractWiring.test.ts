@@ -296,6 +296,7 @@ describe('quit (R17)', () => {
     const w = wiring()
     const ex = createExtractor({ ...h.deps, call: w.call })
     conversation(h, 's1')
+    ex.stop('s1')
     ex.ended('s1')
     await flush()
     expect(w.fake.spawned).toHaveLength(1)
@@ -338,6 +339,7 @@ describe('quit (R17)', () => {
       h.meta.set('s1', META)
       const ex = createExtractor({ ...h.deps, call })
       conversation(h, 's1')
+      ex.stop('s1')
       ex.ended('s1')
       await vi.waitFor(() => expect(existsSync(mark)).toBe(true), { timeout: 10_000 })
       expect(pids).toHaveLength(1)
@@ -424,6 +426,7 @@ describe('the workspace cascade step', () => {
     h.meta.set('s1', META)
     h.set.manual = true
     conversation(h, 's1')
+    h.ex.stop('s1')
     h.ex.ended('s1')
     await flush()
     expect(h.calls).toHaveLength(1)

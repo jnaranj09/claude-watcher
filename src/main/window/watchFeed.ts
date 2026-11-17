@@ -205,9 +205,10 @@ export interface WatchFeedDeps {
   memoryActivity: MemoryActivityLog
   getMemoryStore: () => MemoryStore | null
   getMemoryCommands: () => MemoryCommands | null
-  /** Saving memory from sessions (memory phase 2): a launched session's `Stop`, its end (archive,
-   *  `/clear`) and its delete reach it here (`memorySavePoints.ts`); its save follows a `/clear`. */
-  extractor: Pick<Extractor, 'stop' | 'ended' | 'forget' | 'rebind'>
+  /** Saving memory from sessions (memory phase 2): a launched session's `Stop` or `StopFailure`,
+   *  its end (archive, `/clear`) and its delete reach it here (`memorySavePoints.ts`); its save
+   *  follows a `/clear`. */
+  extractor: Pick<Extractor, 'stop' | 'stopFailed' | 'ended' | 'forget' | 'rebind'>
 }
 
 export interface WatchFeed {
@@ -922,7 +923,8 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
         // The rest, in its one order, is `routeHookEnd` (memorySavePoints.ts, tested): keep,
         // archive, or apply, and memory's save points beside them. A kept `/clear` ends the OLD
         // id there, while the card still holds it; the rebind (`adoptCard` → `moveCardState`)
-        // comes with a later hook of the new id (R34). A `Stop` is applied first, then counted.
+        // comes with a later hook of the new id (R34). A `Stop` or `StopFailure` is applied
+        // first, then counted as a finished turn.
         routeHookEnd({
           sessionId: evt.session_id,
           evt,

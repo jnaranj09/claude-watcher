@@ -9,6 +9,7 @@ function recorder(): {
   order: string[]
   extractor: {
     stop(id: string): void
+    stopFailed(id: string): void
     ended(id: string): void
     forget(id: string): void
   }
@@ -20,6 +21,7 @@ function recorder(): {
     logs: [],
     extractor: {
       stop: (id) => void order.push(`stop:${id}`),
+      stopFailed: (id) => void order.push(`stopFailed:${id}`),
       ended: (id) => void order.push(`ended:${id}`),
       forget: (id) => void order.push(`forget:${id}`)
     }
@@ -76,8 +78,28 @@ describe('the end of the hook callback', () => {
     const r = recorder()
     route(
       r,
+      { hook_event_name: 'Notification' },
+      { removed: false, knownLaunched: true, kept: null }
+    )
+    expect(r.order).toEqual(['apply'])
+  })
+
+  it('a StopFailure of a known launched session calls stopFailed', () => {
+    const r = recorder()
+    route(
+      r,
       { hook_event_name: 'StopFailure' },
       { removed: false, knownLaunched: true, kept: null }
+    )
+    expect(r.order).toEqual(['apply', 'stopFailed:old'])
+  })
+
+  it('a StopFailure of a session the app did not launch is only applied', () => {
+    const r = recorder()
+    route(
+      r,
+      { hook_event_name: 'StopFailure' },
+      { removed: false, knownLaunched: false, kept: null }
     )
     expect(r.order).toEqual(['apply'])
   })
@@ -124,6 +146,7 @@ describe('the end of the hook callback', () => {
         stop: () => {
           throw new Error('boom')
         },
+        stopFailed: () => undefined,
         ended: () => undefined
       },
       log: (line) => void r.logs.push(line)

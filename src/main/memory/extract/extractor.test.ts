@@ -138,6 +138,7 @@ describe('an end', () => {
 
   it('an end with no candidates says nothing new', async () => {
     firstPart()
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await h.ex.idle()
     expect(h.calls).toHaveLength(1)
@@ -160,6 +161,7 @@ describe('an end', () => {
 
   it('a session under 2 prompts gets no call and no push, and its record says nothing new', async () => {
     h.write('s1', prompt('the api now listens on port 9281'), said('ok'))
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await h.ex.idle()
     expect(h.calls).toHaveLength(0)
@@ -195,15 +197,16 @@ describe('an end', () => {
     expect(h.state.get('s1')?.phase).toBe('live')
   })
 
-  it('memory off: an end writes off on the record and starts nothing', async () => {
-    h.set.enabled = false
+  it('a turn with Memory on, then Memory off: the end writes off on the record, closes the row and starts nothing', async () => {
     firstPart()
+    stops(h, 's1', 1)
+    h.set.enabled = false
     h.ex.ended('s1')
     await h.ex.idle()
     expect(h.setMemory).toHaveBeenCalledWith('s1', { state: 'off', ...NO_COUNTS, episodeId: null })
     expect(h.calls).toHaveLength(0)
     expect(h.pushed).toEqual([])
-    expect(h.state.get('s1')).toBeNull()
+    expect(h.state.get('s1')?.phase).toBe('done')
   })
 
   it('memory off at the end: the row is done, and a later start with memory on catches nothing up', async () => {
@@ -227,6 +230,7 @@ describe('an end', () => {
       `CREATE TRIGGER refuse_items BEFORE INSERT ON item BEGIN SELECT RAISE(ABORT, 'refused'); END`
     )
     h.answers.push(answer([API]))
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await h.ex.idle()
     const row = h.state.get('s1')
@@ -246,6 +250,7 @@ describe('an end', () => {
     firstPart()
     h.write('s1', prompt('the db listens on port 5433 too'), said('noted the db port'))
     h.set.linesPerRead = 4
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await h.ex.idle()
     expect(h.calls).toHaveLength(1)
@@ -310,6 +315,7 @@ describe('an end', () => {
     h.meta.set('s1', { ...META, sessionName: '' })
     firstPart()
     h.answers.push(answer([API]))
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await h.ex.idle()
     expect(h.setMemory).toHaveBeenLastCalledWith('s1', {
@@ -323,6 +329,7 @@ describe('an end', () => {
 
   it('only the last chunk of an end asks for the episode', async () => {
     longPart('s1', 30)
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await h.ex.idle()
     expect(h.calls).toHaveLength(2)
@@ -337,7 +344,9 @@ describe('the queue and failures', () => {
     h.meta.set('s2', META)
     firstPart('s1')
     firstPart('s2')
+    stops(h, 's1', 1)
     h.ex.ended('s1')
+    stops(h, 's2', 1)
     h.ex.ended('s2')
     await flush()
     expect(h.calls).toHaveLength(1)
@@ -408,7 +417,9 @@ describe('the queue and failures', () => {
     h.meta.set('s2', META)
     firstPart('s1')
     firstPart('s2')
+    stops(h, 's1', 1)
     h.ex.ended('s1')
+    stops(h, 's2', 1)
     h.ex.ended('s2')
     await h.ex.idle()
     expect(h.calls).toHaveLength(0)
@@ -445,7 +456,9 @@ describe('the queue and failures', () => {
     h.meta.set('s2', META)
     firstPart('s1')
     firstPart('s2')
+    stops(h, 's1', 1)
     h.ex.ended('s1')
+    stops(h, 's2', 1)
     h.ex.ended('s2')
     await h.ex.idle()
     for (let i = 0; i < 2; i += 1) {
@@ -473,6 +486,7 @@ describe('the queue and failures', () => {
 
   it('a job stops after 12 calls: an end stays ending and saving, and pushes nothing', async () => {
     longPart('s1', 14 * 25)
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await h.ex.idle()
     expect(h.calls).toHaveLength(EXTRACT_LIMITS.chunksPerJob)
@@ -486,6 +500,7 @@ describe('the queue and failures', () => {
   })
 
   it('no transcript for a session that never said anything: the end is quiet and closes the row (R49)', async () => {
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await h.ex.idle()
     expect(h.logs).toContain('[claude-watcher][memory] code=memory_extract_no_transcript')
@@ -537,6 +552,7 @@ describe('catch-up and resume', () => {
   it('a resumed session reads only what is new and rewrites its episode', async () => {
     firstPart()
     h.answers.push(answer([episode('api port', 'The api port moved.', 'moved the api')]))
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await h.ex.idle()
     const episodeId = h.state.get('s1')?.episodeId ?? ''
@@ -625,6 +641,7 @@ describe('activity and logs', () => {
       ['saved', 'extract', null],
       ['dropped', 'extract', 'evidence_not_found']
     ])
+    stops(h, 's2', 1)
     h.ex.ended('s2')
     h.meta.delete('s2')
     await h.ex.idle()
@@ -653,5 +670,249 @@ describe('activity and logs', () => {
     )
     for (const line of h.logs)
       expect(line).toMatch(/^\[claude-watcher\]\[memory\] code=memory_\w+( \w+=[\w.]+)*$/)
+  })
+})
+
+describe('an end needs a turn', () => {
+  const NO_ACTIVITY = '[claude-watcher][memory] code=memory_extract_skipped reason=no_activity'
+
+  it('a row-less session ended with no turn makes no job, no row, no record, logs no_activity', async () => {
+    for (let i = 0; i < 10; i += 1) h.write('s1', prompt(`old prompt ${i} about port 9281`))
+    h.ex.ended('s1')
+    await flush()
+    expect(h.calls).toHaveLength(0)
+    expect(h.setMemory).not.toHaveBeenCalled()
+    expect(h.state.get('s1')).toBeNull()
+    expect(h.logs).toContain(NO_ACTIVITY)
+  })
+
+  it('a session with a done row ended with no turn changes nothing', async () => {
+    firstPart()
+    stops(h, 's1', 1)
+    h.ex.ended('s1')
+    await h.ex.idle()
+    const before = h.state.get('s1')
+    const records = h.setMemory.mock.calls.length
+    h.write('s1', prompt('a look at the old session'), said('ok'))
+    const next = h.restart()
+    next.ended('s1')
+    await flush()
+    expect(h.calls).toHaveLength(1)
+    expect(h.setMemory).toHaveBeenCalledTimes(records)
+    expect(h.state.get('s1')?.byteOffset).toBe(before?.byteOffset)
+    expect(h.state.get('s1')?.counts).toEqual(before?.counts)
+    expect(h.state.get('s1')?.phase).toBe('done')
+    expect(h.logs).toContain(NO_ACTIVITY)
+  })
+
+  it('an end after one turn runs', async () => {
+    firstPart()
+    stops(h, 's1', 1)
+    h.ex.ended('s1')
+    await h.ex.idle()
+    expect(h.calls).toHaveLength(1)
+    expect(h.state.get('s1')?.phase).toBe('done')
+  })
+
+  it('StopFailures count nothing toward a checkpoint', async () => {
+    firstPart()
+    for (let i = 0; i < 15; i += 1) h.ex.stopFailed('s1')
+    await flush()
+    expect(h.calls).toHaveLength(0)
+    expect(h.state.get('s1')).toBeNull()
+  })
+
+  it('a StopFailure counts as a turn', async () => {
+    firstPart()
+    h.ex.stopFailed('s1')
+    h.ex.ended('s1')
+    await h.ex.idle()
+    expect(h.calls).toHaveLength(1)
+  })
+
+  it('a second end with no turn between makes no job', async () => {
+    firstPart()
+    stops(h, 's1', 1)
+    h.ex.ended('s1')
+    await h.ex.idle()
+    h.ex.ended('s1')
+    await h.ex.idle()
+    expect(h.calls).toHaveLength(1)
+    expect(h.logs).toContain(NO_ACTIVITY)
+  })
+
+  it('/clear after turns, then archive with no new turn, makes one job', async () => {
+    h.meta.set('s2', META)
+    firstPart()
+    stops(h, 's1', 1)
+    h.ex.ended('s1')
+    h.ex.rebind('s1', 's2')
+    h.ex.ended('s2')
+    await h.ex.idle()
+    expect(h.calls).toHaveLength(1)
+    expect(h.logs.filter((l) => l === NO_ACTIVITY)).toHaveLength(1)
+  })
+
+  it('turns while memory was off do not count', async () => {
+    firstPart()
+    h.set.enabled = false
+    stops(h, 's1', 1)
+    h.ex.stopFailed('s1')
+    h.set.enabled = true
+    h.ex.ended('s1')
+    await h.ex.idle()
+    expect(h.calls).toHaveLength(0)
+    expect(h.state.get('s1')).toBeNull()
+    expect(h.logs).toContain(NO_ACTIVITY)
+  })
+
+  it('memory off, no turn: the record keeps its state', async () => {
+    firstPart()
+    h.answers.push(answer([API]))
+    stops(h, 's1', 1)
+    h.ex.ended('s1')
+    await h.ex.idle()
+    expect(h.setMemory).toHaveBeenLastCalledWith('s1', expect.objectContaining({ state: 'saved' }))
+    const before = h.state.get('s1')
+    const records = h.setMemory.mock.calls.length
+    h.set.enabled = false
+    const next = h.restart()
+    next.ended('s1')
+    await flush()
+    expect(h.setMemory).toHaveBeenCalledTimes(records)
+    expect(h.state.get('s1')).toEqual(before)
+    expect(h.logs).toContain(NO_ACTIVITY)
+  })
+
+  it('forget drops the turn', async () => {
+    firstPart()
+    stops(h, 's1', 1)
+    h.ex.forget('s1')
+    h.ex.ended('s1')
+    await h.ex.idle()
+    expect(h.calls).toHaveLength(0)
+    expect(h.logs).toContain(NO_ACTIVITY)
+  })
+
+  it('a no-turn /clear while the old id catch-up is queued logs no end_missing', async () => {
+    h.meta.set('s0', META)
+    for (const id of ['s0', 's1']) firstPart(id)
+    stops(h, 's0', 1)
+    stops(h, 's1', 1)
+    h.set.manual = true
+    const next = h.restart()
+    next.catchUp()
+    await flush()
+    next.ended('s1')
+    next.rebind('s1', 's2')
+    expect(h.logs).not.toContain('[claude-watcher][memory] code=memory_extract_end_missing')
+    h.set.manual = false
+    h.calls[0]?.resolve(answer([]))
+    await next.idle()
+    expect(h.calls).toHaveLength(2)
+  })
+})
+
+describe('a resumed session with no save row starts at the transcript end', () => {
+  /** Ten prompts from before the resume; answers the transcript's size then. */
+  function oldHistory(): number {
+    for (let i = 0; i < 10; i += 1) h.write('s1', prompt(`old prompt ${i} about port 9281`))
+    return h.transcripts.get('s1')?.at(-1)?.end ?? -1
+  }
+
+  it('a row-less resumed session archived with no Stop makes no job', async () => {
+    oldHistory()
+    h.ex.resumed('s1', 'w1')
+    h.ex.ended('s1')
+    await flush()
+    expect(h.calls).toHaveLength(0)
+    expect(h.setMemory).not.toHaveBeenCalled()
+  })
+
+  it('a resumed row-less session saves only text after the resume', async () => {
+    const size = oldHistory()
+    h.ex.resumed('s1', 'w1')
+    firstPart()
+    stops(h, 's1', 1)
+    h.ex.ended('s1')
+    await h.ex.idle()
+    expect(h.reads[0]?.from).toBe(size)
+    expect(h.calls).toHaveLength(1)
+    expect(h.calls[0]?.input).not.toContain('old prompt')
+  })
+
+  it('resumed on a session with a row changes nothing', async () => {
+    firstPart()
+    stops(h, 's1', 1)
+    h.ex.ended('s1')
+    await h.ex.idle()
+    const before = h.state.get('s1')
+    h.write('s1', prompt('more text'))
+    h.ex.resumed('s1', 'w1')
+    expect(h.state.get('s1')).toEqual(before)
+  })
+
+  it('resumed with no transcript makes no row', () => {
+    h.ex.resumed('s1', 'w1')
+    expect(h.state.get('s1')).toBeNull()
+  })
+
+  it('resumed with memory off still seeds', () => {
+    const size = oldHistory()
+    h.set.enabled = false
+    h.ex.resumed('s1', 'w1')
+    expect(h.state.get('s1')).toEqual(
+      expect.objectContaining({ byteOffset: size, phase: 'done', workspaceId: 'w1' })
+    )
+  })
+
+  it('resumed whose transcript size cannot be read makes no row and logs it', () => {
+    oldHistory()
+    h.deps.size = () => null
+    h.ex.resumed('s1', 'w1')
+    expect(h.state.get('s1')).toBeNull()
+    expect(h.logs).toContain(
+      '[claude-watcher][memory] code=memory_extract_seed_skipped reason=size'
+    )
+  })
+
+  it('resumed with the database closed makes no row and does not throw', () => {
+    oldHistory()
+    h.set.memoryOpen = false
+    h.ex.resumed('s1', 'w1')
+    h.set.memoryOpen = true
+    expect(h.state.get('s1')).toBeNull()
+  })
+
+  it('memory-off turns, then resume and a real turn, save only text after the resume', async () => {
+    h.set.enabled = false
+    firstPart()
+    stops(h, 's1', 1)
+    h.set.enabled = true
+    h.ex.ended('s1')
+    expect(h.state.get('s1')).toBeNull()
+    h.ex.resumed('s1', 'w1')
+    const size = h.transcripts.get('s1')?.at(-1)?.end
+    expect(h.state.get('s1')?.byteOffset).toBe(size)
+    firstPart()
+    stops(h, 's1', 1)
+    h.ex.ended('s1')
+    await h.ex.idle()
+    expect(h.reads[0]?.from).toBe(size)
+  })
+
+  it('a seeded row whose transcript went missing ends nothing, not failed (R49)', async () => {
+    oldHistory()
+    h.ex.resumed('s1', 'w1')
+    h.transcripts.delete('s1')
+    stops(h, 's1', 1)
+    h.ex.ended('s1')
+    await h.ex.idle()
+    expect(h.setMemory).toHaveBeenLastCalledWith('s1', {
+      state: 'nothing',
+      ...NO_COUNTS,
+      episodeId: null
+    })
+    expect(h.pushed).toEqual([])
   })
 })

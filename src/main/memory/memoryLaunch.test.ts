@@ -588,6 +588,7 @@ describe('markSessionsDeletedInMemory', () => {
       sessionId: 's1',
       at: T0
     })
+    h.ex.stop('s1')
     h.ex.ended('s1')
     await flush()
     expect(h.calls).toHaveLength(1)

@@ -43,6 +43,7 @@ describe('quit', () => {
   it('quit kills the running call with killNow, never cancel, writes nothing, pushes nothing, and the row stays ending', async () => {
     h.set.manual = true
     conversation('s1')
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await flush()
     expect(h.calls).toHaveLength(1)
@@ -66,6 +67,7 @@ describe('quit', () => {
   it('a call that answers after quit writes nothing', async () => {
     h.set.manual = true
     conversation('s1')
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await flush()
     h.ex.quit()
@@ -77,6 +79,7 @@ describe('quit', () => {
 
   it('an end after quit only marks the row', async () => {
     conversation('s1')
+    stops(h, 's1', 1)
     h.ex.quit()
     h.ex.ended('s1')
     await h.ex.idle()
@@ -94,7 +97,9 @@ describe('quit', () => {
     h.meta.set('s2', META)
     conversation('s1')
     conversation('s2', 'the db listens on port 5433')
+    stops(h, 's1', 1)
     h.ex.ended('s1')
+    stops(h, 's2', 1)
     h.ex.ended('s2')
     await flush()
     h.ex.quit()
@@ -131,6 +136,7 @@ describe('a session that goes away', () => {
     h.set.manual = true
     h.meta.set('old', META)
     conversation('old')
+    stops(h, 'old', 1)
     h.ex.ended('old')
     await flush()
     h.ex.rebind('old', 'new')
@@ -157,6 +163,7 @@ describe('a session that goes away', () => {
   it('a call that resolves after its session was forgotten writes nothing', async () => {
     h.set.manual = true
     conversation('s1')
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await flush()
     h.ex.forget('s1')
@@ -177,7 +184,9 @@ describe('a session that goes away', () => {
     h.meta.set('s2', { ...META, workspaceId: 'w2' })
     conversation('s1')
     conversation('s2', 'the db listens on port 5433')
+    stops(h, 's1', 1)
     h.ex.ended('s1')
+    stops(h, 's2', 1)
     h.ex.ended('s2')
     await flush()
     h.ex.forgetWorkspace('w1')
@@ -190,6 +199,18 @@ describe('a session that goes away', () => {
     expect(h.state.get('s2')?.phase).toBe('done')
   })
 
+  it('a workspace delete drops the turns of its sessions', async () => {
+    conversation('s1')
+    stops(h, 's1', 1)
+    h.ex.forgetWorkspace('w1')
+    h.ex.ended('s1')
+    await h.ex.idle()
+    expect(h.calls).toHaveLength(0)
+    expect(h.logs).toContain(
+      '[claude-watcher][memory] code=memory_extract_skipped reason=no_activity'
+    )
+  })
+
   it('Memory switched off between two chunks stops the job before its next call and closes an end as off (R2)', async () => {
     for (let i = 0; i < 30; i += 1) h.write('s1', prompt(`step ${i} ${'word '.repeat(780)}`))
     // After the first call, its write asks for the card's stamp: Memory goes off right then.
@@ -198,6 +219,7 @@ describe('a session that goes away', () => {
       if (h.calls.length > 0) h.set.enabled = false
       return meta(id)
     }
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await h.ex.idle()
     expect(h.calls).toHaveLength(1)
@@ -216,6 +238,7 @@ describe('Memory switched off while a call runs (R51)', () => {
   it('memoryOff cancels the running call; nothing is written and an end is closed as off', async () => {
     h.set.manual = true
     conversation('s1')
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await flush()
     h.set.enabled = false
@@ -236,6 +259,7 @@ describe('Memory switched off while a call runs (R51)', () => {
   it('an answer that arrives after Memory went off is not written', async () => {
     h.set.manual = true
     conversation('s1')
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await flush()
     h.set.enabled = false
@@ -363,7 +387,9 @@ describe('never crash', () => {
       return locate(id)
     }
     h.answers.push(answer([specific('db port', '5433', 'listens on port 5433')]))
+    stops(h, 's1', 1)
     h.ex.ended('s1')
+    stops(h, 's2', 1)
     h.ex.ended('s2')
     await h.ex.idle()
     expect(h.logs).toContain('[claude-watcher][memory] code=memory_extract_failed reason=internal')
@@ -384,6 +410,7 @@ describe('never crash', () => {
     h.deps.locate = () => {
       throw new Error('unreadable')
     }
+    stops(h, 's1', 1)
     h.ex.ended('s1')
     await h.ex.idle()
     for (let i = 0; i < 3; i += 1) {
@@ -442,6 +469,7 @@ describe('never crash', () => {
         if (broken) throw new Error('database refuses reads')
         return get(id)
       }
+      stops(h, 's1', 1)
       h.ex.ended('s1')
       broken = true
       await expect(h.ex.idle()).resolves.toBeUndefined()
@@ -451,6 +479,7 @@ describe('never crash', () => {
         h.logs.filter((l) => l.endsWith('code=memory_extract_failed reason=internal'))
       ).toHaveLength(2)
       broken = false
+      stops(h, 's2', 1)
       h.ex.ended('s2')
       await h.ex.idle()
       expect(h.state.get('s2')?.phase).toBe('done')
@@ -467,7 +496,9 @@ describe('never crash', () => {
     const read = h.deps.read
     h.deps.read = (path, from, max) =>
       path.includes('s1') ? Promise.resolve(null) : read(path, from, max)
+    stops(h, 's1', 1)
     h.ex.ended('s1')
+    stops(h, 's2', 1)
     h.ex.ended('s2')
     await h.ex.idle()
     expect(h.state.get('s1')?.phase).toBe('ending')
@@ -505,6 +536,7 @@ describe('never crash', () => {
       h.deps.memory = memory
       h.meta.set('s2', META)
       conversation('s2', 'the db listens on port 5433')
+      stops(h, 's2', 1)
       h.ex.ended('s2')
       await h.ex.idle()
       expect(h.state.get('s2')?.phase).toBe('done')

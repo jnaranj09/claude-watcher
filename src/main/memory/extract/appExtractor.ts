@@ -35,6 +35,9 @@ export interface AppExtractorIo {
   push: ExtractorDeps['push']
   /** claude's projects folder on disk (`transcriptLookupDepsFromFs`). */
   lookup: () => TranscriptLookupDeps
+  /** A transcript file's size (`statSync(p).size`), null when it cannot be read (the extractor
+   *  logs that, `memory_extract_seed_skipped reason=size`). */
+  fileSize: ExtractorDeps['size']
   readSlice: ExtractorDeps['read']
   /** `claude --version` (R35, R37): `read` probes (and keeps the answer for the launch path too);
    *  `held` is what this run's launch path last read, undefined before any. */
@@ -72,6 +75,7 @@ export function createAppExtractor(io: AppExtractorIo): AppExtractor {
     goals: io.goals,
     pastSessions: io.pastSessions,
     sessionMeta: io.sessionMeta,
+    size: io.fileSize,
     read: io.readSlice,
     // R35, R37: an OK answer is kept for the run, and the launch path's answer is reused; only a
     // job asks (never a hook, never window creation).
