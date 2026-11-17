@@ -229,7 +229,7 @@
 /* The grey count pill on a lit button: the lit fill is --text-primary, so the pill's own
    --text-primary ink vanished on it (white on a pale fill, ~1.6:1 in liquid glass). Swap the two
    roles: the lit ink as the pill's fill, the lit fill as its ink. */
-.button[data-lit] [data-count='open-tasks'] {
+.button[data-lit] [data-fill='grey'] {
   background: var(--text-on-lit);
   color: var(--text-primary);
 }

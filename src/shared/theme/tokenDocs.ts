@@ -25,7 +25,8 @@ export const TOKEN_DOCS: Record<TokenName, string> = {
   'text-muted': 'Muted text on bg-base only (too low-contrast on a panel)',
   'text-dim': 'Dividers and the dimmest text (bright-black in the terminal)',
   'text-on-accent': 'Ink on a working-coloured (primary) button',
-  'text-on-lit': 'Ink on a lit toggle (text-primary fill) and on the needs-you count pill',
+  'text-on-lit':
+    'Ink on a lit toggle (text-primary fill), on the needs-you count pill, and the fill of a grey count pill on a lit button',
   'text-on-danger': 'Ink on a danger-coloured (armed delete) button',
   working: 'The working status colour, the primary button fill and the selection accent',
   'needs-you': 'The needs-you status colour (gold): the rail badge, the hero column accent',

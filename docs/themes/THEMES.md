@@ -96,7 +96,7 @@ Every token is a CSS custom property (`--bg-base`, `--rounded-md`, …). Set any
 | `text-dim` | Dividers and the dimmest text (bright-black in the terminal) | `#47453d` |
 | `text-on-accent` | Ink on a working-coloured (primary) button | `#11111b` |
 | `text-on-danger` | Ink on a danger-coloured (armed delete) button | `#ffffff` |
-| `text-on-lit` | Ink on a lit toggle (text-primary fill) and on the needs-you count pill | `#1a1a18` |
+| `text-on-lit` | Ink on a lit toggle (text-primary fill), on the needs-you count pill, and the fill of a grey count pill on a lit button | `#1a1a18` |
 | `working` | The working status colour, the primary button fill and the selection accent | `#89b4fa` |
 | `needs-you` | The needs-you status colour (gold): the rail badge, the hero column accent | `#ffcf29` |
 | `done` | Defined for completeness; no component uses it | `#a6e3a1` |
@@ -398,6 +398,8 @@ What you can target:
   - `[data-count="total|working|needs-you|open-tasks"]` — every count badge: the workspace
     switcher, its tab and menu rows, the column headers, the Filter count, the Goals button's
     open tasks.
+  - `[data-fill="grey|working|needs-you"]` — the same count badge's fill; a lit button swaps a
+    `grey` one's fill and ink.
   - `[data-session-count]` — the Filter bar's count of sessions shown.
   - `[data-filter-chips]` — the boxed row of filter pills (the board's filter bar and the Active /
     Past rail of the Sessions dialog; `[data-wrap]` on the rail, where pills wrap);

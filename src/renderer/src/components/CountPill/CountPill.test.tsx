@@ -14,6 +14,27 @@ describe('CountPill', () => {
     expect(pill).toHaveAttribute('data-count', 'open-tasks')
   })
 
+  it('total and open-tasks draw the same grey fill; working and needs-you differ', () => {
+    render(
+      <>
+        <CountPill value={1} kind="total" testId="total" />
+        <CountPill value={1} kind="open-tasks" testId="tasks" />
+        <CountPill value={1} kind="working" testId="working" />
+        <CountPill value={1} kind="needs-you" testId="needs" />
+      </>
+    )
+    expect(screen.getByTestId('total')).toHaveAttribute('data-fill', 'grey')
+    expect(screen.getByTestId('tasks')).toHaveAttribute('data-fill', 'grey')
+    expect(screen.getByTestId('working')).toHaveAttribute('data-fill', 'working')
+    expect(screen.getByTestId('needs')).toHaveAttribute('data-fill', 'needs-you')
+  })
+
+  it('each fill paints its own background', () => {
+    expect(cssRule(PILL_CSS, '.grey')).toMatch(/background: var\(--border-strong\);/)
+    expect(cssRule(PILL_CSS, '.working')).toMatch(/background: var\(--working\);/)
+    expect(cssRule(PILL_CSS, '.needsYou')).toMatch(/background: var\(--needs-you\);/)
+  })
+
   it('hidden marks it aria-hidden', () => {
     render(<CountPill value={1} kind="total" testId="h" hidden />)
     expect(screen.getByTestId('h')).toHaveAttribute('aria-hidden', 'true')

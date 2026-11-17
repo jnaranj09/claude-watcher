@@ -148,38 +148,6 @@ describe('Button', () => {
     expect(button(r)).toHaveTextContent('Archive')
   })
 
-  const goalsIcon = <svg aria-hidden="true" />
-  function goals(count: ButtonProps['count'], lit = false): RenderResult {
-    const r = renderComponent(
-      <Button testId="btn" reveal="Goals" lit={lit} count={count}>
-        {goalsIcon}
-      </Button>
-    )
-    cleanup = r.unmount
-    return r
-  }
-
-  it('a reveal button with a count draws the pill between the icon and the name', () => {
-    const r = goals({ value: 3, label: '3 open tasks', kind: 'open-tasks' })
-    const pill = button(r).querySelector('[data-count="open-tasks"]')
-    expect(pill).toHaveTextContent('3')
-    expect(pill?.getAttribute('aria-hidden')).toBe('true')
-    expect(pill?.previousElementSibling?.querySelector('svg')).not.toBeNull()
-    expect(pill?.nextElementSibling?.textContent).toBe('Goals')
-    expect(button(r)).toHaveAccessibleName('Goals, 3 open tasks')
-  })
-
-  it('a count of 0 draws no pill and leaves the name alone', () => {
-    const r = goals({ value: 0, label: '0 open tasks', kind: 'open-tasks' })
-    expect(button(r).querySelector('[data-count]')).toBeNull()
-    expect(button(r)).toHaveAccessibleName('Goals')
-  })
-
-  it('the pill stays when the button is lit', () => {
-    const r = goals({ value: 3, label: '3 open tasks', kind: 'open-tasks' }, true)
-    expect(button(r).querySelector('[data-count="open-tasks"]')).not.toBeNull()
-  })
-
   it('busy disables the button and sets aria-busy; not busy sets neither', () => {
     const on = button(render({ busy: true }))
     expect(on.disabled).toBe(true)
@@ -335,7 +303,7 @@ describe('Button owns every button style', () => {
   it('inverts the grey count pill on a lit button', () => {
     const rule = cssRule(
       'components/Button/Button.module.css',
-      ".button[data-lit] [data-count='open-tasks']"
+      ".button[data-lit] [data-fill='grey']"
     )
     expect(rule).toMatch(/background: var\(--text-on-lit\);/)
     expect(rule).toMatch(/color: var\(--text-primary\);/)

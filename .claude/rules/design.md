@@ -613,7 +613,7 @@ Reopen the app to try again.`); each dialog says `Could not load <x>.`
   ROUND `secondary` — the ☰'s look as a circle in every theme; `ghost` stays for icons inside a
   card or row. `reveal="<name>"` = an icon button whose name slides out to the right of the icon on
   hover or keyboard focus (the focused bar's Context / Shell / Tasks / Archive / Delete, the
-  header's Goals); the name is the button's text, so it needs no `aria-label`. `count={{ value, label, kind }}` (reveal only) adds a `CountPill` between the icon and the name (Goals' open tasks), `aria-hidden` with `, {label}` in the name; nothing at 0; on a `lit` button the grey pill swaps its fill and ink. `lit` = toggle ON
+  header's Goals); the name is the button's text, so it needs no `aria-label`. `count={{ value, label, kind }}` (reveal only) adds a `CountPill` between the icon and the name (Goals' open tasks), `aria-hidden` with `, {label}` in the name; nothing at 0; on a `lit` button a grey pill (`[data-fill='grey']`, stamped by `CountPill`) swaps its fill and ink. `lit` = toggle ON
   (`data-lit` present only when on — test `hasAttribute`). The favorite pin (`FavoriteToggle`) is
   `ghost xs icon` with `aria-pressed`; its filled pin IS the on look, never `lit`. **No `className`** — layout goes on a
   wrapper. Refs via `buttonRef`. `Button.test.tsx` fails on any other button class.

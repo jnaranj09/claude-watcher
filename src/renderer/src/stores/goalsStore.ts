@@ -91,7 +91,7 @@ export const selectLooseTasks =
 export const selectOpenTaskCount =
   (workspaceId: string) =>
   (s: GoalsState): number =>
-    s.tasks.filter((t) => t.workspaceId === workspaceId && t.status !== 'done').length
+    s.tasks.filter((t) => t.workspaceId === workspaceId && t.status === 'open').length
 
 /** The proposals waiting on a goal (one per planner session on it). */
 export const selectProposalsOfGoal =
