@@ -42,6 +42,9 @@ export interface ClaudeSpawnDeps {
     },
     previousSessionId: string | null
   ) => MemorySpawnExtras
+  /** A resume spawn: memory records where the transcript ends now when the session has no save
+   *  row (`Extractor.resumed`), so its history is never saved. Never throws. */
+  memoryResumed: (sessionId: string, workspaceId: string) => void
   activeWorkspaceId: () => string
   claudeAutoMemory: () => ClaudeAutoMemory
   /** The `--settings` file, or null (SEC-6, a refused write). */
@@ -103,8 +106,16 @@ export function claudeSpawnCommand(
     goal,
     // A resume tells memory so (P3-C28): the conversation keeps the system prompt of its first
     // request, so the index the mod sends in its first window never reaches the model.
-    memory: (target) =>
-      deps.memorySpawnExtras(sessionId, { ...target, resume: request.resume }, previousSessionId),
+    // A resume of a session with no save row starts its save at the transcript's end, in the
+    // spawn's resolved workspace.
+    memory: (target) => {
+      if (request.resume) deps.memoryResumed(sessionId, target.workspaceId)
+      return deps.memorySpawnExtras(
+        sessionId,
+        { ...target, resume: request.resume },
+        previousSessionId
+      )
+    },
     launch: request.launch,
     activeWorkspaceId: deps.activeWorkspaceId,
     autoMemory: deps.claudeAutoMemory(),

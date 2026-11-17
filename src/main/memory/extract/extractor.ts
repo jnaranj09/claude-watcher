@@ -48,6 +48,8 @@ export interface ExtractorDeps {
   sessionMeta: (sessionId: string) => MemorySessionMeta | null
   /** The transcript's path, found by id (D1); null when there is none. */
   locate: (sessionId: string) => string | null
+  /** The transcript file's size in bytes; null when it cannot be read. */
+  size: (path: string) => number | null
   read: (path: string, fromOffset: number, maxBytes: number) => Promise<TranscriptSlice | null>
   /** false only for a claude known to be older than MIN_EXTRACT_CLAUDE_VERSION. Blocking (a login
    *  shell `--version`): called at most once per job (R7). */
@@ -68,6 +70,11 @@ export interface Extractor {
   /** A `StopFailure` of a launched session (an API error ended the turn with no `Stop`, ST-3):
    *  with Memory on, a finished turn, like `stop`, but it counts nothing toward a checkpoint. */
   stopFailed(sessionId: string): void
+  /** A resume spawn (`resumeSessionId`) of `sessionId` into `workspaceId`: a session with no save
+   *  row gets one at its transcript's current size (`ExtractState.seedAt`), so its history from
+   *  before the resume is never read; a session with a row, no transcript or an empty one, or the
+   *  database not open: nothing. Memory off seeds too: it records a position only. */
+  resumed(sessionId: string, workspaceId: string): void
   /** The card left with reason `archive`, or `/clear` ended this id: an end. Called while the
    *  card still holds this id (before `rebind`), since it reads the card's stamp. An end needs a
    *  finished turn (`stop` or `stopFailed` with Memory on) since this spawn or this id's last end:
@@ -248,6 +255,17 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
     stopFailed: (sessionId) =>
       guarded(() => {
         if (deps.enabled()) turned.add(sessionId)
+      }),
+
+    resumed: (sessionId, workspaceId) =>
+      guarded(() => {
+        const mem = deps.memory()
+        if (mem === null || mem.state.get(sessionId) !== null) return
+        const path = deps.locate(sessionId)
+        if (path === null) return
+        const size = deps.size(path)
+        if (size === null || size === 0) return
+        mem.state.seedAt({ sessionId, workspaceId, byteOffset: size, at: deps.now() })
       }),
 
     ended: (sessionId) =>

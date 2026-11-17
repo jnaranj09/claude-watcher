@@ -116,6 +116,42 @@ describe('track', () => {
   })
 })
 
+describe('seedAt', () => {
+  it('seedAt makes a done row at the offset', () => {
+    state.seedAt({ sessionId: 's1', workspaceId: 'w1', byteOffset: 4200, at: NOW })
+    expect(state.get('s1')).toEqual({
+      sessionId: 's1',
+      originSessionId: 's1',
+      workspaceId: 'w1',
+      meta: {
+        folder: null,
+        sessionName: null,
+        tagIds: [],
+        templateId: null,
+        goalId: null,
+        taskIds: []
+      },
+      byteOffset: 4200,
+      entryCount: 0,
+      prompts: 0,
+      notes: [],
+      phase: 'done',
+      attempts: 0,
+      counts: NO_COUNTS,
+      episodeId: null,
+      updatedAt: NOW
+    })
+  })
+
+  it('seedAt never touches an existing row', () => {
+    track('s1')
+    state.advance('s1', STEP)
+    const before = state.get('s1')
+    state.seedAt({ sessionId: 's1', workspaceId: 'w2', byteOffset: 9000, at: NOW + 5 })
+    expect(state.get('s1')).toEqual(before)
+  })
+})
+
 describe('advance and failed', () => {
   it('advance sums the counts, appends the note and keeps the newest 20 notes', () => {
     track('s1')

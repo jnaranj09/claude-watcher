@@ -307,7 +307,13 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `stopFailed`, either while Memory was on) since launch or resume, or since that id's last end
   (`rebind` does not carry it): with none it makes no job, no row and no record, not even `off`
   (`memory_extract_skipped reason=no_activity`); an end while one of the same id is already queued
-  or running makes no second job (`reason=nothing_new`). Catch-up: the start saves every row the
+  or running makes no second job (`reason=nothing_new`). Resume: a resume spawn of a session with
+  no save row (Past sessions Open, dead-pane Resume, Resume by id / Import: all set
+  `resumeSessionId`, and a Reopen of one keeps it) records its transcript's current size as the
+  start (`claudeSpawnCommand` → `memoryResumed` → `Extractor.resumed` → `ExtractState.seedAt`, a
+  `done` row with no meta, `ON CONFLICT DO NOTHING`), Memory on or off and in the spawn's resolved
+  workspace, so only text after the resume is saved; no row is made with the database closed or
+  no transcript (or an empty one); an in-claude `/resume` is not seeded. Catch-up: the start saves every row the
   last run owed, after the goals and past-sessions stores exist (`memory_catchup_not_ready`
   otherwise). A checkpoint needs Memory on, the database open and a live app-launched card; an
   end needs a turn, then the same; an end after a turn, or a catch-up, with Memory off writes `off`
@@ -325,9 +331,9 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   (P3-R2, P3-C5, P3-C8, P3-C9); the slice is then cut into chunks; a job of
   fewer than
   `EXTRACT_LIMITS.minPrompts` typed prompts makes no call (`reason=guard`). No transcript: a
-  checkpoint waits; an end or a catch-up whose row never read anything (a session that never got
-  a prompt) ends like the guard, record `nothing`, no push (R49); one whose file went missing after
-  a read ends `failed`. One call at a time for
+  checkpoint waits; an end or a catch-up whose row never read a conversation entry (no entries,
+  prompts or notes: a session that never got a prompt, or a row seeded at a resume) ends like the
+  guard, record `nothing`, no push (R49); one whose file went missing after a read ends `failed`. One call at a time for
   the whole app, one job per session in a queue of `EXTRACT_LIMITS.queue` (a full queue refuses a
   checkpoint, never an end: `memory_extract_queue_full`), at most `chunksPerJob` calls per job
   (the rest waits for a later save point or the next start). The call (`headlessClaude.ts`,
@@ -389,11 +395,15 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   limits: a turn interrupted with Esc sends no `Stop`, so its text waits for a later resume that
   finishes a turn, except in a session with no save row yet (it never finished a turn while
   Memory was on: archived or quit during its first turn, or only Esc-stopped turns), whose text
-  is never saved, since its next resume starts reading at the transcript's end; a `/resume`
-  inside claude is saved at the next start; the start's catch-up has no cap on how many owed
-  sessions it saves; a session from before phase 2 that is resumed is read
-  from the start of its transcript, so old text gets today's date; there is no job watchdog beyond
-  the call's own time limit. A
+  is never saved, since its next resume spawn starts reading at the transcript's end; a `/resume`
+  inside claude is saved at the next start, and one with no save row is read from the start of
+  its transcript (only a resume spawn is seeded); the start's catch-up has no cap on how many owed
+  sessions it saves; a session with turns while Memory was off after its last save point (a
+  session with no row, not seeded since, or one with a row), then Memory on and a turn, is saved
+  from its row's offset (0 with no row), so its Memory-off text is read (existing before the
+  resume seed; fixing it needs to know whether Memory was ever off for the card, and seeding at
+  the first Memory-on `Stop` would drop a normal session's first turn); there is no job watchdog
+  beyond the call's own time limit. A
   deleted session (Past sessions `Forget`, or a card's `Delete`) has its save forgotten and keeps
   its items and commands, marked
   `Session deleted` (`pastSessions.ts` `onRemove` → `markSessionsDeletedInMemory`), and so does a

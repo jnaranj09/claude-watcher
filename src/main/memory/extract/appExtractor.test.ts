@@ -64,6 +64,7 @@ function app(
     activity: h.activity,
     push: () => true,
     lookup,
+    fileSize: h.deps.size,
     readSlice: h.deps.read,
     version: { read: versionReads, held: () => undefined },
     shell: '/bin/sh',

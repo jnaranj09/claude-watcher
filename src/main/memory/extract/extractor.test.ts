@@ -804,3 +804,97 @@ describe('an end needs a turn', () => {
     expect(h.calls).toHaveLength(2)
   })
 })
+
+describe('a resumed session with no save row starts at the transcript end', () => {
+  /** Ten prompts from before the resume; answers the transcript's size then. */
+  function oldHistory(): number {
+    for (let i = 0; i < 10; i += 1) h.write('s1', prompt(`old prompt ${i} about port 9281`))
+    return h.transcripts.get('s1')?.at(-1)?.end ?? -1
+  }
+
+  it('a row-less resumed session archived with no Stop makes no job', async () => {
+    oldHistory()
+    h.ex.resumed('s1', 'w1')
+    h.ex.ended('s1')
+    await flush()
+    expect(h.calls).toHaveLength(0)
+    expect(h.setMemory).not.toHaveBeenCalled()
+  })
+
+  it('a resumed row-less session saves only text after the resume', async () => {
+    const size = oldHistory()
+    h.ex.resumed('s1', 'w1')
+    firstPart()
+    stops(h, 's1', 1)
+    h.ex.ended('s1')
+    await h.ex.idle()
+    expect(h.reads[0]?.from).toBe(size)
+    expect(h.calls).toHaveLength(1)
+    expect(h.calls[0]?.input).not.toContain('old prompt')
+  })
+
+  it('resumed on a session with a row changes nothing', async () => {
+    firstPart()
+    stops(h, 's1', 1)
+    h.ex.ended('s1')
+    await h.ex.idle()
+    const before = h.state.get('s1')
+    h.write('s1', prompt('more text'))
+    h.ex.resumed('s1', 'w1')
+    expect(h.state.get('s1')).toEqual(before)
+  })
+
+  it('resumed with no transcript makes no row', () => {
+    h.ex.resumed('s1', 'w1')
+    expect(h.state.get('s1')).toBeNull()
+  })
+
+  it('resumed with memory off still seeds', () => {
+    const size = oldHistory()
+    h.set.enabled = false
+    h.ex.resumed('s1', 'w1')
+    expect(h.state.get('s1')).toEqual(
+      expect.objectContaining({ byteOffset: size, phase: 'done', workspaceId: 'w1' })
+    )
+  })
+
+  it('resumed with the database closed makes no row and does not throw', () => {
+    oldHistory()
+    h.set.memoryOpen = false
+    h.ex.resumed('s1', 'w1')
+    h.set.memoryOpen = true
+    expect(h.state.get('s1')).toBeNull()
+  })
+
+  it('memory-off turns, then resume and a real turn, save only text after the resume', async () => {
+    h.set.enabled = false
+    firstPart()
+    stops(h, 's1', 1)
+    h.set.enabled = true
+    h.ex.ended('s1')
+    expect(h.state.get('s1')).toBeNull()
+    h.ex.resumed('s1', 'w1')
+    const size = h.transcripts.get('s1')?.at(-1)?.end
+    expect(h.state.get('s1')?.byteOffset).toBe(size)
+    firstPart()
+    stops(h, 's1', 1)
+    h.ex.ended('s1')
+    await h.ex.idle()
+    expect(h.reads[0]?.from).toBe(size)
+  })
+
+  it('a seeded row whose transcript went missing ends nothing, not failed (R49)', async () => {
+    oldHistory()
+    h.ex.resumed('s1', 'w1')
+    h.transcripts.delete('s1')
+    stops(h, 's1', 1)
+    h.ex.ended('s1')
+    await h.ex.idle()
+    expect(h.setMemory).toHaveBeenLastCalledWith('s1', {
+      state: 'nothing',
+      ...NO_COUNTS,
+      episodeId: null
+    })
+    expect(h.pushed).toEqual([])
+  })
+})

@@ -46,6 +46,10 @@ export interface ExtractState {
     phase: 'live' | 'ending'
     at: number
   }): ExtractRow
+  /** A resume of a session with no row: makes the row at `byteOffset` (the transcript's size
+   *  then), phase `done`, no meta, no notes, zero counts, so a later save reads only text written
+   *  after the resume. A row already there is never touched (`ON CONFLICT DO NOTHING`). */
+  seedAt(input: { sessionId: string; workspaceId: string; byteOffset: number; at: number }): void
   /** One chunk written (a session with no row throws `extract_state_not_found`): new offsets, `attempts = 0`, `added` summed into `counts`, `note` appended
    *  (newest EXTRACT_LIMITS.notesKept kept), `episodeId` kept when the step gives null. */
   advance(
@@ -116,6 +120,16 @@ const StateRow = z
     })
   )
 
+/** A seeded row's meta: nothing known yet; `track` fills it at the first `Stop`. */
+const NO_META: MemoryItem['meta'] = {
+  folder: null,
+  sessionName: null,
+  tagIds: [],
+  templateId: null,
+  goalId: null,
+  taskIds: []
+}
+
 const SessionIdRow = z.object({ session_id: z.string() })
 
 function sum(a: MemoryCounts, b: MemoryCounts): MemoryCounts {
@@ -176,6 +190,23 @@ export function createExtractState(deps: {
         ]
       )
       return mustRow(input.sessionId)
+    },
+
+    seedAt: (input) => {
+      db.run(
+        `INSERT INTO extract_state (${COLUMNS})
+         VALUES (?, ?, ?, ?, ?, 0, 0, '[]', 'done', 0, ?, NULL, ?)
+         ON CONFLICT (session_id) DO NOTHING`,
+        [
+          input.sessionId,
+          input.sessionId,
+          input.workspaceId,
+          JSON.stringify(NO_META),
+          input.byteOffset,
+          JSON.stringify(NO_COUNTS),
+          input.at
+        ]
+      )
     },
 
     advance: (sessionId, step) => {

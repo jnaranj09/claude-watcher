@@ -170,6 +170,10 @@ export function createHarness(): Harness {
     goals: () => (set.goalsOpen ? goals : null),
     sessionMeta: (id) => meta.get(id) ?? null,
     locate: (id) => (transcripts.has(id) ? `/transcripts/${id}.jsonl` : null),
+    size: (path) => {
+      const id = /([^/]+)\.jsonl$/.exec(path)?.[1] ?? ''
+      return transcripts.get(id)?.at(-1)?.end ?? null
+    },
     read: (path, from, max) => {
       reads.push({ path, from, max })
       const id = /([^/]+)\.jsonl$/.exec(path)?.[1] ?? ''

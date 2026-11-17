@@ -169,7 +169,9 @@ it.
 (the checkpoint), when it ends (Archive, `/exit`, `/clear`), and at the next start for anything
 a quit or crash left owed. An end saves only when Claude finished a turn (with Memory on) since
 the session was launched or resumed, so a session you open, only look at and archive is not
-saved. A session with fewer than two prompts is not saved. A model reads
+saved. A session you resume from **Past sessions**, **Resume conversation** or **Import** that
+has no save yet starts its save there: only what happens after the resume is saved, never its
+older conversation. A session with fewer than two prompts is not saved. A model reads
 what is new in the session's transcript and proposes what to keep; the app keeps a value only
 when the quote it gives is found in the transcript, and drops the rest (Context → **Memory**
 lists what was dropped and why, while the session is on the board). A save updates a fact only
@@ -327,11 +329,14 @@ Known limits:
 - A turn you stop with Esc sends no turn end, so its text is saved only by a later resume that
   finishes a turn. A session that never finished a turn while Memory was on (archived or quit
   during its first turn, or only turns stopped with Esc) has no save yet, and its text is never
-  saved: its next resume starts reading at the transcript's end.
-- A conversation switched with `/resume` inside claude is saved at the next start.
+  saved: its next resume from the app starts reading at the transcript's end.
 - A session larger than one read (32 MiB) is finished at the next start.
-- A session started before this version and resumed later is read from the start of its
-  transcript, so its old text is saved with today's date.
+- A conversation switched with `/resume` inside claude is saved at the next start, and one with
+  no save yet is read from the start of its transcript: only the app's resumes start a save at
+  the resume.
+- Turns made while Memory was off, after a session's last save (or, with no resume between, in
+  a session with no save yet), are not left out: once Memory is on and Claude finishes a turn,
+  the next save reads from the last save (or the transcript's start), Memory-off text included.
 - Going back to an older version keeps Past sessions, Goals and Settings readable: it drops the
   memory settings and task fields it does not know. It will not open the newer memory database:
   it refuses it without changing it.
