@@ -12,9 +12,9 @@
 //
 // Where the item is placed (spec 2026-11-14 memory context index §8): after `Check`, `Folder` (a
 // Select of the folders the dialog knows, `No folder` first), `Goal` (the workspace's goals, `No
-// goal` first; not rendered for a global item or under `Global`), `Tags` (the chips of the picked
-// tags and the session card's own tag button and picker), then one hint. On an open item these
-// replace the read-only `Folder` and `Tags` lines. A New form starts from the rail's filters
+// goal` first; not rendered for a global item or under `Global`), `Tags` (the shared
+// `TagRowField`: the chips of the picked tags, the tag button and its picker), then one hint. On an
+// open item these replace the read-only `Folder` and `Tags` lines. A New form starts from the rail's filters
 // (`draftFromFilters`) and sends the whole context; an open item sends only what changed
 // (`contextPatch`), so a stored goal or tag the form cannot draw is neither sent nor dropped.
 // `Global` on clears the goal and the tags a global item cannot hold (`rescopeContext`).
@@ -31,12 +31,9 @@ import { folderName, parentPath } from '../../lib/filterCopy'
 import { Button } from '../Button/Button'
 import filterChipStyles from '../FilterChips/FilterChips.module.css'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
-import { Presence } from '../Presence/Presence'
 import { Select, type SelectOption } from '../Select/Select'
 import { Switch } from '../Switch/Switch'
-import { TagChipRow } from '../TagChip/TagChipRow'
-import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
-import { TagPicker } from '../TagPicker/TagPicker'
+import { TagRowField } from '../TagPicker/TagRowField'
 import { TextArea } from '../TextArea/TextArea'
 import { TextInput } from '../TextInput/TextInput'
 import {
@@ -327,22 +324,12 @@ function ContextFields({
   showGoal: boolean
   onPlace: (change: Partial<ContextDraft>) => void
 }): JSX.Element {
-  const tagPickerId = useId()
-  const [tagsOpen, setTagsOpen] = useState(false)
-  const tagsAnchorRef = useRef<HTMLDivElement | null>(null)
-  const tagsButtonRef = useRef<HTMLButtonElement | null>(null)
   const folderValue = place.folder ?? NO_FOLDER
   // A stored goal that is gone shows `No goal` (and is kept unless another is picked).
   const goalValue = context.goals.some((g) => g.id === place.goalId)
     ? (place.goalId ?? NO_GOAL)
     : NO_GOAL
   const pickedTags = offeredTags.filter((t) => place.tagIds.includes(t.id))
-
-  function closeTags(reason: 'escape' | 'outside'): void {
-    setTagsOpen(false)
-    // Only Escape hands focus back; an outside click leaves focus where the operator clicked.
-    if (reason === 'escape') tagsButtonRef.current?.focus()
-  }
 
   return (
     <>
@@ -377,38 +364,20 @@ function ContextFields({
         </>
       )}
       <ManageDialog.Label>{MEMORY_COPY.tags}</ManageDialog.Label>
-      <div className={styles.valueRow} ref={tagsAnchorRef} data-testid="memory-tags">
-        <TagChipRow tags={pickedTags} testId="memory-tags-chips" />
-        <Button
-          variant="ghost"
-          size="xs"
-          icon
-          buttonRef={tagsButtonRef}
-          testId="memory-tags-button"
-          aria-expanded={tagsOpen}
-          aria-controls={tagPickerId}
-          aria-label={MEMORY_COPY.tags}
-          title={MEMORY_COPY.tags}
-          onClick={() => setTagsOpen((open) => !open)}
-        >
-          <TagGlyphIcon />
-        </Button>
-        <Presence value={tagsOpen || null}>
-          {() => (
-            <TagPicker
-              id={tagPickerId}
-              tags={offeredTags}
-              selectedIds={pickedTags.map((t) => t.id)}
-              onChange={(tagIds) => onPlace({ tagIds })}
-              onClose={closeTags}
-              anchorRef={tagsAnchorRef}
-              triggerRef={tagsButtonRef}
-              testId="memory-tag-picker"
-              label={MEMORY_COPY.tags}
-            />
-          )}
-        </Presence>
-      </div>
+      <TagRowField
+        shownTags={pickedTags}
+        offeredTags={offeredTags}
+        selectedIds={pickedTags.map((t) => t.id)}
+        onChange={(tagIds) => onPlace({ tagIds })}
+        label={MEMORY_COPY.tags}
+        className={styles.valueRow}
+        testIds={{
+          field: 'memory-tags',
+          chips: 'memory-tags-chips',
+          button: 'memory-tags-button',
+          picker: 'memory-tag-picker'
+        }}
+      />
       <ManageDialog.Hint testId="memory-context-hint">{MEMORY_COPY.contextHint}</ManageDialog.Hint>
     </>
   )

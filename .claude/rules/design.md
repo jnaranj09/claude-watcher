@@ -465,8 +465,8 @@ the operator's. A long session name is cut with `…`, never the date.
 memory.` / `Kept in Memory, marked Session deleted.`) and a `Checkbox` `Also delete from memory`,
   unticked (owner, 2026-11-12); ticked, the detail reads `Deleted with the session. This cannot be
 undone.` The Sessions dialog's armed Delete does not offer the box.
-- A Past record's form edits ONE field: its tags, with the Memory form's tag button and
-  `TagPicker` (the workspace's tags and the global ones), through `setSessionTags` with the
+- A Past record's form edits ONE field: its tags, with the shared `TagRowField` (the Memory
+  form's too: chips, tag button, `TagPicker` of the workspace's tags and the global ones), through `setSessionTags` with the
   `window.pastSessions.setTags` writer; the rest is read-only. A refusal is the dialog's one
   result toast, never a board toast.
 - A Past record's form shows how saving memory from it went (`Memory: <counts>`,

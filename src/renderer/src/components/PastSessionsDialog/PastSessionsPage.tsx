@@ -8,7 +8,7 @@
 // `pastSessionTarget`), the page selects it once it is listed, on its own workspace, and consumes
 // the target. UX-DR14: App.tsx guards it against the other modals and closes it on the quit guard.
 // Never logs a record value.
-import { useEffect, useId, useRef, useState, type FormEvent, type JSX } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { PastSession, Tag, Workspace } from '../../../../shared/ipc/contract'
 import { PAST_SESSIONS_MAX } from '../../../../shared/schemas/pastSession'
@@ -17,11 +17,8 @@ import { Callout } from '../Callout/Callout'
 import type { DialogPageProps } from '../ManageDialog/dialogPage'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
 import { workspaceScope, type ScopeFilterValue } from '../ScopeFilter/scope'
-import { Button } from '../Button/Button'
-import { Presence } from '../Presence/Presence'
 import { TagChipRow } from '../TagChip/TagChipRow'
-import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
-import { TagPicker } from '../TagPicker/TagPicker'
+import { TagRowField } from '../TagPicker/TagRowField'
 import { SearchIcon } from '../Icon/MenuIcons'
 import { TextInput } from '../TextInput/TextInput'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
@@ -351,7 +348,7 @@ function useEpisode(episodeId: string | null): Episode | null {
 /** The record's form: name, full folder, workspace (its name in its tint, WorkspaceLabel), tags,
  *  times, then what memory kept from the session (PICK.md look 2: the `Memory:` line as a label,
  *  the episode's title as a value and its body as a wrapping paragraph; no colour for any state).
- *  Tags are the one editable field: the Memory form's tag button and picker, writing through
+ *  Tags are the one editable field: the shared `TagRowField` (the Memory form's too), writing through
  *  `setSessionTags` to `window.pastSessions.setTags` (a refusal is the dialog's result toast).
  *  The name changes on the live card after Open. */
 function PastSessionDetails({
@@ -367,17 +364,6 @@ function PastSessionDetails({
   const pending = useTags((s) => s.pendingBySession.get(session.id))
   const shownTags = tagsForIds(tags, applyPendingTags(session.tagIds, pending))
   const offeredTags = visibleTags(tags, session.workspaceId)
-  const tagPickerId = useId()
-  const [tagsOpen, setTagsOpen] = useState(false)
-  const tagsAnchorRef = useRef<HTMLDivElement | null>(null)
-  const tagsButtonRef = useRef<HTMLButtonElement | null>(null)
-
-  function closeTags(reason: 'escape' | 'outside'): void {
-    setTagsOpen(false)
-    // Only Escape hands focus back; an outside click leaves focus where the operator clicked.
-    if (reason === 'escape') tagsButtonRef.current?.focus()
-  }
-
   /** The record's tags as main holds them now, without an id the catalog lost or its workspace
    *  cannot see: a stale id is never sent (main would refuse it `tag_not_found`). */
   function readRecordTags(): string[] {
@@ -413,50 +399,31 @@ function PastSessionDetails({
         />
       </p>
       <ManageDialog.Label>Tags</ManageDialog.Label>
-      <div className={styles.valueRow} ref={tagsAnchorRef} data-testid="past-session-tags-field">
-        {shownTags.length > 0 ? (
-          <TagChipRow tags={shownTags} testId="past-session-form-tags" />
-        ) : (
+      <TagRowField
+        shownTags={shownTags}
+        offeredTags={offeredTags}
+        selectedIds={session.tagIds}
+        sessionId={session.id}
+        onChange={(next) =>
+          void setSessionTags(session.id, next, readRecordTags, {
+            write: setPastSessionTags,
+            onError: (err) => setError(pastSessionTagsErrorMessage(err))
+          })
+        }
+        label="Tags"
+        className={styles.valueRow}
+        empty={
           <span className={styles.none} data-testid="past-session-form-no-tags">
             No tags
           </span>
-        )}
-        <Button
-          variant="ghost"
-          size="xs"
-          icon
-          buttonRef={tagsButtonRef}
-          testId="past-session-tags-button"
-          aria-expanded={tagsOpen}
-          aria-controls={tagPickerId}
-          aria-label="Tags"
-          title="Tags"
-          onClick={() => setTagsOpen((open) => !open)}
-        >
-          <TagGlyphIcon />
-        </Button>
-        <Presence value={tagsOpen || null}>
-          {() => (
-            <TagPicker
-              id={tagPickerId}
-              tags={offeredTags}
-              selectedIds={session.tagIds}
-              sessionId={session.id}
-              onChange={(next) =>
-                void setSessionTags(session.id, next, readRecordTags, {
-                  write: setPastSessionTags,
-                  onError: (err) => setError(pastSessionTagsErrorMessage(err))
-                })
-              }
-              onClose={closeTags}
-              anchorRef={tagsAnchorRef}
-              triggerRef={tagsButtonRef}
-              testId="past-session-tag-picker"
-              label="Tags"
-            />
-          )}
-        </Presence>
-      </div>
+        }
+        testIds={{
+          field: 'past-session-tags-field',
+          chips: 'past-session-form-tags',
+          button: 'past-session-tags-button',
+          picker: 'past-session-tag-picker'
+        }}
+      />
       <ManageDialog.Label>Launched</ManageDialog.Label>
       <p className={styles.value}>{new Date(session.launchedAt).toLocaleString()}</p>
       <ManageDialog.Label>Ended</ManageDialog.Label>
