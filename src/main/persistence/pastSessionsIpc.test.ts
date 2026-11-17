@@ -55,6 +55,12 @@ describe('past-sessions setTags handler', () => {
   it('refuses an unknown record with not_found', () => {
     expect(() => setup().setTags({ id: 'zz', tagIds: ['t1'] })).toThrow('not_found')
   })
+  it('a live record is not_found, checked before the tags (an unknown tag does not change it)', () => {
+    const h = setup()
+    h.store.markLive({ ...ROW, id: 'live1' })
+    expect(() => h.setTags({ id: 'live1', tagIds: ['ghost'] })).toThrow('not_found')
+    expect(() => h.setTags({ id: 'live1', tagIds: ['t1'] })).toThrow('not_found')
+  })
   it('collapses duplicate ids', () => {
     const h = setup()
     expect(h.setTags({ id: 's1', tagIds: ['t1', 't1'] })[0]?.tagIds).toEqual(['t1'])

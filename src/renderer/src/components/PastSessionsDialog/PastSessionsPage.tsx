@@ -2,9 +2,9 @@
 // ManageDialog: a header scope filter (`All sessions` · each workspace — no Global, no orphans:
 // every record has a workspace and the delete cascade keeps it so), a search box over the NAME
 // with the rail's `Filter` beside it (tag, folder, launched, ended; RailFilter, spec 2026-10-16),
-// a FLAT list newest first, a form (tags editable, the rest read-only), and a [Forget] [Open] footer. Importing a session
-// the app did not launch is the dialog's Import page. No `+ New` (there is nothing to create) and
-// no RowActions. Opened on a record (an episode's `Past sessions`, memory phase 2: the store's
+// a FLAT list newest first, a form (tags editable, the rest read-only), and a [Forget] [Open]
+// footer. Importing a session the app did not launch is the dialog's Import page. No `+ New`
+// (there is nothing to create) and no RowActions. Opened on a record (an episode's `Past sessions`, memory phase 2: the store's
 // `pastSessionTarget`), the page selects it once it is listed, on its own workspace, and consumes
 // the target. UX-DR14: App.tsx guards it against the other modals and closes it on the quit guard.
 // Never logs a record value.
@@ -61,6 +61,7 @@ import {
   relativeEnded,
   type PastScope
 } from './pastSessionsView'
+
 import styles from './PastSessionsDialog.module.css'
 
 /** The types the Past page offers, in pill order: the board's, plus Ended. */
@@ -315,6 +316,10 @@ export function PastSessionsPage({
   )
 }
 
+function lookupTag(tags: readonly Tag[], id: string): Tag | null {
+  return tags.find((t) => t.id === id) ?? null
+}
+
 type Episode = { id: string; title: string; body: string }
 
 /** The episode this record's save wrote (memory phase 2), read from memory by id while the record
@@ -348,9 +353,9 @@ function useEpisode(episodeId: string | null): Episode | null {
 /** The record's form: name, full folder, workspace (its name in its tint, WorkspaceLabel), tags,
  *  times, then what memory kept from the session (PICK.md look 2: the `Memory:` line as a label,
  *  the episode's title as a value and its body as a wrapping paragraph; no colour for any state).
- *  Tags are the one editable field: the shared `TagRowField` (the Memory form's too), writing through
- *  `setSessionTags` to `window.pastSessions.setTags` (a refusal is the dialog's result toast).
- *  The name changes on the live card after Open. */
+ *  Tags are the one editable field: the shared `TagRowField` (the Memory form's too), writing
+ *  through `setSessionTags` to `window.pastSessions.setTags` (a refusal is the dialog's result
+ *  toast; any edit clears the last one). The name changes on the live card after Open. */
 function PastSessionDetails({
   session,
   workspaces,
@@ -358,20 +363,22 @@ function PastSessionDetails({
 }: {
   session: PastSession
   workspaces: Workspace[]
-  setError: (message: string) => void
+  setError: (message: string | null) => void
 }): JSX.Element {
   const tags = useTags(selectTags)
   const pending = useTags((s) => s.pendingBySession.get(session.id))
-  const shownTags = tagsForIds(tags, applyPendingTags(session.tagIds, pending))
   const offeredTags = visibleTags(tags, session.workspaceId)
-  /** The record's tags as main holds them now, without an id the catalog lost or its workspace
-   *  cannot see: a stale id is never sent (main would refuse it `tag_not_found`). */
+  // What is drawn is what is sent: the record's ids without one the catalog lost or its workspace
+  // cannot see (main would refuse it `tag_not_found` / `tag_out_of_scope`), pending toggles on top.
+  const baseIds = keepVisibleTags(session.tagIds, session.workspaceId, (id) => lookupTag(tags, id))
+  const shownTags = tagsForIds(tags, applyPendingTags(baseIds, pending))
+
+  /** The same base, read when a write RUNS (the store's record, the catalog as it is then). */
   function readRecordTags(): string[] {
     const record = pastSessionsStore.getState().sessions.find((s) => s.id === session.id)
     if (record === undefined) return []
-    const lookup = (id: string): Tag | null =>
-      tagsStore.getState().tags.find((t) => t.id === id) ?? null
-    return keepVisibleTags(record.tagIds, record.workspaceId, lookup)
+    const now = tagsStore.getState().tags
+    return keepVisibleTags(record.tagIds, record.workspaceId, (id) => lookupTag(now, id))
   }
 
   const workspace = workspaces.find((w) => w.id === session.workspaceId) ?? null
@@ -402,14 +409,15 @@ function PastSessionDetails({
       <TagRowField
         shownTags={shownTags}
         offeredTags={offeredTags}
-        selectedIds={session.tagIds}
+        selectedIds={baseIds}
         sessionId={session.id}
-        onChange={(next) =>
+        onChange={(next) => {
+          setError(null) // editing a field clears the last error (design.md)
           void setSessionTags(session.id, next, readRecordTags, {
             write: setPastSessionTags,
             onError: (err) => setError(pastSessionTagsErrorMessage(err))
           })
-        }
+        }}
         label="Tags"
         className={styles.valueRow}
         empty={

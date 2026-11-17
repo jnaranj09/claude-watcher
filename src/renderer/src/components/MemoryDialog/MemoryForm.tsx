@@ -14,9 +14,10 @@
 // Select of the folders the dialog knows, `No folder` first), `Goal` (the workspace's goals, `No
 // goal` first; not rendered for a global item or under `Global`), `Tags` (the shared
 // `TagRowField`: the chips of the picked tags, the tag button and its picker), then one hint. On an
-// open item these replace the read-only `Folder` and `Tags` lines. A New form starts from the rail's filters
-// (`draftFromFilters`) and sends the whole context; an open item sends only what changed
-// (`contextPatch`), so a stored goal or tag the form cannot draw is neither sent nor dropped.
+// open item these replace the read-only `Folder` and `Tags` lines. A New form starts from the
+// rail's filters (`draftFromFilters`) and sends the whole context; an open item sends only what
+// changed (`contextPatch`), so a stored goal or tag the form cannot draw is neither sent nor
+// dropped.
 // `Global` on clears the goal and the tags a global item cannot hold (`rescopeContext`).
 import { useEffect, useId, useRef, useState, type FormEvent, type JSX, type ReactNode } from 'react'
 import type { Tag } from '../../../../shared/ipc/contract'

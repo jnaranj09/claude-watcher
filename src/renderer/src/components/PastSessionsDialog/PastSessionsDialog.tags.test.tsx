@@ -73,6 +73,10 @@ async function settle(): Promise<void> {
   })
 }
 
+function mockList(records: PastSession[]): void {
+  ;(window.pastSessions.list as ReturnType<typeof vi.fn>).mockResolvedValue(records)
+}
+
 describe('PastSessionsDialog — editing a record’s tags', () => {
   it('the tag button opens a picker with the tags the record’s workspace may use', async () => {
     await openPicker()
@@ -110,20 +114,31 @@ describe('PastSessionsDialog — editing a record’s tags', () => {
     expect(setTags).toHaveBeenLastCalledWith('sa', ['a', 'b'])
   })
 
-  it('a refused write shows STORE_WRITE_FAILED_COPY as the dialog’s error and the chips stay', async () => {
+  it('a refused write shows STORE_WRITE_FAILED_COPY as the dialog’s error and the tick reverts', async () => {
     setTags.mockRejectedValueOnce(new Error('store_write_failed'))
     await openPicker()
     act(() => row('a').click())
     await settle()
     expect(dialogToast('sessions')).toMatchObject({ kind: 'error', title: STORE_WRITE_FAILED_COPY })
     expect(find('past-session-form-no-tags')?.textContent).toBe('No tags')
+    expect(row('a')).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('a refused write keeps the tags the record already had', async () => {
+    setTags.mockRejectedValueOnce(new Error('store_write_failed'))
+    mockList([{ ...REC, tagIds: ['a'] }])
+    await openPicker()
+    act(() => row('b').click())
+    await settle()
+    expect(
+      within(screen.getByTestId('past-session-form-tags')).getAllByTestId('tag-chip')
+    ).toHaveLength(1)
+    expect(row('a')).toHaveAttribute('aria-checked', 'true')
+    expect(row('b')).toHaveAttribute('aria-checked', 'false')
   })
 
   it('removing the last tag shows No tags', async () => {
-    pastSessionsStore.setState({ sessions: [], loaded: false })
-    ;(window.pastSessions.list as ReturnType<typeof vi.fn>).mockResolvedValue([
-      { ...REC, tagIds: ['a'] }
-    ])
+    mockList([{ ...REC, tagIds: ['a'] }])
     await openPicker()
     expect(find('past-session-form-no-tags')).toBeNull()
     act(() => row('a').click())
@@ -133,9 +148,7 @@ describe('PastSessionsDialog — editing a record’s tags', () => {
   })
 
   it('a record holding a deleted tag can still be edited', async () => {
-    ;(window.pastSessions.list as ReturnType<typeof vi.fn>).mockResolvedValue([
-      { ...REC, tagIds: ['a', 'gone'] }
-    ])
+    mockList([{ ...REC, tagIds: ['a', 'gone'] }])
     await openPicker()
     act(() => row('b').click())
     await settle()
@@ -153,5 +166,42 @@ describe('PastSessionsDialog — editing a record’s tags', () => {
       kind: 'error',
       title: 'That tag no longer exists.'
     })
+  })
+
+  it('the chip shows at click time, before the bridge answers', async () => {
+    const held = deferred<PastSession[]>()
+    setTags.mockReturnValueOnce(held.promise)
+    await openPicker()
+    act(() => row('a').click())
+    await settle()
+    expect(setTags).toHaveBeenCalledTimes(1)
+    expect(find('past-session-form-no-tags')).toBeNull()
+    expect(
+      within(screen.getByTestId('past-session-form-tags')).getAllByTestId('tag-chip')
+    ).toHaveLength(1)
+    held.resolve([{ ...REC, tagIds: ['a'] }])
+    await settle()
+  })
+
+  it('a tag the record’s workspace cannot see is neither drawn nor sent', async () => {
+    mockList([{ ...REC, tagIds: ['a', 'o'] }])
+    await openPicker()
+    expect(
+      within(screen.getByTestId('past-session-form-tags')).getAllByTestId('tag-chip')
+    ).toHaveLength(1)
+    act(() => row('b').click())
+    await settle()
+    expect(setTags).toHaveBeenCalledWith('sa', ['a', 'b'])
+  })
+
+  it('a successful toggle after a refused one clears the old error', async () => {
+    setTags.mockRejectedValueOnce(new Error('store_write_failed'))
+    await openPicker()
+    act(() => row('a').click())
+    await settle()
+    expect(dialogToast('sessions')).toBeDefined()
+    act(() => row('b').click())
+    await settle()
+    expect(dialogToast('sessions')).toBeUndefined()
   })
 })

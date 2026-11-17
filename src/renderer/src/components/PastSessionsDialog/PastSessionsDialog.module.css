@@ -34,7 +34,8 @@
 }
 
 /* The form: tags editable, the rest read-only. Label + value, with the form's own gap between
-   them — TemplateForm's rhythm, so no margin of its own. A value is operator-typed and unbounded: one line, ellipsis, `title`. */
+   them — TemplateForm's rhythm, so no margin of its own. A value is operator-typed and unbounded:
+   one line, ellipsis, `title`. */
 .value {
   margin: 0;
   min-width: 0;

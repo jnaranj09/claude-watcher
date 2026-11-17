@@ -114,10 +114,16 @@ export function applyPendingTags(
 /** One write chain per session: a write starts only after the previous one settled. */
 const writeChains = new Map<string, Promise<void>>()
 
+/** How a caller swaps the card's write and refusal surface (see `setSessionTags`). */
+export interface SetSessionTagsOptions {
+  write?: (sessionId: string, tagIds: string[]) => Promise<unknown>
+  onError?: (err: unknown) => void
+}
+
 /**
- * Replace a card's tags (spec 2026-09-29 §2.3). `next` is the picker's list after the click, built
- * from what it SHOWED (`readBase() ⊕ pending`); the difference is recorded as pending at once (the
- * ✓ answers the click) and sent through the session's write chain. Each write sends
+ * Replace a session's tags, a card's or a Past record's (spec 2026-09-29 §2.3). `next` is the
+ * picker's list after the click, built from what it SHOWED (`readBase() ⊕ pending`); the
+ * difference is recorded as pending at once (the ✓ answers the click) and sent through the session's write chain. Each write sends
  * `readBase() ⊕ pending` as read when it RUNS: main applies a write to its reducer and ships the
  * delta before it answers (index.ts `sessionSetTags`), so the next write builds on the last one.
  * Only catalog ids are diffed — an id the catalog does not know is never touched.
@@ -129,11 +135,6 @@ const writeChains = new Map<string, Promise<void>>()
  * and the dialog's own result toast). A refusal reverts the ✓ (the pending entry goes) and says
  * so. Never rejects.
  */
-export interface SetSessionTagsOptions {
-  write?: (sessionId: string, tagIds: string[]) => Promise<unknown>
-  onError?: (err: unknown) => void
-}
-
 export function setSessionTags(
   sessionId: string,
   next: readonly string[],
