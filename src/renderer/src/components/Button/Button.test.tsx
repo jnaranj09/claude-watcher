@@ -322,6 +322,14 @@ describe('Button owns every button style', () => {
 
   // jsdom has no layout: read the stylesheet. A round icon is a CIRCLE, and it is still an icon:
   // the square's width per size comes from `.icon`, the shape only rounds it.
+  // The name's right padding is clipped while the track is closed, so at rest the pill needs its
+  // own space before the border; the same margin is the gap before the name when open.
+  it('leaves space after a reveal count pill, at rest and open', () => {
+    expect(cssRule('components/Button/Button.module.css', '.reveal [data-count]')).toMatch(
+      /margin-right: var\(--inset-compact-x\);/
+    )
+  })
+
   it('opens the reveal name on hover and on keyboard focus', () => {
     expect(cssRule('components/Button/Button.module.css', '.revealTrack')).toMatch(
       /grid-template-columns: 0fr;/

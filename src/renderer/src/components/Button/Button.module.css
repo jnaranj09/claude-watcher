@@ -108,9 +108,11 @@
   white-space: nowrap;
   padding-right: var(--inset-compact-x);
 }
-/* A count pill sits between the icon and the name: the name starts a gap after it. */
-.reveal [data-count] + .revealTrack .revealText {
-  padding-left: var(--gap-inline-tight);
+/* A count pill sits between the icon and the name. Its right margin is the space after it at rest
+   (the name's own right padding is clipped while the track is closed) and the gap before the name
+   when open, so the pill never moves. `data-count` is CountPill's public hook. */
+.reveal [data-count] {
+  margin-right: var(--inset-compact-x);
 }
 .reveal:hover .revealTrack,
 .reveal:focus-visible .revealTrack {
