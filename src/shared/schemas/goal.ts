@@ -71,9 +71,15 @@ export const GoalSchema = z.object({
   defaultCwd: z.string().min(1).nullable().default(null),
   // `Save to GOALS.md`: keep this goal and its tasks in `<defaultCwd>/GOALS.md` (goals/goalsFile.ts).
   saveToFile: z.boolean().default(false),
-  createdAt: z.number()
+  createdAt: z.number(),
+  // The sessions this memory goal belongs to; non-empty = made by memory; ids are added; the
+  // oldest drop past the store's cap.
+  memorySessionIds: z.array(IdSchema).default([])
 })
 export type Goal = z.infer<typeof GoalSchema>
+
+const TouchSchema = z.object({ sessionId: IdSchema, at: z.number() })
+export type Touch = z.infer<typeof TouchSchema>
 
 export const TaskSchema = z.object({
   id: IdSchema,
@@ -97,7 +103,10 @@ export const TaskSchema = z.object({
   // The session whose extraction made the task; `/clear` moves it with the card.
   originSessionId: IdSchema.nullable().default(null),
   // The folder the task was seen in; null = its goal's folder.
-  folder: z.string().min(1).nullable().default(null)
+  folder: z.string().min(1).nullable().default(null),
+  // Sessions whose memory saves added or updated this task, oldest first; never a link; capped by
+  // the store.
+  touchedBy: z.array(TouchSchema).default([])
 })
 export type Task = z.infer<typeof TaskSchema>
 
@@ -146,15 +155,31 @@ export const ProposalSchema = z.object({
 })
 export type Proposal = z.infer<typeof ProposalSchema>
 
+const LineageSchema = z.object({ fromId: IdSchema, toId: IdSchema, at: z.number() })
+export type Lineage = z.infer<typeof LineageSchema>
+
+const PlannerSessionSchema = z.object({ sessionId: IdSchema, goalId: IdSchema, at: z.number() })
+export type PlannerSession = z.infer<typeof PlannerSessionSchema>
+
 export const GOALS_FILE_VERSION = 1 as const
 export const GoalsFileSchema = z.object({
   version: z.literal(GOALS_FILE_VERSION),
   goals: z.array(GoalSchema),
-  tasks: z.array(TaskSchema)
+  tasks: z.array(TaskSchema),
+  sessionLineage: z.array(LineageSchema).default([]),
+  plannerSessions: z.array(PlannerSessionSchema).default([]),
+  memoryRegroupedAt: z.number().nullable().default(null)
 })
 export type GoalsFile = z.infer<typeof GoalsFileSchema>
 
-export const EMPTY_GOALS_FILE: GoalsFile = { version: GOALS_FILE_VERSION, goals: [], tasks: [] }
+export const EMPTY_GOALS_FILE: GoalsFile = {
+  version: GOALS_FILE_VERSION,
+  goals: [],
+  tasks: [],
+  sessionLineage: [],
+  plannerSessions: [],
+  memoryRegroupedAt: null
+}
 
 /** Why a goal's `GOALS.md` did not follow its last change (goals/goalsFile.ts). Memory only. */
 export const GOALS_FILE_PROBLEMS = [

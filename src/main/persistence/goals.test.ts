@@ -52,7 +52,14 @@ describe('createGoalsStore', () => {
   it('fresh install: empty, writes the empty v1 file, logs nothing', () => {
     const { store, fake, log } = make()
     expect(store.view()).toEqual({ goals: [], tasks: [], proposals: [], fileProblems: [] })
-    expect(fake.current()).toEqual({ version: 1, goals: [], tasks: [] })
+    expect(fake.current()).toEqual({
+      version: 1,
+      goals: [],
+      tasks: [],
+      sessionLineage: [],
+      plannerSessions: [],
+      memoryRegroupedAt: null
+    })
     expect(log).not.toHaveBeenCalled()
   })
 

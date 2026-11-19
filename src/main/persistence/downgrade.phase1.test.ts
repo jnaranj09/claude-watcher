@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { createGoalsStore, type GoalsBlobStore } from './goals'
 import { createSettingsStore } from './settings'
 import {
-  GoalSchema,
+  GoalNameSchema,
   TASK_DONE_BY,
   TaskStatusValueSchema,
   TaskTitleSchema,
@@ -45,9 +45,17 @@ const Phase1SettingsSchema = SettingsSchema.omit({
   memoryRecallEnabled: true
 })
 
-// A FROZEN copy of the phase-1 task schema (`src/shared/schemas/goal.ts` at 120e59d). `GoalSchema`,
-// `TaskTitleSchema`, `TaskStatusValueSchema` and `TASK_DONE_BY` are unchanged since. Never update
-// it to follow the current schema: its point is that it does not.
+// FROZEN copies of the phase-1 goal and task schemas (`src/shared/schemas/goal.ts` at 120e59d).
+// `GoalNameSchema`, `TaskTitleSchema`, `TaskStatusValueSchema` and `TASK_DONE_BY` are unchanged
+// since. Never update either to follow the current schema: their point is that they do not.
+const Phase1GoalSchema = z.object({
+  id: z.string().min(1),
+  workspaceId: WorkspaceIdSchema,
+  name: GoalNameSchema,
+  defaultCwd: z.string().min(1).nullable().default(null),
+  saveToFile: z.boolean().default(false),
+  createdAt: z.number()
+})
 const Phase1TaskSchema = z.object({
   id: z.string().min(1),
   workspaceId: WorkspaceIdSchema,
@@ -61,7 +69,7 @@ const Phase1TaskSchema = z.object({
 })
 const Phase1GoalsFileSchema = z.object({
   version: z.literal(1),
-  goals: z.array(GoalSchema),
+  goals: z.array(Phase1GoalSchema),
   tasks: z.array(Phase1TaskSchema)
 })
 

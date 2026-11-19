@@ -35,7 +35,8 @@ const task = (sessionIds: string[]): Task => ({
   lastSeenAt: null,
   report: null,
   originSessionId: null,
-  folder: null
+  folder: null,
+  touchedBy: []
 })
 
 describe('linkCandidates', () => {

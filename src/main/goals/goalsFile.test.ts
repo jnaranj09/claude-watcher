@@ -22,6 +22,7 @@ function goal(over: Partial<Goal> & Pick<Goal, 'id'>): Goal {
     defaultCwd: A,
     saveToFile: true,
     createdAt: 1,
+    memorySessionIds: [],
     ...over
   }
 }
@@ -41,6 +42,7 @@ function task(over: Partial<Task> & Pick<Task, 'id' | 'goalId'>): Task {
     report: null,
     originSessionId: null,
     folder: null,
+    touchedBy: [],
     ...over
   }
 }
@@ -127,6 +129,24 @@ describe('renderGoalsFile', () => {
         ''
       ].join('\n')
     )
+  })
+
+  it('never writes the memory fields: memorySessionIds, touchedBy, lineage or planner values', () => {
+    const text = renderGoalsFile(A, {
+      goals: [goal({ id: 'g1', name: 'Auth', memorySessionIds: ['mem-session-1'] })],
+      tasks: [
+        task({
+          id: 't1',
+          goalId: 'g1',
+          title: 'Add login',
+          touchedBy: [{ sessionId: 'touch-session-1', at: 77 }]
+        })
+      ]
+    })
+    expect(text).toContain('Add login')
+    for (const leaked of ['memorySessionIds', 'touchedBy', 'mem-session-1', 'touch-session-1'])
+      expect(text).not.toContain(leaked)
+    expect(text).not.toMatch(/lineage|planner/i)
   })
 
   it('renders null when no goal saves to the folder', () => {

@@ -16,7 +16,8 @@ const VIEW: GoalsView = {
       name: 'Ship',
       defaultCwd: '/work',
       saveToFile: false,
-      createdAt: 1
+      createdAt: 1,
+      memorySessionIds: []
     }
   ],
   tasks: [],

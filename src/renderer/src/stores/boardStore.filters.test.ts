@@ -611,7 +611,8 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
       name: 'Ship',
       defaultCwd: null,
       saveToFile: false,
-      createdAt: 1
+      createdAt: 1,
+      memorySessionIds: []
     }
     const task = {
       id: 'k-1',
@@ -628,7 +629,8 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
       lastSeenAt: null,
       report: null,
       originSessionId: null,
-      folder: null
+      folder: null,
+      touchedBy: []
     }
     act(() =>
       goalsStore

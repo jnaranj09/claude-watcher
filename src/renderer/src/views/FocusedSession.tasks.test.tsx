@@ -31,7 +31,8 @@ const linked: Task = {
   lastSeenAt: null,
   report: null,
   originSessionId: null,
-  folder: null
+  folder: null,
+  touchedBy: []
 }
 
 beforeEach(() => {

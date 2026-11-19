@@ -26,6 +26,8 @@ import {
   type GoalSaveRequest,
   type GoalsFile,
   type GoalsView,
+  type Lineage,
+  type PlannerSession,
   type Proposal,
   type Task,
   type TaskDoneBy,
@@ -156,13 +158,23 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
   })
   let goals: Goal[] = [...loaded.goals]
   let tasks: Task[] = [...loaded.tasks]
+  const regroupedAt: number | null = loaded.memoryRegroupedAt
+  const lineage: Lineage[] = [...loaded.sessionLineage]
+  const planners: PlannerSession[] = [...loaded.plannerSessions]
   const listeners = new Set<(view: GoalsView) => void>()
   let lastEmitted: GoalsSnapshot = { goals, tasks }
   persistOrReport()
 
   function persist(): boolean {
     try {
-      blobStore.write({ version: GOALS_FILE_VERSION, goals, tasks })
+      blobStore.write({
+        version: GOALS_FILE_VERSION,
+        goals,
+        tasks,
+        sessionLineage: lineage,
+        plannerSessions: planners,
+        memoryRegroupedAt: regroupedAt
+      })
       return true
     } catch {
       log(`${LOG_PREFIX} code=goals_write_failed`)
@@ -249,7 +261,8 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
       name: req.name,
       defaultCwd: existing === null ? (folder ?? null) : existing.defaultCwd,
       saveToFile: existing?.saveToFile ?? false,
-      createdAt: existing?.createdAt ?? now()
+      createdAt: existing?.createdAt ?? now(),
+      memorySessionIds: existing?.memorySessionIds ?? []
     }
     const next =
       existing === null ? [...goals, saved] : goals.map((g) => (g === existing ? saved : g))
@@ -305,7 +318,8 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
       lastSeenAt: null,
       report: null,
       originSessionId: null,
-      folder: null
+      folder: null,
+      touchedBy: []
     }
   }
 

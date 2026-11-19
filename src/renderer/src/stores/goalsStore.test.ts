@@ -9,6 +9,7 @@ const goal = (over: Partial<Goal> = {}): Goal => ({
   defaultCwd: null,
   saveToFile: false,
   createdAt: 1,
+  memorySessionIds: [],
   ...over
 })
 const task = (over: Partial<Task> = {}): Task => ({
@@ -27,6 +28,7 @@ const task = (over: Partial<Task> = {}): Task => ({
   report: null,
   originSessionId: null,
   folder: null,
+  touchedBy: [],
   ...over
 })
 const view = (goals: Goal[], tasks: Task[]): GoalsView => ({

@@ -35,7 +35,8 @@ const goal = (id: string, name: string, defaultCwd: string): Goal => ({
   name,
   defaultCwd,
   saveToFile: false,
-  createdAt: 1
+  createdAt: 1,
+  memorySessionIds: []
 })
 const META: MemoryItem['meta'] = {
   folder: '/srv/acme/api',
