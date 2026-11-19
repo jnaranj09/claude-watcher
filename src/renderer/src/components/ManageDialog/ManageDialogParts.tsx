@@ -285,7 +285,9 @@ export interface ManageDialogDeleteProps {
   /** The resting label. Defaults to `Delete`. Rename it only for another DESTRUCTIVE two-press
    *  action that is not itself a delete — Settings' `Regenerate` token is the one so far. */
   label?: string | undefined
-  /** The armed label. Defaults to `Confirm delete`; pair it with `label`. */
+  /** The armed label. Defaults to `Confirm delete`. Pair it with `label` for another
+   *  destructive act; a Delete may pass it alone to say what goes with it (a goal's
+   *  `Confirm delete (3 tasks)`), and `undefined` keeps the default. */
   confirmLabel?: string | undefined
   /** In flight (Settings' Regenerate): disabled + `aria-busy`, the ARMED look kept, and neither a
    *  blur nor a click disarms or re-fires it. A refusal leaves it armed (one press retries); the

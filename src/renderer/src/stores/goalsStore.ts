@@ -65,11 +65,26 @@ export const selectGoalsLoaded = (s: GoalsState): boolean => s.loaded
 /** True only while nothing loaded AND the load failed — the sheet says so instead of "none yet". */
 export const selectGoalsLoadFailed = (s: GoalsState): boolean => !s.loaded && s.loadFailed
 
-/** The workspace's goals, in creation order (main keeps the array in that order). */
+/**
+ * The one goal order of every goal list (spec 2026-11-18 memory session goals, G7): the operator's
+ * goals first, in the array's order (main keeps it in creation order), then memory goals (a
+ * non-empty `memorySessionIds`), newest `createdAt` first, ties by id. Two operator goals compare
+ * equal, so a stable `[...list].sort(compareGoalsForLists)` keeps their order.
+ */
+export function compareGoalsForLists(a: Goal, b: Goal): number {
+  const aMemory = a.memorySessionIds.length > 0
+  const bMemory = b.memorySessionIds.length > 0
+  if (aMemory !== bMemory) return aMemory ? 1 : -1
+  if (!aMemory) return 0
+  return b.createdAt - a.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+}
+
+/** The workspace's goals in the list order (`compareGoalsForLists`): the operator's goals in
+ *  creation order, then memory goals, newest first. */
 export const selectGoalsIn =
   (workspaceId: string) =>
   (s: GoalsState): Goal[] =>
-    s.goals.filter((g) => g.workspaceId === workspaceId)
+    s.goals.filter((g) => g.workspaceId === workspaceId).sort(compareGoalsForLists)
 
 /** Why this goal's `GOALS.md` did not follow its last change, or null. */
 export const selectFileProblemOf =

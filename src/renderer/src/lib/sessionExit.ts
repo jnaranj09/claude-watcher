@@ -19,7 +19,7 @@ import { boardStore } from '../stores/boardStore'
 import { toast } from '../stores/toastStore'
 import { focusLiveSession, openPastSession } from '../stores/pastSessionsStore'
 import {
-  isAlreadyOpenError,
+  openOrFocusPast,
   pastSessionErrorMessage
 } from '../components/PastSessionsDialog/pastSessionsView'
 
@@ -55,9 +55,8 @@ export function resumeFromToastCopy(err: unknown): string {
  *  takes the view to that live card (the dialog's precedent); anything else is an error toast. */
 export async function resumeArchived(sessionId: string): Promise<void> {
   try {
-    await openPastSession(sessionId)
+    await openOrFocusPast(() => openPastSession(sessionId), focusLiveSession, sessionId)
   } catch (err) {
-    if (isAlreadyOpenError(err) && (await focusLiveSession(sessionId))) return
     console.warn(`${LOG_PREFIX} code=resume_from_toast_failed`) // never the value
     toast.error(resumeFromToastCopy(err))
   }

@@ -3,11 +3,13 @@
 // tasks: ProposalPanel), on the shared ManageDialog shell at its `drop` size: a sheet that drops
 // from under the app header over the board or the terminal view, 75% of the body each way. Rail =
 // `Daily tasks` first (the tasks with no goal; open on every open of the sheet, and where a deleted
-// goal leaves the sheet, so the right column is never empty), then this workspace's goals, each with
-// `done/total` and a bar; right column = the selected row's tasks (a goal's inside its form).
+// goal leaves the sheet, so the right column is never empty), then this workspace's goals (memory
+// goals last: `compareGoalsForLists`), each with `done/total` and a bar; right column = the
+// selected row's tasks (a goal's inside its form, with `Worked on by` under them: GoalSessions).
 //
 // Main owns the records (goalsStore is a projection); this file sends ids and intents and draws
-// what main answers. Every refusal reaches the dialog's error toast through `goalErrorCopy`.
+// what main answers. Every refusal reaches the dialog's error toast through `goalErrorCopy` (a
+// `Worked on by` Open's through `pastSessionErrorMessage`, the Past sessions wording).
 import { useEffect, useId, useRef, useState, type FormEvent, type JSX } from 'react'
 import { GOAL_NAME_MAX, type Goal, type Proposal, type Task } from '../../../../shared/schemas/goal'
 import { FOLDER_TERMS, GOAL_TERMS } from '../../copy/terms'
@@ -34,12 +36,14 @@ import {
   setGoalSaveToFile,
   useGoals
 } from '../../stores/goalsStore'
+import { loadPastSessions } from '../../stores/pastSessionsStore'
 import { selectActiveWorkspaceId, useWorkspaces } from '../../stores/workspacesStore'
 import { ManageDialog, useManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { TextInput } from '../TextInput/TextInput'
 import { Callout } from '../Callout/Callout'
 import { Switch } from '../Switch/Switch'
 import { GoalProgress } from '../GoalProgress/GoalProgress'
+import { GoalSessions } from './GoalSessions'
 import { TaskList } from './TaskList'
 import { ProposalPanel } from './ProposalPanel'
 import styles from './GoalsDialog.module.css'
@@ -108,6 +112,25 @@ function GoalForm({
   const { done, total } = progressOf(tasks)
   const fileProblem = useGoals(selectFileProblemOf(goal?.id ?? ''))
   const saveToFileId = useId()
+  const goalId = goal?.id ?? null
+  const touched = tasks.some((t) => t.touchedBy.length > 0)
+  const [sessionsLoadFailed, setSessionsLoadFailed] = useState(false)
+
+  // `Worked on by` names a Past sessions record only from a fresh copy: the store's `loaded` stays
+  // true after its first load and nothing pushes exits, so an older copy would call a session
+  // archived since `No longer listed`. One load each time this goal gets (or opens with) a touch;
+  // the copy held meanwhile is drawn, and a failure keeps it under a Callout. `alive` drops a load
+  // that resolves after the form changed (the PastSessionsPage precedent).
+  useEffect(() => {
+    if (goalId === null || !touched) return
+    let alive = true
+    void loadPastSessions().then((ok) => {
+      if (alive) setSessionsLoadFailed(!ok)
+    })
+    return () => {
+      alive = false
+    }
+  }, [goalId, touched])
 
   const trimmed = name.trim()
   const canSave = trimmed.length > 0 && (goal === null || trimmed !== goal.name) && !busy
@@ -193,6 +216,9 @@ function GoalForm({
           actions.setError(null)
         }}
       />
+      {goal !== null && goal.memorySessionIds.length > 0 && (
+        <ManageDialog.Hint testId="goal-memory-hint">{GOAL_TERMS.madeByMemory}</ManageDialog.Hint>
+      )}
 
       {goal !== null && (
         <>
@@ -254,6 +280,7 @@ function GoalForm({
             goalId={goal.id}
             head={<GoalProgress name={goal.name} done={done} total={total} />}
           />
+          <GoalSessions tasks={tasks} loadFailed={sessionsLoadFailed} />
           {goal.defaultCwd !== null && (
             <div className={styles.planRow}>
               <ManageDialog.GhostButton
@@ -277,6 +304,7 @@ function GoalForm({
           <ManageDialog.Delete
             testId={`goal-delete-${goal.id}`}
             armedTestId="goal-delete-confirm"
+            confirmLabel={GOAL_TERMS.confirmDeleteWithTasks(total)}
             disabled={deleteBusy}
             onConfirm={onDelete}
           />

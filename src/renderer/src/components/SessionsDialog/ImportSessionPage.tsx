@@ -15,7 +15,7 @@ import {
 } from '../../stores/workspacesStore'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import type { DialogPageProps } from '../ManageDialog/dialogPage'
-import { isAlreadyOpenError, resumeByIdErrorMessage } from '../PastSessionsDialog/pastSessionsView'
+import { openOrFocusPast, resumeByIdErrorMessage } from '../PastSessionsDialog/pastSessionsView'
 import { Select } from '../Select/Select'
 import { TextInput } from '../TextInput/TextInput'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
@@ -44,13 +44,9 @@ export function ImportSessionPage({ pages }: Pick<DialogPageProps, 'pages'>): JS
     if (id.length === 0) return
     actions.setError(null)
     try {
-      await resumeSessionById(id, workspaceId)
+      await openOrFocusPast(() => resumeSessionById(id, workspaceId), focusLiveSession, id)
       actions.close()
     } catch (err) {
-      if (isAlreadyOpenError(err) && (await focusLiveSession(id))) {
-        actions.close()
-        return
-      }
       actions.setError(resumeByIdErrorMessage(err))
     }
   })

@@ -197,8 +197,10 @@ still reads the text: the tag is a rule for Memory, not for the session (see Kno
 **Open work becomes tasks.** Work a session leaves open becomes a task in **Goals**, with how to
 check it (`Check:`). Each session that leaves a task gets one goal of its own, named after the
 session and in its folder; a session started from a goal (or planning one) adds its tasks to that
-goal instead. A task remembers which sessions wrote or updated it. Memory never links a session
-to a task. A later session sees the folder's open tasks and can report what it found;
+goal instead. A task remembers which sessions wrote or updated it: a goal's form lists them under
+**Worked on by**, each with its tasks and a way to open it, and the board's **Goal** filter also
+shows the sessions that worked on a goal. Goals memory made are listed after your own goals.
+Memory never links a session to a task. A later session sees the folder's open tasks and can report what it found;
 a task it reports done shows **Reported done by "…"** and stays open: only you close a task
 (**Done**).
 

@@ -74,7 +74,8 @@ export interface FilterChipsProps {
   tags: readonly Tag[]
   /** Distinct folders of the surface's rows (unsorted is fine; sorted inside). */
   folders: readonly string[]
-  /** Goals offered (the board's workspace's, in creation order). Omitted ⇒ none. */
+  /** Goals offered (the board's workspace's, in the goal lists' order: `compareGoalsForLists`).
+   *  Omitted ⇒ none. */
   goals?: readonly { id: string; name: string }[]
   /** Session names offered (Memory). Omitted ⇒ none. */
   sessionNames?: readonly string[]

@@ -125,6 +125,36 @@ describe('SessionTasks', () => {
     expect(screen.getByTestId('goal-progress-text')).toHaveTextContent('1/2')
   })
 
+  it("groups the goals in the goal lists' order: memory goals after the operator's, loose last", () => {
+    open({
+      goals: [
+        goal({ id: 'mem-old', name: 'Mem old', createdAt: 1, memorySessionIds: ['x'] }),
+        goal({ id: 'mine-1', name: 'Mine 1', createdAt: 9 }),
+        goal({ id: 'mem-new', name: 'Mem new', createdAt: 5, memorySessionIds: ['y'] }),
+        goal({ id: 'mine-2', name: 'Mine 2', createdAt: 2 })
+      ],
+      tasks: [
+        task({ id: 'a', goalId: 'mem-old' }),
+        task({ id: 'b', goalId: 'mine-1' }),
+        task({ id: 'c', goalId: 'mem-new' }),
+        task({ id: 'd', goalId: 'mine-2' }),
+        task({ id: 'e', goalId: null })
+      ],
+      proposals: [],
+      fileProblems: []
+    })
+    const names = screen
+      .getAllByRole('progressbar')
+      .map((bar) => bar.getAttribute('aria-label') ?? '')
+    expect(names).toEqual([
+      'Progress of Mine 1',
+      'Progress of Mine 2',
+      'Progress of Mem new',
+      'Progress of Mem old',
+      'Progress of Daily tasks'
+    ])
+  })
+
   it('Link task lists only open tasks of the workspace not linked here', async () => {
     const user = userEvent.setup()
     open({

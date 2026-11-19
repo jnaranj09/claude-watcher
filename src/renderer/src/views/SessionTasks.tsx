@@ -7,6 +7,7 @@ import { GOAL_TERMS } from '../copy/terms'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { goalErrorCopy } from '../lib/goalCopy'
 import {
+  compareGoalsForLists,
   linkTask,
   progressOf,
   setTaskStatus,
@@ -31,11 +32,12 @@ interface Group {
   linked: Task[]
 }
 
-/** The linked tasks by goal, in the order the goals were made; loose ones last. */
+/** The linked tasks by goal, in the goal lists' order (`compareGoalsForLists`: the operator's
+ *  goals, then memory goals); loose ones last. */
 function groupsFor(s: Pick<GoalsState, 'goals' | 'tasks'>, sessionId: string): Group[] {
   const linked = s.tasks.filter((t) => t.sessionIds.includes(sessionId))
   const groups: Group[] = []
-  for (const g of s.goals) {
+  for (const g of [...s.goals].sort(compareGoalsForLists)) {
     const mine = linked.filter((t) => t.goalId === g.id)
     if (mine.length > 0) {
       groups.push({ key: g.id, name: g.name, linked: mine })

@@ -61,7 +61,14 @@ describe('GoalsDialog — feedback', () => {
       sessionIds: [],
       createdAt: 1,
       doneAt: null,
-      doneBy: null
+      doneBy: null,
+      check: null,
+      leftWith: null,
+      lastSeenAt: null,
+      report: null,
+      originSessionId: null,
+      folder: null,
+      touchedBy: []
     }
     const goal = {
       id: 'g1',
