@@ -485,13 +485,13 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
   ): boolean {
     const task = tasks.find((t) => t.id === id)
     if (task === undefined || task.status !== 'open') return false
-    const updated = checked({
+    const updated: Task = {
       ...task,
       check: patch.check ?? task.check,
       leftWith: patch.leftWith,
       lastSeenAt: patch.seen ? patch.at : task.lastSeenAt
-    })
-    const next = patch.seen ? touch(updated, patch.sessionId, patch.at) : updated
+    }
+    const next = checked(patch.seen ? touch(updated, patch.sessionId, patch.at) : updated)
     apply({ tasks: tasks.map((t) => (t === task ? next : t)) })
     return true
   }

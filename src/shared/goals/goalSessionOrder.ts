@@ -1,6 +1,7 @@
 // The sessions that worked on a goal's tasks, in the one order the spec gives the planner prompt
 // and the goal form (spec 2026-11-18 memory session goals, "Session order"); the planner prompt
-// (`goals/goalLaunch.ts`) reads it today. Pure and uncapped: each caller applies its own caps.
+// (`goals/goalLaunch.ts`) and the goal form (`GoalsDialog` via `taskSessions.ts`) read it.
+// Pure and uncapped: each caller applies its own caps.
 import type { Touch } from '../schemas/goal'
 
 export interface GoalSession {

@@ -160,6 +160,17 @@ describe('a new memory task', () => {
     expect(memoryGoals(store)).toEqual([{ name: 'Session s1', memorySessionIds: ['s1'] }])
   })
 
+  it('a planner record naming a goal of another workspace falls through to the own memory goal', () => {
+    const store = harness().open()
+    const other = store.saveGoal({ workspaceId: 'w2', name: 'Elsewhere' }, '/work').saved.id
+    store.notePlanner('s1', other)
+    const out = save(store, 's1', { workspaceId: 'w1' })
+    expect(out.goalCreated).toBe(true)
+    expect(out.task.goalId).not.toBe(other)
+    expect(store.view().goals.find((g) => g.id === out.task.goalId)?.workspaceId).toBe('w1')
+    expect(memoryGoals(store)).toEqual([{ name: 'Session s1', memorySessionIds: ['s1'] }])
+  })
+
   it('the second task reuses the goal', () => {
     const store = harness().open()
     const a = save(store, 's1')
@@ -282,6 +293,18 @@ describe('an update from memory', () => {
   it('records no touch when seen is false (R48)', () => {
     const { store, id } = withTask()
     update(store, id, 's2', 20, false)
+    expect(store.view().tasks[0]?.touchedBy).toEqual([{ sessionId: 's1', at: 10 }])
+  })
+
+  it('a seen update with an empty session id is refused and writes nothing', () => {
+    const h = harness()
+    const store = h.open()
+    const { task } = save(store, 's1', { at: 10 })
+    const before = { writes: h.writes(), emits: h.emits(), file: structuredClone(h.file()) }
+    expect(() => update(store, task.id, '', 20)).toThrow()
+    expect(h.writes()).toBe(before.writes)
+    expect(h.emits()).toBe(before.emits)
+    expect(h.file()).toEqual(before.file)
     expect(store.view().tasks[0]?.touchedBy).toEqual([{ sessionId: 's1', at: 10 }])
   })
 
@@ -704,6 +727,48 @@ describe('applyMemoryRegroup', () => {
     expect(out.tasksMoved).toBe(0)
     expect(store.view().goals).toHaveLength(goals)
     expect(memoryGoals(store)).toEqual([])
+  })
+
+  it('a task that already has touches keeps them and is not counted as backfilled', () => {
+    const h = harness()
+    const store = h.open()
+    const { task } = save(store, 's1', { at: 10 })
+    store.updateTaskFromExtraction(task.id, {
+      check: null,
+      leftWith: 'session',
+      at: 20,
+      seen: true,
+      sessionId: 's2'
+    })
+    const out = store.applyMemoryRegroup([], 9999)
+    expect(out.tasksTouched).toBe(0)
+    expect(store.view().tasks[0]?.touchedBy).toEqual([
+      { sessionId: 's1', at: 10 },
+      { sessionId: 's2', at: 20 }
+    ])
+  })
+
+  it('a group never moves a task of another workspace', () => {
+    const h = harness()
+    const store = h.open()
+    const { task } = save(store, 's1', { workspaceId: 'w1' })
+    store.saveTask({ id: task.id, workspaceId: 'w1', goalId: null, title: task.title })
+    const goals = store.view().goals.length
+    const out = store.applyMemoryRegroup(
+      [
+        {
+          sessionId: 's1',
+          workspaceId: 'w2',
+          sessionGoal: { name: 'Other', folder: '/proj' },
+          createdAt: 3000,
+          taskIds: [task.id]
+        }
+      ],
+      9999
+    )
+    expect(out).toMatchObject({ goalsCreated: 0, tasksMoved: 0 })
+    expect(goalOf(store, task.id)).toBeNull()
+    expect(store.view().goals).toHaveLength(goals)
   })
 
   it('with nothing to do it still writes the marker, and does not emit', () => {

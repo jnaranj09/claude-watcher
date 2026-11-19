@@ -715,6 +715,39 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
       expect(extras.taskIds).toEqual(['a', 'b', 'c'])
     })
 
+    it('tasks over the list budget: taskIds leaves out the cut task', () => {
+      const ids = Array.from({ length: 120 }, (_, i) => `t${String(i).padStart(3, '0')}`)
+      const file = {
+        version: 1,
+        goals: [{ id: 'g1', workspaceId: 'w1', name: 'Auth', createdAt: 1, defaultCwd: '/work' }],
+        tasks: ids.map((id) => ({
+          id,
+          workspaceId: 'w1',
+          goalId: 'g1',
+          title: `${id} ${'x'.repeat(150)}`,
+          status: 'open',
+          createdAt: 1,
+          touchedBy: []
+        }))
+      }
+      const store = createGoalsStore({
+        blobStore: { read: () => file, write: () => {}, backup: () => {} }
+      })
+      const extras = goalSpawnExtras(
+        { store, mcp: mcp(), sessionName: () => null },
+        'sess-p',
+        planner,
+        false,
+        null
+      )
+      const last = ids.at(-1) ?? ''
+      expect(extras.taskIds.length).toBeGreaterThan(0)
+      expect(extras.taskIds.length).toBeLessThan(ids.length)
+      expect(extras.taskIds).not.toContain(last)
+      expect(extras.appendPrompt).not.toContain(`[${last}]`)
+      for (const id of extras.taskIds) expect(extras.appendPrompt).toContain(`[${id}]`)
+    })
+
     it('no task touched: no sessions list', () => {
       const { store, goalId } = seed()
       const sessionName = vi.fn(() => 'never')
