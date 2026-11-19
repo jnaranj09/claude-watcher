@@ -155,6 +155,11 @@ export interface LaunchIpcDeps {
    *  allowed tool for `mark_task_done`). Read at spawn time; links the tasks to the minted id
    *  (goals/goalLaunch.ts). `previousSessionId` = the id the
    *  terminal's last spawn minted, null on its first. */
+  /** Goals: a planner spawn records the goal it plans (`GoalsStore.notePlanner`). Never throws. */
+  notePlanner: (sessionId: string, goalId: string) => void
+  /** Goals: a Reopen carries the memory goal and planner record to the new id
+   *  (`GoalsStore.carrySessionGoal`). Never throws. */
+  carrySessionGoal: (previousId: string, newId: string) => void
   goalSpawnExtras: (
     sessionId: string,
     goalLaunch: GoalLaunch | null,
@@ -216,6 +221,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     readTranscriptInfo,
     claudeVersionAllowsLaunch,
     bridgeMod,
+    notePlanner,
+    carrySessionGoal,
     goalSpawnExtras,
     memorySpawnExtras,
     memoryResumed,
@@ -357,6 +364,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     shell: SHELL,
     hookListening: () => serverHealth.hookListening(),
     bridgeMod,
+    notePlanner,
+    carrySessionGoal,
     goalSpawnExtras,
     memorySpawnExtras,
     memoryResumed,

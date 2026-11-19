@@ -84,7 +84,11 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   (a Reopen keeps it); every spawn calls `goalSpawnExtras` (`goals/goalLaunch.ts`) with the id it
   replaces (`lastSessionId`). The first spawn links the launch's tasks to THAT minted id; a Reopen
   carries over only the tasks still open and still linked to the replaced id (closed or unlinked
-  work never comes back). The block, appended to `--append-system-prompt` after
+  work never comes back). Before that call, a Reopen (a previous id, no resume; plain, worker or
+  planner) calls `carrySessionGoal(previous, new)` and a planner spawn calls
+  `notePlanner(new, goalId)` (`pty/claudeSpawnCommand.ts`; the carry first), so the new id keeps
+  the memory goal and the planner record; a throw logs `memory_goal_carry_failed` /
+  `memory_planner_note_failed` and the spawn goes on. The block, appended to `--append-system-prompt` after
   `QUESTION_FORMAT_PROMPT`, lists open tasks only; none left, no block. A resume with no
   `goalLaunch` rebuilds it from the links that still name the id.
   `goals:start-sessions` refuses before anything launches (`task_repeated` at the schema,
@@ -405,7 +409,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   (a bad save row is skipped, R33), `memory_candidates_dropped reason= count=`,
   `memory_extract_cancelled`, `memory_extract_result_invalid` (the push),
   `memory_extract_result_held_dropped` (a full hold in main or the preload buffer drops its oldest),
-  `memory_task_write_failed`, `memory_goal_created folder=yes|no memory_goals=` (a save made a
+  `memory_task_write_failed`, `memory_goal_carry_failed` and `memory_planner_note_failed` (the
+  spawn seam's Reopen carry and planner record), `memory_goal_created folder=yes|no memory_goals=` (a save made a
   memory goal; the memory goals now in that workspace), `memory_cascade_failed step=forget|rows` (a workspace delete's memory
   step; `memoryStartup.ts` logs it with no step), `memory_extract_kill_failed signal=`
   (`headlessClaude.ts`); the Past sessions store adds `past_sessions_memory_<problem>`. Known

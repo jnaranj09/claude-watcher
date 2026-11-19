@@ -2,7 +2,8 @@
 // env (`rawClaudeSpawn`, ipc/registerLaunchIpc.ts). It lives here, not inline in the registrar,
 // because the registrar is only reachable through Electron's ipc: a test can reach this, so the
 // mod folders, the goals and memory parts and the order they are asked in each have a test.
-// Order: the bridge mod (its env var goes into `env`), then goals (links the tasks to the minted
+// Order: the bridge mod (its env var goes into `env`), then the Reopen carry of the memory goal
+// and the planner record (both before goals), then goals (links the tasks to the minted
 // id), then memory (inside `spawnExtras`), then the hook settings file.
 import type { ClaudeVersion } from '../../shared/launch/claudeVersion'
 import type { ModSkipReason } from '../../shared/schemas/contextIpc'
@@ -26,6 +27,12 @@ export interface ClaudeSpawnDeps {
     hookPort: number
     onSkip: (sessionId: string, reason: ModSkipReason) => void
   }
+  /** A planner spawn records that `sessionId` plans `goalId` (`GoalsStore.notePlanner`). Pass only
+   *  a minted id and an existing goal id. Never throws. */
+  notePlanner: (sessionId: string, goalId: string) => void
+  /** A Reopen: `newId` joins `previousId`'s memory-goal family (`GoalsStore.carrySessionGoal`).
+   *  Pass only minted ids. Never throws. */
+  carrySessionGoal: (previousId: string, newId: string) => void
   goalSpawnExtras: (
     sessionId: string,
     goalLaunch: GoalLaunch | null,
@@ -87,6 +94,17 @@ export function claudeSpawnCommand(
     onSkip: deps.bridgeMod.onSkip,
     log: deps.log
   })
+
+  // A Reopen (a previous id, no resume), plain, worker or planner, carries the memory goal and the
+  // planner record to the new id; a planner then records that it plans its goal. Both before
+  // goals, so everything the spawn adds already sees the new id. A dev StrictMode double mount
+  // re-spawns the same way and carries again; both ids join one family.
+  if (previousSessionId !== null && !request.resume) {
+    deps.carrySessionGoal(previousSessionId, sessionId)
+  }
+  if (request.goalLaunch?.kind === 'planner') {
+    deps.notePlanner(sessionId, request.goalLaunch.goalId)
+  }
 
   // Goals: a session started from tasks gets them as context (its tasks are linked to THIS
   // minted id first), and `mark_task_done` when the operator chose it. Nothing for any other
