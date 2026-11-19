@@ -82,6 +82,7 @@ import { memoryCascadeStep } from './memory/extract/extractWiring'
 import { readTranscriptSlice, transcriptFsOnDisk } from './memory/extract/transcriptReader'
 import { buildPtyEnv } from './pty/ptyEnv'
 import { goalSpawnExtras } from './goals/goalLaunch'
+import { sessionNameOf } from './goals/sessionNameOf'
 import { createGoalTokens } from './goals/mcp/goalTokens'
 import { MCP_SERVER_NAME, createMcpConfigs } from './goals/mcp/mcpConfigFile'
 import { createMcpTools } from './goals/mcp/mcpTools'
@@ -1348,7 +1349,15 @@ app
               // resume in the same run asks `tokens.markDoneFor` first).
               pastTasksMarkDone: (id) => pastTasksMarkDone(pastSessionsStore, id),
               log: (line) => console.warn(line)
-            }
+            },
+            sessionName: (id) =>
+              sessionNameOf(
+                {
+                  liveName: (x) => sessionMeta(x)?.sessionName,
+                  record: (x) => pastSessionsStore?.get(x) ?? null
+                },
+                id
+              )
           },
           sessionId,
           goalLaunch,

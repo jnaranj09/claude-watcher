@@ -168,9 +168,14 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   the tools live on it), `claude_version`, `goal_folder_missing`, `folder_missing`. Every spawn of a
   planner (`goalLaunch.kind: 'planner'`) gets `buildPlannerPrompt`, a `mode: 'planner'` token bound
   to its goal, the config file and `--allowedTools` for its three tools (comma-joined), all four or
-  none (no MCP, goal gone, SEC-6, refused write). It is linked to no task, gets no
-  `mark_task_done`, and its card shows nothing new. Tools (`goals/mcp/mcpTools.ts`), no goal-id
-  argument: `list_tasks` (its goal; titles go to the session, never to a log), `create_task`
+  none (no MCP, goal gone, SEC-6, refused write). The prompt lists the goal's tasks, then the
+  sessions that worked on them (`Task.touchedBy`, `shared/goals/goalSessionOrder.ts` order, names
+  from `goals/sessionNameOf.ts`, cleaned by `promptSafeName`); `buildPlannerPrompt` alone caps it
+  (20 sessions, 20 ids each) and keeps both lists within `PLANNER_LIST_BUDGET_BYTES` measured after
+  `shellQuote` (done tasks dropped first, then a `more tasks` line; session lines are dropped
+  before task lines); the spawn's `taskIds` are only the listed tasks. It is linked to no task,
+  gets no `mark_task_done`, and its card shows nothing new. Tools (`goals/mcp/mcpTools.ts`), no
+  goal-id argument: `list_tasks` (its goal; titles go to the session, never to a log), `create_task`
   (`TaskSaveSchema` title rules → `isError title_invalid`; `addTaskFromSession` keeps the task and
   reports a refused write), `propose_split` (only that goal's OPEN tasks, else `task_not_in_goal`;
   a repeated id `task_repeated`; nothing stored on a refusal). A worker calling a planner tool, or
