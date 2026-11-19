@@ -95,6 +95,11 @@ describe('regroup order scan', () => {
       'a createGoalsStore with blobStore: has no backupCopy:'
     ])
   })
+
+  it('fails when no createGoalsStore call passes blobStore', () => {
+    const text = GOOD.replace("{ blobStore: b, backupCopy: () => b.copy('x') }", '{ proposals: p }')
+    expect(offences(text)).toEqual(['no createGoalsStore call passes blobStore:'])
+  })
 })
 
 describe('regroup order guard', () => {

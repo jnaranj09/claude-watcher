@@ -77,9 +77,10 @@ function groupsOf(tasks: readonly Task[], record: RegroupDeps['record']): Memory
   return groups
 }
 
-/** Runs the cleanup once: nothing with no goals store or once the marker is set. The goals file is
- *  copied aside first (`backupBeforeRegroup`); a failed copy logs
- *  `goals_memory_regroup_backup_failed` and leaves the cleanup for the next start. Never throws. */
+/** Runs the cleanup once: nothing with no goals store or once the marker is set. It reads the
+ *  groups, then copies the goals file aside (`backupBeforeRegroup`), then applies them in one
+ *  write; a failed copy logs `goals_memory_regroup_backup_failed` and leaves the cleanup for the
+ *  next start. Never throws. */
 export function regroupMemoryTasks(deps: RegroupDeps): void {
   const { goals } = deps
   if (goals === null) return

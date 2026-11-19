@@ -1379,12 +1379,16 @@ app
         ),
       // A Reopen carries the memory goal and the planner record; a planner spawn records its goal.
       carrySessionGoal: (prev, next) =>
-        memoryStep((line) => console.warn(line), 'memory_goal_carry_failed', () =>
-          goalsStore?.carrySessionGoal(prev, next)
+        memoryStep(
+          (line) => console.warn(line),
+          'memory_goal_carry_failed',
+          () => goalsStore?.carrySessionGoal(prev, next)
         ),
       notePlanner: (sessionId, goalId) =>
-        memoryStep((line) => console.warn(line), 'memory_planner_note_failed', () =>
-          goalsStore?.notePlanner(sessionId, goalId)
+        memoryStep(
+          (line) => console.warn(line),
+          'memory_planner_note_failed',
+          () => goalsStore?.notePlanner(sessionId, goalId)
         ),
       // A resume of a session with no memory save row starts its save at the transcript's end.
       memoryResumed: (sessionId, workspaceId) => extractor.resumed(sessionId, workspaceId),

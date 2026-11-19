@@ -1,7 +1,8 @@
-// The ONE place electron-store is imported and constructed (settings + templates both wrap
-// this). Imported ONLY from `src/main/index.ts` — electron-store@11 runs `ipcMain.on(...)` at
-// MODULE EVAL, which would crash the bare-node `main-unit` runtime; every store module that
-// must stay unit-testable takes this as a DI seam instead.
+// The ONE place electron-store is imported and constructed (every `electron*BlobStore.ts` module
+// wraps this). Only those wrappers import it, and only `src/main/index.ts` imports them —
+// electron-store@11 runs `ipcMain.on(...)` at MODULE EVAL, which would crash the bare-node
+// `main-unit` runtime; every store module that must stay unit-testable takes this as a DI seam
+// instead.
 //
 // PACKAGING (load-bearing): electron-store@11 is ESM-only (`"type":"module"`), and the
 // packaged main bundle is CommonJS — a runtime `require('electron-store')` throws
