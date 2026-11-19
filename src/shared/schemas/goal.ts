@@ -65,9 +65,10 @@ export const GoalSchema = z.object({
   id: IdSchema,
   workspaceId: WorkspaceIdSchema,
   name: GoalNameSchema,
-  // Stored by main from its own folder picker; the renderer never sends a path (spec §7). Required
-  // for a new goal (create opens the picker first); null only on a goal made before that rule,
-  // which cannot start sessions until it gets one (spec 2026-10-29).
+  // Stored by main from its own folder picker, or from the session's folder for a memory goal; the
+  // renderer never sends a path (spec §7). Required for a goal the operator creates (create opens
+  // the picker first); null only on a goal made before that rule or a memory goal made for a
+  // session with no folder, which cannot start sessions until it gets one (spec 2026-10-29).
   defaultCwd: z.string().min(1).nullable().default(null),
   // `Save to GOALS.md`: keep this goal and its tasks in `<defaultCwd>/GOALS.md` (goals/goalsFile.ts).
   saveToFile: z.boolean().default(false),
@@ -84,7 +85,7 @@ export type Touch = z.infer<typeof TouchSchema>
 export const TaskSchema = z.object({
   id: IdSchema,
   workspaceId: WorkspaceIdSchema,
-  // null = a loose task.
+  // null = a loose task (Daily tasks). A new task memory writes always gets a goal (its session's).
   goalId: z.string().nullable().default(null),
   title: TaskTitleSchema,
   status: TaskStatusValueSchema,
@@ -267,8 +268,9 @@ export const LAUNCH_CANCELLED = 'launch_cancelled'
  *  nothing is created, and the sheet says nothing. Shared: main throws it, the renderer matches it. */
 export const FOLDER_CANCELLED = 'folder_cancelled'
 
-/** The refusal for a goal with no folder (made before folders were required): a create without
- *  one, a start or a planner on it, or turning its `Save to GOALS.md` on. Shared like the above. */
+/** The refusal for a goal with no folder (made before folders were required, or a memory goal
+ *  made for a session with no folder): a create without one, a start or a planner on it, or
+ *  turning its `Save to GOALS.md` on. Shared like the above. */
 export const GOAL_FOLDER_MISSING = 'goal_folder_missing'
 
 /** The refusal `goals:plan` throws while the hook port is not this app's (SEC-6): the endpoint

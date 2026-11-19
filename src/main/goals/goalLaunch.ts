@@ -197,7 +197,8 @@ export interface StartGoalSessionsDeps {
 }
 
 /** ONE folder for a whole launch. A goal's launch uses the goal's folder only: a goal with none
- *  (made before folders were required) throws `goal_folder_missing` and never opens the picker.
+ *  (made before folders were required, or a memory goal made for a session with no folder) throws
+ *  `goal_folder_missing` and never opens the picker.
  *  Daily tasks (no goal): the workspace's folder, else the picker once; a cancelled picker
  *  throws `launch_cancelled`. */
 async function pickLaunchFolder(

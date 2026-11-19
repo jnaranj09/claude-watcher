@@ -3,7 +3,7 @@
 // it is a CLI arg WE generate, not claude output. NEVER log a template value (cwd = filesystem
 // layout, name = operator text) — log path + code only.
 import { z } from 'zod'
-import { SESSION_NAME_MAX_LENGTH, SessionNameSchema } from './launch'
+import { isControlCodePoint, SESSION_NAME_MAX_LENGTH, SessionNameSchema } from './launch'
 import { scanPlaceholders } from './shortcut'
 import { WorkspaceIdSchema } from './workspace'
 
@@ -75,8 +75,7 @@ export function compileParamPattern(pattern: string): RegExp | null {
 function hasControlCharExceptNewline(text: string): boolean {
   for (const ch of text) {
     const cp = ch.codePointAt(0)
-    if (cp === undefined || cp === 0x0a) continue
-    if (cp <= 0x1f || (cp >= 0x7f && cp <= 0x9f)) return true
+    if (cp !== undefined && cp !== 0x0a && isControlCodePoint(cp)) return true
   }
   return false
 }

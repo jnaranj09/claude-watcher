@@ -2,8 +2,9 @@
 // UNTRUSTED cross-process input → Schema.parse(raw) throws typed on bad input (zod-boundaries.md
 // IPC-arg row). ipc/registerStoreIpc.ts binds them to CH.* channels. The renderer never sends a
 // path: a goal's folder is whatever main's own picker returned (a NEW goal's save opens it first:
-// no goal exists without a folder), and a start from tasks sends ids only (goals/goalLaunch.ts
-// picks the folder and the names). `Save to GOALS.md` on always rewrites that folder's file. "Plan with Claude" sends a goal id;
+// the operator makes no goal without a folder; only a memory goal made for a session with no
+// folder, or a goal from before that rule, has none), and a start from tasks sends ids only
+// (goals/goalLaunch.ts picks the folder and the names). `Save to GOALS.md` on always rewrites that folder's file. "Plan with Claude" sends a goal id;
 // a decision on a planner's proposal sends the planner's id and, for Accept, the (possibly edited)
 // groups of task ids, which pass the same checks as `Start session`.
 import {

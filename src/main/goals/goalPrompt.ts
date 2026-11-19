@@ -4,6 +4,7 @@
 // caps), so each task stays on one line. Shell quoting happens at spawn (claudeBin), not here.
 import type { TaskStatus } from '../../shared/schemas/goal'
 import { SESSION_NAME_MAX_LENGTH } from '../../shared/schemas/launch'
+import { cutToUnits } from '../../shared/textCut'
 
 const ELLIPSIS = '…'
 
@@ -55,12 +56,8 @@ export function taskSessionName(titles: readonly string[]): string {
   const suffix = titles.length > 1 ? ` +${titles.length - 1}` : ''
   const room = SESSION_NAME_MAX_LENGTH - suffix.length
   if (first.length <= room) return first + suffix
-  let cut = room - 1
-  // Do not keep the high half of a surrogate pair (an emoji) alone at the cut.
-  const code = first.charCodeAt(cut - 1)
-  if (code >= 0xd800 && code <= 0xdbff) cut -= 1
   // No space before the …: a cut after a word reads "foo …", not "foo…".
-  return first.slice(0, cut).trimEnd() + ELLIPSIS + suffix
+  return cutToUnits(first, room - ELLIPSIS.length).trimEnd() + ELLIPSIS + suffix
 }
 
 /** The non-blank parts of a system prompt, joined by a blank line; null when none is left. */

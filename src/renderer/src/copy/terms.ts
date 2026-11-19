@@ -52,7 +52,8 @@ export const GOAL_TERMS = {
   saveToFileHint: 'Keeps this goal and its tasks in GOALS.md in its folder, for source control.',
   tryAgain: 'Try again',
   fileNotUpdated: (reason: string): string => `Saved, but GOALS.md was not updated. ${reason}`,
-  /** A goal made before folders were required: it starts nothing until it has one. */
+  /** A goal with no folder (made before folders were required, or a memory goal made for a
+   *  session with no folder): it starts nothing until it has one. */
   noFolderYet: 'No folder yet. Choose one to start sessions.',
   /** The Goals sheet's task row: its ▸ / ▾ toggle (with the title after it) and its edit field. */
   showFullText: 'Show full text',

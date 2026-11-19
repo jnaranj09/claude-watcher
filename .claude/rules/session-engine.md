@@ -90,19 +90,30 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `goals:start-sessions` refuses before anything launches (`task_repeated` at the schema,
   `task_not_found`, `goal_workspace_mismatch`, `claude_version`, `launch_cancelled`,
   `folder_missing`, `goal_folder_missing`, a bad name on any group). A goal's tasks start in the
-  goal's folder only (`pickLaunchFolder`); a goal with none (made before folders were required)
-  refuses with `goal_folder_missing` and never opens the picker. Daily tasks: the workspace's
+  goal's folder only (`pickLaunchFolder`); a goal with none (made before folders were required,
+  or a memory goal made for a session with no folder) refuses with `goal_folder_missing` and never
+  opens the picker. Daily tasks: the workspace's
   folder, else the picker.
-  Memory's saves add and update tasks too (`addTaskFromExtraction`, `updateTaskFromExtraction`;
-  under the session's goal when it has one in that workspace, else Daily tasks, with `check`, `leftWith`, `lastSeenAt`, `originSessionId` and `folder`, none of
-  them written to `GOALS.md`); a session's `task_report` sets `report` (`reportTask`), a flag the
+  Memory's saves add and update tasks too (`addTaskFromExtraction`, `updateTaskFromExtraction`,
+  with `check`, `leftWith`, `lastSeenAt`, `originSessionId` and `folder`, none of them written to
+  `GOALS.md`). A new task goes, in this order, to the goal the session plans (its planner record,
+  `GoalsFile.plannerSessions`), the goal its links name (`meta.goalId`) when that goal is in the
+  save's workspace, the session's own **memory goal** (a goal of that workspace whose
+  `Goal.memorySessionIds` holds an id of the session; the oldest wins), else a new memory goal
+  named after the session (`memory/sessionGoal.ts`) in the session's folder; a null folder makes a
+  goal with no folder. A session's ids (`/clear`, Reopen) are one family through the session
+  lineage (`GoalsFile.sessionLineage`), so each of them finds the same goal. A save that adds a
+  task, or updates one from a sighting, records the session in `Task.touchedBy`. Memory never
+  links a task to a session. A session's `task_report` sets `report` (`reportTask`), a flag the
   Goals sheet shows. Neither ever closes a task: `Done` stays the operator's (or a linked
   session's `mark_task_done`).
-- **A goal's folder and `GOALS.md` (spec 2026-10-29):** a new goal needs a folder (`goals:save-goal`
-  without an id opens main's picker first; cancel → `folder_cancelled`, nothing created); a folder
-  is never cleared. `Save to GOALS.md` (`goals:set-save-to-file`; on always rewrites): the exporter
-  `goals/goalsFile.ts` runs inside the goals store's `emit()`, after EVERY change and before the
-  listeners, so a new store method reaches the file only if it emits. It rewrites a folder's
+- **A goal's folder and `GOALS.md` (spec 2026-10-29):** a goal the operator creates needs a folder
+  (`goals:save-goal` without an id opens main's picker first; cancel → `folder_cancelled`, nothing
+  created); a memory goal takes its session's folder, or none; a folder is never cleared. `Save to
+  GOALS.md` (`goals:set-save-to-file`; on always rewrites): the exporter `goals/goalsFile.ts` runs
+  inside the goals store's `emit()`, after every change to goals or tasks (a write of only the
+  session lineage or the planner records does not emit) and before the listeners, so a new store
+  method reaches the file only if it emits. It rewrites a folder's
   `GOALS.md` only when that folder's text changed (links and `/clear` write nothing), never writes
   or removes one without its header line, never creates a folder, and at startup only checks.
   Problems (`goals_file_not_ours`, `folder_missing`, `goals_file_write_failed`) live in memory and
@@ -126,8 +137,11 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `timingSafeEqual`, one per session, fresh on every spawn; the file
   (`<userData>/mcp/<random>.json`, folder 0700, file 0600) holds the token in `headers`, so argv
   holds only its path. The token is resolved again when the body ends (a revoke meanwhile: 401).
-  `/clear` moves the task links, a task's `originSessionId` and its report's `sessionId`
-  (`GoalsStore.rebindSession`), the token and the file (`window/cardState.ts`); a removed card
+  `/clear` moves the task links, a task's `originSessionId`, its report's `sessionId` and its
+  `touchedBy`, adds the new id to every goal whose `memorySessionIds` holds the old one, and
+  records the lineage (`GoalsStore.rebindSession`; a throw in those memory-goal steps logs
+  `[claude-watcher][goals] code=goals_rebind_lineage_failed` and keeps the moves), and moves the
+  token and the file (`window/cardState.ts`); a removed card
   revokes the token and deletes the file (links stay); a start (not SMOKE: it shares the default
   userData) deletes files a previous run left. Authority is the task's CURRENT `sessionIds`
   holding the caller, in the grant's workspace (`task_not_linked`, `task_not_found`; already done = ok).
@@ -391,7 +405,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   (a bad save row is skipped, R33), `memory_candidates_dropped reason= count=`,
   `memory_extract_cancelled`, `memory_extract_result_invalid` (the push),
   `memory_extract_result_held_dropped` (a full hold in main or the preload buffer drops its oldest),
-  `memory_task_write_failed`, `memory_cascade_failed step=forget|rows` (a workspace delete's memory
+  `memory_task_write_failed`, `memory_goal_created folder=yes|no memory_goals=` (a save made a
+  memory goal; the memory goals now in that workspace), `memory_cascade_failed step=forget|rows` (a workspace delete's memory
   step; `memoryStartup.ts` logs it with no step), `memory_extract_kill_failed signal=`
   (`headlessClaude.ts`); the Past sessions store adds `past_sessions_memory_<problem>`. Known
   limits: a turn interrupted with Esc sends no `Stop`, so its text waits for a later resume that

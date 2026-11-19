@@ -424,7 +424,8 @@ sits `--gap-section` below it, outside.
 A goal's form: `Default folder` with `Choose…` (a goal's folder is never cleared; a new goal's
 `Create` opens the picker first), then the `Save to GOALS.md` `Switch` and its hint; a file
 problem is a danger `Callout` with `Try again`. A goal with no folder (made before folders were
-required) shows a danger `Callout` instead, and no switch, `Plan with Claude` or select boxes.
+required, or a memory goal made for a session with no folder) shows a danger `Callout` instead,
+and no switch, `Plan with Claude` or select boxes.
 On the sheet only, a ghost `▸` / `▾` before ✕ opens a row: the title wraps in full and `Edit`
 shows; `Edit` swaps the title for a 3-row `TextArea` (the title wraps) with `Save` / `Cancel`
 (Enter saves, a pasted line break becomes a space, Escape cancels the edit only, empty or

@@ -89,8 +89,9 @@ interface GoalFormProps {
 /** Keyed by the selected id in GoalsDialog, so a selection change remounts it with a fresh draft
  *  (same reasoning as WorkspaceForm). The Default folder row and the tasks need a goal id, so a
  *  goal being created shows only its name until it is saved; `Create` makes main open its folder
- *  picker first (no goal without a folder; a cancel creates nothing and says nothing). A goal from
- *  before that rule (no folder) says so and offers no `Save to GOALS.md`, `Plan with Claude` or
+ *  picker first (the operator makes no goal without a folder; a cancel creates nothing and says
+ *  nothing). A goal with no folder (from before that rule, or a memory goal made for a session
+ *  with no folder) says so and offers no `Save to GOALS.md`, `Plan with Claude` or
  *  `Start session` until it has one. */
 function GoalForm({
   goal,

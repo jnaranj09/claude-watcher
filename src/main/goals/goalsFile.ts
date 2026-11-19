@@ -2,9 +2,10 @@
 // `<goal folder>/GOALS.md`, so the plan is committed with the project. Export only: the app writes
 // the file and never reads it back, except its first line, which says the app made it.
 //
-// The goals store calls `afterChange` from its one emit path, after EVERY change whatever its
-// source; a folder is written only when its rendered text changed, so a link or a `/clear` rebind
-// (not in the file) writes nothing. A file without the header is never written or removed, and a
+// The goals store calls `afterChange` from its one emit path, after every change to goals or tasks
+// whatever its source (a write of only the session lineage or the planner records does not emit);
+// a folder is written only when its rendered text changed, so a link or a `/clear` rebind (not in
+// the file) writes nothing. A file without the header is never written or removed, and a
 // missing folder is never created. Problems live in memory, per folder; the store folds them into
 // `GoalsView.fileProblems`. NEVER log a path, a goal name or a task title — codes only.
 import { readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'

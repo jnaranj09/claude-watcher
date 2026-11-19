@@ -54,8 +54,9 @@ export function TaskList({ tasks, workspaceId, goalId, head }: TaskListProps): J
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
   const [markDone, setMarkDone] = useState(true)
   const switchId = useId()
-  // A goal with no folder (made before folders were required) starts nothing: its tasks offer no
-  // select box and no start bar until it has one. Daily tasks always can.
+  // A goal with no folder (made before folders were required, or a memory goal made for a session
+  // with no folder) starts nothing: its tasks offer no select box and no start bar until it has
+  // one. Daily tasks always can.
   const startable = useGoals(
     (s) => goalId === null || (s.goals.find((g) => g.id === goalId)?.defaultCwd ?? null) !== null
   )

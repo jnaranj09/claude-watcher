@@ -85,23 +85,25 @@ describe('going back to the phase-1 build', () => {
 
   it('the phase-1 goals schema parses a goals file holding an extracted, reported task', () => {
     const file = blob<GoalsFile>()
+    let ids = 0
     const store = createGoalsStore({
       blobStore: file.blobStore as GoalsBlobStore,
-      newId: () => 't1',
+      newId: () => `id${++ids}`,
       now: () => 5,
       log: () => undefined
     })
-    store.addTaskFromExtraction({
+    const { task } = store.addTaskFromExtraction({
       workspaceId: 'w1',
-      goalId: null,
+      metaGoalId: null,
       title: 'Add a health check',
       check: 'curl localhost:9281/health',
       leftWith: 'session',
-      originSessionId: 's1',
+      sessionId: 's1',
+      sessionGoal: { name: 'api', folder: '/work/api' },
       folder: '/work/api',
       at: 5
     })
-    store.reportTask('t1', {
+    store.reportTask(task.id, {
       at: 6,
       sessionId: 's1',
       sessionName: 'api',
@@ -110,6 +112,6 @@ describe('going back to the phase-1 build', () => {
     })
     const parsed = Phase1GoalsFileSchema.safeParse(file.current())
     expect(parsed.success).toBe(true)
-    expect(parsed.data?.tasks.map((t) => [t.id, 'check' in t])).toEqual([['t1', false]])
+    expect(parsed.data?.tasks.map((t) => [t.id, 'check' in t])).toEqual([[task.id, false]])
   })
 })

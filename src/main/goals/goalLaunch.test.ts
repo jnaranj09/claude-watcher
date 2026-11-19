@@ -34,7 +34,8 @@ function seed(): { store: GoalsStore; goalId: string; t1: string; t2: string; t3
   return { store, goalId, t1, t2, t3 }
 }
 
-/** A goal from before folders were required (`defaultCwd` null), with one open task. */
+/** A goal with no folder (`defaultCwd` null: from before folders were required, or a memory goal
+ *  made for a session with no folder), with one open task. */
 function legacySeed(): { store: GoalsStore; goalId: string; t1: string } {
   const file = {
     version: 1,
