@@ -151,15 +151,15 @@ export interface LaunchIpcDeps {
     /** The spawn went without the mod; Context says why. */
     onSkip: (sessionId: string, reason: ModSkipReason) => void
   }
-  /** Goals: what one spawn of `sessionId` adds (its tasks' prompt block, and the MCP config and
-   *  allowed tool for `mark_task_done`). Read at spawn time; links the tasks to the minted id
-   *  (goals/goalLaunch.ts). `previousSessionId` = the id the
-   *  terminal's last spawn minted, null on its first. */
   /** Goals: a planner spawn records the goal it plans (`GoalsStore.notePlanner`). Never throws. */
   notePlanner: (sessionId: string, goalId: string) => void
   /** Goals: a Reopen carries the memory goal and planner record to the new id
    *  (`GoalsStore.carrySessionGoal`). Never throws. */
   carrySessionGoal: (previousId: string, newId: string) => void
+  /** Goals: what one spawn of `sessionId` adds (its tasks' prompt block, and the MCP config and
+   *  allowed tool for `mark_task_done`). Read at spawn time; links the tasks to the minted id
+   *  (goals/goalLaunch.ts). `previousSessionId` = the id the
+   *  terminal's last spawn minted, null on its first. */
   goalSpawnExtras: (
     sessionId: string,
     goalLaunch: GoalLaunch | null,

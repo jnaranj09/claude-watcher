@@ -88,9 +88,9 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   planner) calls `carrySessionGoal(previous, new)` and a planner spawn calls
   `notePlanner(new, goalId)` (`pty/claudeSpawnCommand.ts`; the carry first), so the new id keeps
   the memory goal and the planner record; a throw logs `memory_goal_carry_failed` /
-  `memory_planner_note_failed` and the spawn goes on. The block, appended to `--append-system-prompt` after
-  `QUESTION_FORMAT_PROMPT`, lists open tasks only; none left, no block. A resume with no
-  `goalLaunch` rebuilds it from the links that still name the id.
+  `memory_planner_note_failed` and the spawn goes on. The block, appended to
+  `--append-system-prompt` after `QUESTION_FORMAT_PROMPT`, lists open tasks only; none left, no
+  block. A resume with no `goalLaunch` rebuilds it from the links that still name the id.
   `goals:start-sessions` refuses before anything launches (`task_repeated` at the schema,
   `task_not_found`, `goal_workspace_mismatch`, `claude_version`, `launch_cancelled`,
   `folder_missing`, `goal_folder_missing`, a bad name on any group). A goal's tasks start in the
@@ -410,9 +410,10 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `memory_extract_cancelled`, `memory_extract_result_invalid` (the push),
   `memory_extract_result_held_dropped` (a full hold in main or the preload buffer drops its oldest),
   `memory_task_write_failed`, `memory_goal_carry_failed` and `memory_planner_note_failed` (the
-  spawn seam's Reopen carry and planner record), `memory_goal_created folder=yes|no memory_goals=` (a save made a
-  memory goal; the memory goals now in that workspace), `memory_cascade_failed step=forget|rows` (a workspace delete's memory
-  step; `memoryStartup.ts` logs it with no step), `memory_extract_kill_failed signal=`
+  spawn seam's Reopen carry and planner record), `memory_goal_created folder=yes|no memory_goals=`
+  (a save made a memory goal; the memory goals now in that workspace),
+  `memory_cascade_failed step=forget|rows` (a workspace delete's memory step; `memoryStartup.ts`
+  logs it with no step), `memory_extract_kill_failed signal=`
   (`headlessClaude.ts`); the Past sessions store adds `past_sessions_memory_<problem>`. Known
   limits: a turn interrupted with Esc sends no `Stop`, so its text waits for a later resume that
   finishes a turn, except in a session with no save row yet (it never finished a turn while
