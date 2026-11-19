@@ -73,13 +73,13 @@ export const SESSION_LINEAGE_MAX = 500
 export const PLANNER_SESSIONS_MAX = 200
 
 /** What a new memory goal is made with: the session's goal name and folder (null = no folder). */
-interface SessionGoal {
+export interface SessionGoal {
   name: string
   folder: string | null
 }
 
 /** One session's open Daily tasks the one-time cleanup moves into that session's memory goal. */
-interface MemoryRegroupGroup {
+export interface MemoryRegroupGroup {
   sessionId: string
   workspaceId: string
   sessionGoal: SessionGoal

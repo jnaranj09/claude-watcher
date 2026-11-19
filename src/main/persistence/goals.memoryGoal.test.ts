@@ -676,6 +676,36 @@ describe('applyMemoryRegroup', () => {
     expect(store.memoryRegroupedAt()).toBe(9999)
   })
 
+  it('a group whose tasks are all done or already in a goal creates no goal', () => {
+    const h = harness()
+    const ids = seed(h.open())
+    const store = asBeforeTheChange(h)
+    const goals = store.view().goals.length
+    const out = store.applyMemoryRegroup(
+      [
+        {
+          sessionId: 'S',
+          workspaceId: 'w1',
+          sessionGoal: { name: 'Fix login', folder: '/proj' },
+          createdAt: 3000,
+          taskIds: [ids.done]
+        },
+        {
+          sessionId: 'T',
+          workspaceId: 'w1',
+          sessionGoal: { name: 'Auth work', folder: '/proj' },
+          createdAt: 3000,
+          taskIds: [ids.inAuth]
+        }
+      ],
+      9999
+    )
+    expect(out.goalsCreated).toBe(0)
+    expect(out.tasksMoved).toBe(0)
+    expect(store.view().goals).toHaveLength(goals)
+    expect(memoryGoals(store)).toEqual([])
+  })
+
   it('with nothing to do it still writes the marker, and does not emit', () => {
     const h = harness()
     const store = h.open()

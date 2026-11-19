@@ -1,7 +1,7 @@
 ---
 title: 'Ideas board'
 description: 'This file lists new Feature ideas, fixes and changes for the project. They are here because they havent been implemented yet. It also tracks their status. When an feature is implemented or rejected it is simply removed from the file. If an idea needs expanding or additional info, the item below should point to an external file to keep this one just a list'
-last_modified: 2026-11-15
+last_modified: 2026-11-18
 allowed_statuses: [pending_review, approved, in_progress]
 allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 ---
@@ -81,6 +81,9 @@ allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 - **Carry a `<private>` span across Claude's text parts**: Each of Claude's text parts is cleaned alone, so text inside the tag that one reply splits over two parts is cut only in the first part. Carry the span to the next part without letting an unclosed tag (Claude writing about the tag) hide the rest of the reply and its tool calls. `pending_review` `low_effort`
 - **Dismiss a `Same value` flag**: Two specifics that rightly share a value (two ports both `8080`) stay marked `Same value` for good; a dismiss needs stored state (a field on the item). `pending_review` `low_effort`
 - **`Same value` across folders**: The flag compares specifics of one folder and workspace. Recall is workspace-wide and the index lists keys of folders above and below, so a value a session restates from another folder, or a copy of a global or dialog-made item, is not marked. Decide whether related folders (a parent, a child, none) should compare, against the extra false flags. `pending_review` `low_effort`
+- **Remove the memory-goal cleanup**: Remove the memory-goal cleanup (`sessionGoalStart.ts`, `memoryRegroupedAt`) once the owner's packaged profile has run it (its marker is set). `pending_review` `low_effort`
+- **Archive empty memory goals**: Archive memory goals with no open tasks once one workspace holds 100 memory goals. `pending_review` `medium_effort`
+- **Rank touched and planned tasks in the extraction scope**: Rank a session's `touchedBy` tasks, and a planner's planned-goal tasks, with its linked ones in the extraction scope (`scopeTasksForExtract`). `pending_review` `low_effort`
 
 ---
 

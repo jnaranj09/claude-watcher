@@ -107,7 +107,13 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   named after the session (`memory/sessionGoal.ts`) in the session's folder; a null folder makes a
   goal with no folder. A session's ids (`/clear`, Reopen) are one family through the session
   lineage (`GoalsFile.sessionLineage`), so each of them finds the same goal. A save that adds a
-  task, or updates one from a sighting, records the session in `Task.touchedBy`. Memory never
+  task, or updates one from a sighting, records the session in `Task.touchedBy`. Once, at start
+  and before memory's catch-up, a cleanup (`memory/sessionGoalStart.ts`, marker
+  `GoalsFile.memoryRegroupedAt`) gives every memory task its session's touch and moves each
+  session's open, unlinked memory tasks from Daily tasks into its memory goal; it first copies the
+  goals file to `claude-watcher-goals.pre-regroup-<ts>.json` (the live file stays). Codes:
+  `goals_memory_regroup` (counts), `goals_memory_regroup_failed`,
+  `goals_memory_regroup_backup_failed` (the cleanup waits for the next start). Memory never
   links a task to a session. A session's `task_report` sets `report` (`reportTask`), a flag the
   Goals sheet shows. Neither ever closes a task: `Done` stays the operator's (or a linked
   session's `mark_task_done`).

@@ -68,6 +68,7 @@ import { MEMORY_DB_FILE } from './memory/memoryDb'
 import { createMemoryActivity } from './memory/memoryActivity'
 import { memoryNameLookups } from './memory/memoryNames'
 import { openMemory, type OpenedMemory } from './memory/memoryStartup'
+import { regroupMemoryTasks } from './memory/sessionGoalStart'
 import type { MemoryStore } from './memory/memoryStore'
 import {
   createMemoryMcp,
@@ -1160,14 +1161,20 @@ app
         ? {}
         : { afterChange: goalsFile.afterChange, fileProblems: goalsFile.problems }
     try {
-      goalsStore = SMOKE
-        ? createGoalsStore({ proposals: goalMcp.proposals.list })
-        : createGoalsStore({
-            blobStore: createElectronGoalsBlobStore(),
-            report: storageHealth.reporterFor('goals'),
-            proposals: goalMcp.proposals.list,
-            ...fileHooks
-          })
+      if (SMOKE) {
+        goalsStore = createGoalsStore({ proposals: goalMcp.proposals.list })
+      } else {
+        // Built here, never hoisted: a non-JSON open error (EACCES) must reach this `catch`, and
+        // SMOKE never opens the real file. The copy is the one-time memory cleanup's backup.
+        const goalsBlob = createElectronGoalsBlobStore()
+        goalsStore = createGoalsStore({
+          blobStore: goalsBlob,
+          backupCopy: () => goalsBlob.copy('pre-regroup'),
+          report: storageHealth.reporterFor('goals'),
+          proposals: goalMcp.proposals.list,
+          ...fileHooks
+        })
+      }
     } catch {
       // Code ONLY — never the error: a SyntaxError message quotes file content, and a goals blob
       // carries operator names and task titles.
@@ -1252,6 +1259,14 @@ app
       })
     }
     registerPastSessionsIpc()
+
+    // The one-time memory cleanup (memory/sessionGoalStart.ts), before the catch-up can save.
+    regroupMemoryTasks({
+      goals: goalsStore,
+      record: (id) => pastSessionsStore?.get(id) ?? null,
+      now: () => Date.now(),
+      log: (line) => console.warn(line)
+    })
 
     // Memory's catch-up for the saves the last run owed (it also reads the rest of a session whose
     // save stopped on `more`, R22). Only now: it needs the memory database, the goals store (a
