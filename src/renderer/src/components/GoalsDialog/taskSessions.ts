@@ -32,7 +32,7 @@ export function liveLinked(
 /** The `Worked on by` section's row cap; the rest is one `<n> more` line. */
 export const GOAL_SESSION_ROWS_MAX = 20
 
-export interface GoalSessionRow {
+export interface GoalSessionEntry {
   id: string
   /** `live`: a card on the board; `past`: a Past sessions record; `gone`: neither; `unknown`:
    *  not live, and the records are not loaded yet. */
@@ -51,10 +51,10 @@ export function goalSessions(
   tasks: readonly Task[],
   sessionsById: Readonly<Record<string, BoardSession>>,
   records: readonly PastSession[] | null
-): GoalSessionRow[] {
+): GoalSessionEntry[] {
   const titleOf = new Map(tasks.map((t) => [t.id, t.title]))
   const recordOf = new Map((records ?? []).map((r) => [r.id, r]))
-  return goalSessionOrder(tasks).map(({ sessionId: id, taskIds }): GoalSessionRow => {
+  return goalSessionOrder(tasks).map(({ sessionId: id, taskIds }): GoalSessionEntry => {
     const taskTitles = taskIds.flatMap((tid) => {
       const title = titleOf.get(tid)
       return title === undefined ? [] : [title]

@@ -196,14 +196,7 @@
   gap: var(--gap-inline);
   min-width: 0;
 }
-.workedOnName {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-primary);
-  font-size: var(--font-size-body);
-}
+.workedOnName,
 .workedOnTasks {
   min-width: 0;
   overflow: hidden;

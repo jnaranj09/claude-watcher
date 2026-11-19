@@ -1,6 +1,6 @@
 // The ONE place electron-store is imported and constructed (every `electron*BlobStore.ts` module
-// wraps this). Only those wrappers import it, and only `src/main/index.ts` imports them —
-// electron-store@11 runs `ipcMain.on(...)` at MODULE EVAL, which would crash the bare-node
+// wraps this). Only those wrappers and this file's own test import it, and only
+// `src/main/index.ts` imports them — electron-store@11 runs `ipcMain.on(...)` at MODULE EVAL, which would crash the bare-node
 // `main-unit` runtime; every store module that must stay unit-testable takes this as a DI seam
 // instead.
 //

@@ -119,8 +119,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   session's `mark_task_done`).
 - **A goal's folder and `GOALS.md` (spec 2026-10-29):** a goal the operator creates needs a folder
   (`goals:save-goal` without an id opens main's picker first; cancel → `folder_cancelled`, nothing
-  created); a memory goal takes its session's folder, or none; a folder is never cleared. `Save to
-  GOALS.md` (`goals:set-save-to-file`; on always rewrites): the exporter `goals/goalsFile.ts` runs
+  created); a memory goal takes its session's folder, or none; a folder is never cleared.
+  `Save to GOALS.md` (`goals:set-save-to-file`; on always rewrites): the exporter `goals/goalsFile.ts` runs
   inside the goals store's `emit()`, after every change to goals or tasks (a write of only the
   session lineage or the planner records does not emit) and before the listeners, so a new store
   method reaches the file only if it emits. It rewrites a folder's
