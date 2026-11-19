@@ -22,6 +22,7 @@ import type { GoalsStartResult } from '../../shared/ipc/contract'
 import { GOAL_ERROR, type GoalsStore } from '../persistence/goals'
 import { LAUNCH_FOLDER_MISSING, type LaunchRequest } from '../pty/launchSession'
 import { requireClaudeVersion } from '../pty/inAppLaunch'
+import { goalSessionOrder } from '../../shared/goals/goalSessionOrder'
 import { buildPlannerPrompt, buildWorkerPrompt, taskSessionName } from './goalPrompt'
 import type { GoalTokens } from './mcp/goalTokens'
 import { MCP_SERVER_NAME, grantMcpConfig, type McpConfigs } from './mcp/mcpConfigFile'
@@ -74,6 +75,9 @@ export interface GoalSpawnDeps {
   store: GoalsStore
   /** null = no session gets the tool (tests of the block alone). */
   mcp: GoalMcpSpawn | null
+  /** A planner's session lines: the cleaned name of a session that worked on its goal, or null
+   *  (`sessionNameOf`). */
+  sessionName(id: string): string | null
 }
 
 function openTasks(tasks: readonly Task[]): Task[] {
@@ -153,10 +157,12 @@ function grantMarkDone(
 }
 
 /**
- * A planner's spawn: its prompt (the goal and its tasks now, the three tools), a fresh planner
- * token bound to its goal, the config file and the three tools pre-allowed. Its prompt names its
- * tools, so all four come together or not at all: nothing when there is no MCP, the goal is gone,
- * the hook port is not ours (SEC-6) or the config write is refused.
+ * A planner's spawn: its prompt (the goal and its tasks now, the sessions that worked on them, the
+ * three tools), a fresh planner token bound to its goal, the config file and the three tools
+ * pre-allowed. The sessions go in `goalSessionOrder`'s order, uncapped: `buildPlannerPrompt` alone
+ * applies the list budget and the caps, and `taskIds` are the tasks its prompt kept. Its prompt
+ * names its tools, so all four come together or not at all: nothing when there is no MCP, the goal
+ * is gone, the hook port is not ours (SEC-6) or the config write is refused.
  */
 function plannerExtras(deps: GoalSpawnDeps, sessionId: string, goalId: string): GoalSpawnExtras {
   const { store, mcp } = deps
@@ -171,14 +177,20 @@ function plannerExtras(deps: GoalSpawnDeps, sessionId: string, goalId: string): 
   })
   if (path === null) return NO_EXTRAS
   const tasks = view.tasks.filter((t) => t.goalId === goal.id)
+  const prompt = buildPlannerPrompt({
+    goalName: goal.name,
+    tasks: tasks.map((t) => ({ id: t.id, title: t.title, status: t.status })),
+    sessions: goalSessionOrder(tasks).map((s) => ({
+      name: deps.sessionName(s.sessionId),
+      id: s.sessionId,
+      taskIds: s.taskIds
+    }))
+  })
   return {
-    appendPrompt: buildPlannerPrompt({
-      goalName: goal.name,
-      tasks: tasks.map((t) => ({ id: t.id, title: t.title, status: t.status }))
-    }),
+    appendPrompt: prompt.text,
     mcpConfigPath: path,
     allowedTools: PLANNER_ALLOWED,
-    taskIds: tasks.map((t) => t.id)
+    taskIds: prompt.taskIds
   }
 }
 
@@ -197,7 +209,8 @@ export interface StartGoalSessionsDeps {
 }
 
 /** ONE folder for a whole launch. A goal's launch uses the goal's folder only: a goal with none
- *  (made before folders were required) throws `goal_folder_missing` and never opens the picker.
+ *  (made before folders were required, or a memory goal made for a session with no folder) throws
+ *  `goal_folder_missing` and never opens the picker.
  *  Daily tasks (no goal): the workspace's folder, else the picker once; a cancelled picker
  *  throws `launch_cancelled`. */
 async function pickLaunchFolder(

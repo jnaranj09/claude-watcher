@@ -164,8 +164,56 @@
   font-size: var(--font-size-body);
 }
 
-/* `Plan with Claude` under the tasks box: one button at the start of a row. A different region,
-   so --gap-section from the box (the form's --gap-field already sits above it), never inside it. */
+/* `Worked on by` under the tasks box: its label over its rows. No margin of its own: the
+   nested ManageDialog.Label's margin-top plus the form's --gap-field put it --gap-section below
+   the box. Each row is a head line (the live session's button; a record's name and `Open`; or
+   `No longer listed`) over the session's task titles; a name and the titles are each cut on one
+   line, with the full text in `title`. */
+.workedOnField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-field);
+  min-width: 0;
+}
+.workedOnBy {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-row);
+  min-width: 0;
+}
+.workedOnRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+  min-width: 0;
+}
+.workedOnHead {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-width: 0;
+}
+.workedOnName,
+.workedOnTasks {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-size: var(--font-size-body);
+}
+/* `No longer listed` and `<n> more`: --text-secondary, never --text-muted on the raised panel. */
+.workedOnNote {
+  color: var(--text-secondary);
+  font-size: var(--font-size-body);
+}
+
+/* `Plan with Claude` under the `Worked on by` section when one is drawn, else under the tasks
+   box: one button at the start of a row. A different region, so --gap-section from the one above
+   it (the form's --gap-field already sits above it), never inside it. */
 .planRow {
   display: flex;
   align-items: center;

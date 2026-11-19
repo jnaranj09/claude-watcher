@@ -172,7 +172,8 @@ describe('goalPickerStart', () => {
     name: 'x',
     defaultCwd: null,
     saveToFile: false,
-    createdAt: 1
+    createdAt: 1,
+    memorySessionIds: []
   }
   it('opens at the goal folder, else the workspace folder, else the OS default', () => {
     expect(goalPickerStart({ ...goal, defaultCwd: '/goal' }, '/ws')).toBe('/goal')

@@ -68,18 +68,21 @@ import { MEMORY_DB_FILE } from './memory/memoryDb'
 import { createMemoryActivity } from './memory/memoryActivity'
 import { memoryNameLookups } from './memory/memoryNames'
 import { openMemory, type OpenedMemory } from './memory/memoryStartup'
+import { regroupMemoryTasks } from './memory/sessionGoalStart'
 import type { MemoryStore } from './memory/memoryStore'
 import {
   createMemoryMcp,
   liveSessionMeta,
   markSessionsDeletedInMemory,
-  memorySpawnExtras
+  memorySpawnExtras,
+  memoryStep
 } from './memory/memoryLaunch'
 import { createAppExtractor } from './memory/extract/appExtractor'
 import { memoryCascadeStep } from './memory/extract/extractWiring'
 import { readTranscriptSlice, transcriptFsOnDisk } from './memory/extract/transcriptReader'
 import { buildPtyEnv } from './pty/ptyEnv'
 import { goalSpawnExtras } from './goals/goalLaunch'
+import { sessionNameOf } from './goals/sessionNameOf'
 import { createGoalTokens } from './goals/mcp/goalTokens'
 import { MCP_SERVER_NAME, createMcpConfigs } from './goals/mcp/mcpConfigFile'
 import { createMcpTools } from './goals/mcp/mcpTools'
@@ -1159,14 +1162,20 @@ app
         ? {}
         : { afterChange: goalsFile.afterChange, fileProblems: goalsFile.problems }
     try {
-      goalsStore = SMOKE
-        ? createGoalsStore({ proposals: goalMcp.proposals.list })
-        : createGoalsStore({
-            blobStore: createElectronGoalsBlobStore(),
-            report: storageHealth.reporterFor('goals'),
-            proposals: goalMcp.proposals.list,
-            ...fileHooks
-          })
+      if (SMOKE) {
+        goalsStore = createGoalsStore({ proposals: goalMcp.proposals.list })
+      } else {
+        // Built here, never hoisted: a non-JSON open error (EACCES) must reach this `catch`, and
+        // SMOKE never opens the real file. The copy is the one-time memory cleanup's backup.
+        const goalsBlob = createElectronGoalsBlobStore()
+        goalsStore = createGoalsStore({
+          blobStore: goalsBlob,
+          backupCopy: () => goalsBlob.copy('pre-regroup'),
+          report: storageHealth.reporterFor('goals'),
+          proposals: goalMcp.proposals.list,
+          ...fileHooks
+        })
+      }
     } catch {
       // Code ONLY — never the error: a SyntaxError message quotes file content, and a goals blob
       // carries operator names and task titles.
@@ -1252,6 +1261,14 @@ app
     }
     registerPastSessionsIpc()
 
+    // The one-time memory cleanup (memory/sessionGoalStart.ts), before the catch-up can save.
+    regroupMemoryTasks({
+      goals: goalsStore,
+      record: (id) => pastSessionsStore?.get(id) ?? null,
+      now: () => Date.now(),
+      log: (line) => console.warn(line)
+    })
+
     // Memory's catch-up for the saves the last run owed (it also reads the rest of a session whose
     // save stopped on `more`, R22). Only now: it needs the memory database, the goals store (a
     // task candidate with no goals store is lost for good) and the past-sessions store. With
@@ -1332,7 +1349,15 @@ app
               // resume in the same run asks `tokens.markDoneFor` first).
               pastTasksMarkDone: (id) => pastTasksMarkDone(pastSessionsStore, id),
               log: (line) => console.warn(line)
-            }
+            },
+            sessionName: (id) =>
+              sessionNameOf(
+                {
+                  liveName: (x) => sessionMeta(x)?.sessionName,
+                  record: (x) => pastSessionsStore?.get(x) ?? null
+                },
+                id
+              )
           },
           sessionId,
           goalLaunch,
@@ -1360,6 +1385,19 @@ app
           sessionId,
           launch,
           previousSessionId
+        ),
+      // A Reopen carries the memory goal and the planner record; a planner spawn records its goal.
+      carrySessionGoal: (prev, next) =>
+        memoryStep(
+          (line) => console.warn(line),
+          'memory_goal_carry_failed',
+          () => goalsStore?.carrySessionGoal(prev, next)
+        ),
+      notePlanner: (sessionId, goalId) =>
+        memoryStep(
+          (line) => console.warn(line),
+          'memory_planner_note_failed',
+          () => goalsStore?.notePlanner(sessionId, goalId)
         ),
       // A resume of a session with no memory save row starts its save at the transcript's end.
       memoryResumed: (sessionId, workspaceId) => extractor.resumed(sessionId, workspaceId),

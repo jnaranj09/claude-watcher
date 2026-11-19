@@ -438,14 +438,15 @@ describe('last-seen dates (R48)', () => {
   function openTask(): string {
     return goals.addTaskFromExtraction({
       workspaceId: 'w1',
-      goalId: null,
+      metaGoalId: null,
       title: 'Add a health check',
       check: null,
       leftWith: 'operator',
-      originSessionId: 'card-0',
+      sessionId: 'card-0',
+      sessionGoal: { name: 'Older session', folder: null },
       folder: null,
       at: NOW
-    }).id
+    }).task.id
   }
 
   it("a none found only in claude's own text leaves the operator item's last-seen date", () => {
@@ -509,22 +510,25 @@ describe('tasks', () => {
     expect(out.saved).toEqual([])
   })
 
-  it('a task of a session with no goal goes to Daily tasks', () => {
+  it("a task of a session with no goal goes to the session's memory goal", () => {
     applyChunk(deps, write({ kept: [task('add', 'Restart the API')] }))
-    expect(goals.view().tasks.map((t) => t.goalId)).toEqual([null])
+    const [goal] = goals.view().goals
+    expect(goal).toMatchObject({ name: 'fix api port', memorySessionIds: ['card-1'] })
+    expect(goals.view().tasks.map((t) => t.goalId)).toEqual([goal?.id])
   })
 
   it('an update sets the check, who it is left with and the last-seen date of the open task', () => {
     const id = goals.addTaskFromExtraction({
       workspaceId: 'w1',
-      goalId: null,
+      metaGoalId: null,
       title: 'Restart the API',
       check: null,
       leftWith: 'session',
-      originSessionId: 'card-0',
+      sessionId: 'card-0',
+      sessionGoal: { name: 'Older session', folder: null },
       folder: null,
       at: NOW - 100
-    }).id
+    }).task.id
     const out = applyChunk(deps, write({ kept: [task('update', 'Restart the API', id)] }))
     expect(out.added.tasks).toBe(1)
     expect(goals.view().tasks).toEqual([
@@ -541,14 +545,15 @@ describe('tasks', () => {
   it('an update of a task that was closed meanwhile writes nothing and is not counted', () => {
     const id = goals.addTaskFromExtraction({
       workspaceId: 'w1',
-      goalId: null,
+      metaGoalId: null,
       title: 'Restart the API',
       check: null,
       leftWith: 'session',
-      originSessionId: 'card-0',
+      sessionId: 'card-0',
+      sessionGoal: { name: 'Older session', folder: null },
       folder: null,
       at: NOW - 100
-    }).id
+    }).task.id
     goals.setTaskStatus(id, 'done', 'operator')
     const before = goals.view().tasks
     const out = applyChunk(deps, write({ kept: [task('update', 'Restart the API', id)] }))
@@ -577,7 +582,10 @@ describe('tasks', () => {
     const out = applyChunk(deps, write({ kept: [refused, task('add', 'Rebuild the index')] }))
     expect(out.added.tasks).toBe(1)
     expect(goals.view().tasks.map((t) => t.title)).toEqual(['Rebuild the index'])
-    expect(lines).toEqual(['[claude-watcher][memory] code=memory_task_write_failed'])
+    expect(lines).toEqual([
+      '[claude-watcher][memory] code=memory_task_write_failed',
+      '[claude-watcher][memory] code=memory_goal_created folder=yes memory_goals=1'
+    ])
     expect(state.get('t-1')?.byteOffset).toBe(400)
   })
 })

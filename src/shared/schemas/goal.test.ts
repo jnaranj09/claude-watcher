@@ -195,4 +195,58 @@ describe('goal schemas', () => {
     expect(TaskSchema.safeParse({ ...task, originSessionId: 's1' }).success).toBe(true)
     expect(TaskSchema.safeParse({ ...task, originSessionId: '' }).success).toBe(false)
   })
+
+  it('a v1 file with none of the memory-session fields parses with the defaults', () => {
+    const file = GoalsFileSchema.parse({
+      version: 1,
+      goals: [{ id: 'g1', workspaceId: 'w1', name: 'Ship', createdAt: 1 }],
+      tasks: [{ id: 't1', workspaceId: 'w1', title: 'a', status: 'open', createdAt: 1 }]
+    })
+    expect(file.goals[0]?.memorySessionIds).toEqual([])
+    expect(file.tasks[0]?.touchedBy).toEqual([])
+    expect(file.sessionLineage).toEqual([])
+    expect(file.plannerSessions).toEqual([])
+    expect(file.memoryRegroupedAt).toBeNull()
+  })
+
+  it('a file with the memory-session fields keeps them', () => {
+    const file = GoalsFileSchema.parse({
+      version: 1,
+      goals: [
+        { id: 'g1', workspaceId: 'w1', name: 'Ship', createdAt: 1, memorySessionIds: ['s1'] }
+      ],
+      tasks: [
+        {
+          id: 't1',
+          workspaceId: 'w1',
+          title: 'a',
+          status: 'open',
+          createdAt: 1,
+          touchedBy: [{ sessionId: 's1', at: 5 }]
+        }
+      ],
+      sessionLineage: [{ fromId: 's1', toId: 's2', at: 6 }],
+      plannerSessions: [{ sessionId: 'p1', goalId: 'g1', at: 7 }],
+      memoryRegroupedAt: 8
+    })
+    expect(file.goals[0]?.memorySessionIds).toEqual(['s1'])
+    expect(file.tasks[0]?.touchedBy).toEqual([{ sessionId: 's1', at: 5 }])
+    expect(file.sessionLineage).toEqual([{ fromId: 's1', toId: 's2', at: 6 }])
+    expect(file.plannerSessions).toEqual([{ sessionId: 'p1', goalId: 'g1', at: 7 }])
+    expect(file.memoryRegroupedAt).toBe(8)
+  })
+
+  it('a touchedBy of 25 entries still parses: the cap is the store, not the schema', () => {
+    const touchedBy = Array.from({ length: 25 }, (_, i) => ({ sessionId: `s${i}`, at: i }))
+    const task = TaskSchema.safeParse({
+      id: 't1',
+      workspaceId: 'w1',
+      title: 'a',
+      status: 'open',
+      createdAt: 1,
+      touchedBy
+    })
+    expect(task.success).toBe(true)
+    expect(task.data?.touchedBy).toHaveLength(25)
+  })
 })

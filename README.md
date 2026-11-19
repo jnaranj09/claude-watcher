@@ -195,7 +195,12 @@ tool's result. An opening tag with no closing one hides the rest of that text. C
 still reads the text: the tag is a rule for Memory, not for the session (see Known limits).
 
 **Open work becomes tasks.** Work a session leaves open becomes a task in **Goals**, with how to
-check it (`Check:`). A later session sees the folder's open tasks and can report what it found;
+check it (`Check:`). Each session that leaves a task gets one goal of its own, named after the
+session and in its folder; a session started from a goal (or planning one) adds its tasks to that
+goal instead. A task remembers which sessions wrote or updated it: a goal's form lists them under
+**Worked on by**, each with its tasks and a way to open it, and the board's **Goal** filter also
+shows the sessions that worked on a goal. Goals memory made are listed after your own goals.
+Memory never links a session to a task. A later session sees the folder's open tasks and can report what it found;
 a task it reports done shows **Reported done by "…"** and stays open: only you close a task
 (**Done**).
 
@@ -340,7 +345,9 @@ Known limits:
   since that save, before or after the Memory-off turns, the next save with Memory on reads from
   the last save (or the transcript's start), Memory-off text included.
 - Going back to an older version keeps Past sessions, Goals and Settings readable: it drops the
-  memory settings and task fields it does not know. It will not open the newer memory database:
+  memory settings, task fields and goal fields it does not know (which sessions a goal was made
+  for, and which sessions worked on a task). Moving forward again after that can make a second
+  goal of the same name for a session, which you delete or merge by hand. It will not open the newer memory database:
   it refuses it without changing it.
 
 ## Session templates

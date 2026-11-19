@@ -19,7 +19,8 @@ const WITH_PROPOSAL: GoalsView = {
       name: 'Chores',
       defaultCwd: null,
       saveToFile: false,
-      createdAt: 1
+      createdAt: 1,
+      memorySessionIds: []
     }
   ],
   tasks: [
@@ -38,7 +39,8 @@ const WITH_PROPOSAL: GoalsView = {
       lastSeenAt: null,
       report: null,
       originSessionId: null,
-      folder: null
+      folder: null,
+      touchedBy: []
     }
   ],
   proposals: [

@@ -52,7 +52,14 @@ describe('createGoalsStore', () => {
   it('fresh install: empty, writes the empty v1 file, logs nothing', () => {
     const { store, fake, log } = make()
     expect(store.view()).toEqual({ goals: [], tasks: [], proposals: [], fileProblems: [] })
-    expect(fake.current()).toEqual({ version: 1, goals: [], tasks: [] })
+    expect(fake.current()).toEqual({
+      version: 1,
+      goals: [],
+      tasks: [],
+      sessionLineage: [],
+      plannerSessions: [],
+      memoryRegroupedAt: null
+    })
     expect(log).not.toHaveBeenCalled()
   })
 
@@ -368,6 +375,7 @@ describe('createGoalsStore', () => {
 
 describe('tasks from memory extraction', () => {
   const CHECK = 'grep -n sandbox config/app.yml'
+  const SESSION_GOAL = { name: 'Fix login', folder: '/work/acme/shop' }
 
   function extracted(): {
     store: ReturnType<typeof createGoalsStore>
@@ -377,14 +385,15 @@ describe('tasks from memory extraction', () => {
     const { store } = make()
     const t = store.addTaskFromExtraction({
       workspaceId: 'w1',
-      goalId: null,
+      metaGoalId: null,
       title: 'Set sandbox: true',
       check: CHECK,
       leftWith: 'operator',
-      originSessionId: 's1',
+      sessionId: 's1',
+      sessionGoal: SESSION_GOAL,
       folder: '/work/acme/shop',
       at: 5
-    })
+    }).task
     const taskOf = (id: string): unknown => store.view().tasks.find((x) => x.id === id)
     return { store, id: t.id, taskOf }
   }
@@ -399,20 +408,24 @@ describe('tasks from memory extraction', () => {
     }
   }
 
-  it('adds an extracted task to Daily tasks when its goal is gone, with no session link', () => {
+  it("adds an extracted task to the session's new memory goal when its goal is gone, with no session link", () => {
     const { store } = make()
-    const t = store.addTaskFromExtraction({
+    const { task: t, goalCreated } = store.addTaskFromExtraction({
       workspaceId: 'w1',
-      goalId: 'gone',
+      metaGoalId: 'gone',
       title: 'Set sandbox: true',
       check: CHECK,
       leftWith: 'operator',
-      originSessionId: 's1',
+      sessionId: 's1',
+      sessionGoal: SESSION_GOAL,
       folder: '/work/acme/shop',
       at: 5
     })
+    const goal = store.view().goals[0]
+    expect(goalCreated).toBe(true)
+    expect(goal).toMatchObject({ name: 'Fix login', memorySessionIds: ['s1'] })
     expect(t).toMatchObject({
-      goalId: null,
+      goalId: goal?.id,
       status: 'open',
       sessionIds: [],
       lastSeenAt: 5,
@@ -421,32 +434,36 @@ describe('tasks from memory extraction', () => {
     expect(store.view().tasks).toEqual([t])
   })
 
-  it("an extracted task whose goal sits in another workspace goes to the workspace's Daily tasks", () => {
+  it("an extracted task whose goal sits in another workspace goes to the session's memory goal in its own workspace", () => {
     const { store } = make()
     const goalId = store.saveGoal({ workspaceId: 'w2', name: 'G' }, '/work').saved.id
-    const t = store.addTaskFromExtraction({
+    const { task: t } = store.addTaskFromExtraction({
       workspaceId: 'w1',
-      goalId,
+      metaGoalId: goalId,
       title: 'x',
       check: null,
       leftWith: 'session',
-      originSessionId: 's1',
+      sessionId: 's1',
+      sessionGoal: SESSION_GOAL,
       folder: null,
       at: 5
     })
-    expect(t.goalId).toBeNull()
+    const memoryGoal = store.view().goals.find((g) => g.workspaceId === 'w1')
+    expect(memoryGoal?.memorySessionIds).toEqual(['s1'])
+    expect(t.goalId).toBe(memoryGoal?.id)
   })
 
   it('an extracted task keeps a goal of its own workspace', () => {
     const { store } = make()
     const goalId = store.saveGoal({ workspaceId: 'w1', name: 'G' }, '/work').saved.id
-    const t = store.addTaskFromExtraction({
+    const { task: t } = store.addTaskFromExtraction({
       workspaceId: 'w1',
-      goalId,
+      metaGoalId: goalId,
       title: 'x',
       check: null,
       leftWith: 'session',
-      originSessionId: 's1',
+      sessionId: 's1',
+      sessionGoal: SESSION_GOAL,
       folder: null,
       at: 5
     })
@@ -458,11 +475,12 @@ describe('tasks from memory extraction', () => {
     expect(() =>
       store.addTaskFromExtraction({
         workspaceId: 'w1',
-        goalId: null,
+        metaGoalId: null,
         title: 'x',
         check: 'one\ntwo',
         leftWith: 'session',
-        originSessionId: 's1',
+        sessionId: 's1',
+        sessionGoal: SESSION_GOAL,
         folder: null,
         at: 5
       })
@@ -479,11 +497,12 @@ describe('tasks from memory extraction', () => {
     }
     store.addTaskFromExtraction({
       workspaceId: 'w1',
-      goalId: null,
+      metaGoalId: null,
       title: 'x',
       check: null,
       leftWith: 'session',
-      originSessionId: 's1',
+      sessionId: 's1',
+      sessionGoal: SESSION_GOAL,
       folder: null,
       at: 5
     })
@@ -494,7 +513,13 @@ describe('tasks from memory extraction', () => {
   it('an extraction update never closes a task and keeps its check when none is given', () => {
     const { store, id, taskOf } = extracted()
     expect(
-      store.updateTaskFromExtraction(id, { check: null, leftWith: 'session', at: 9, seen: true })
+      store.updateTaskFromExtraction(id, {
+        check: null,
+        leftWith: 'session',
+        at: 9,
+        seen: true,
+        sessionId: 's1'
+      })
     ).toBe(true)
     expect(taskOf(id)).toMatchObject({
       status: 'open',
@@ -506,7 +531,13 @@ describe('tasks from memory extraction', () => {
 
   it('an extraction update that is no sighting keeps the last-seen date (R48)', () => {
     const { store, id, taskOf } = extracted()
-    store.updateTaskFromExtraction(id, { check: null, leftWith: 'session', at: 9, seen: false })
+    store.updateTaskFromExtraction(id, {
+      check: null,
+      leftWith: 'session',
+      at: 9,
+      seen: false,
+      sessionId: 's1'
+    })
     expect(taskOf(id)).toMatchObject({ leftWith: 'session', lastSeenAt: 5 })
   })
 
@@ -516,7 +547,8 @@ describe('tasks from memory extraction', () => {
       check: 'npm test',
       leftWith: 'operator',
       at: 9,
-      seen: true
+      seen: true,
+      sessionId: 's1'
     })
     expect(taskOf(id)).toMatchObject({ title: 'Set sandbox: true', check: 'npm test' })
   })
@@ -530,7 +562,8 @@ describe('tasks from memory extraction', () => {
         check: 'npm test',
         leftWith: 'session',
         at: 9,
-        seen: true
+        seen: true,
+        sessionId: 's1'
       })
     ).toBe(false)
     expect(taskOf(id)).toEqual(before)
@@ -539,7 +572,8 @@ describe('tasks from memory extraction', () => {
         check: null,
         leftWith: 'session',
         at: 9,
-        seen: true
+        seen: true,
+        sessionId: 's1'
       })
     ).toBe(false)
   })
@@ -580,7 +614,8 @@ describe('tasks from memory extraction', () => {
         check: 'one\ntwo',
         leftWith: 'session',
         at: 9,
-        seen: true
+        seen: true,
+        sessionId: 's1'
       })
     ).toThrow()
     expect(store.view().tasks).toEqual(before)

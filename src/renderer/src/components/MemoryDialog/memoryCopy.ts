@@ -72,8 +72,6 @@ export const MEMORY_COPY = {
   pickVersion: 'Pick a version to compare it with the text now.',
   currentVersion: 'This is the text now.',
   reason: (why: string): string => `Reason: ${why}`,
-  /** Twins past the five the form names: `2 more`. */
-  moreTwins: (n: number): string => `${n} more`,
   /** A twin button's tooltip: what a click does, and the key in full. */
   openTwin: (key: string): string => `Open ${key}`,
   /** How many times a command ran: `1 run`, `3 runs`. */

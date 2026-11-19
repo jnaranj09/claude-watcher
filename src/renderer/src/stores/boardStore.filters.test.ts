@@ -24,12 +24,13 @@ import {
   selectShellPane,
   selectBoardFilters,
   boardStore,
+  goalIdsBySessionOf,
   useBoardFilter,
   NO_FILTER,
   type BoardFilter
 } from './boardStore'
 import { NO_FILTERS, type SessionFilters } from '../lib/sessionFilters'
-import type { Column, WatchEventsPayload } from '../../../shared/ipc/contract'
+import type { Column, Goal, Task, WatchEventsPayload } from '../../../shared/ipc/contract'
 import { watchRemoved, watchUpdated } from '../../../__fixtures__/watchEvents'
 import { FIXED_NOW, makeClock } from '../test/boardStoreFixtures'
 
@@ -611,7 +612,8 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
       name: 'Ship',
       defaultCwd: null,
       saveToFile: false,
-      createdAt: 1
+      createdAt: 1,
+      memorySessionIds: []
     }
     const task = {
       id: 'k-1',
@@ -628,7 +630,8 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
       lastSeenAt: null,
       report: null,
       originSessionId: null,
-      folder: null
+      folder: null,
+      touchedBy: []
     }
     act(() =>
       goalsStore
@@ -648,6 +651,52 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
     hook.rerender()
     expect(hook.result.current.filters.goalIds).toEqual([])
     expect(hook.result.current.goalIdsBySession.size).toBe(0)
+  })
+
+  it("a session that touched a task (touchedBy) is on that task's goal, like a linked one", () => {
+    const goal = (id: string): Goal => ({
+      id,
+      workspaceId: 'default',
+      name: id,
+      defaultCwd: null,
+      saveToFile: false,
+      createdAt: 1,
+      memorySessionIds: []
+    })
+    const task = (id: string, goalId: string | null, over: Partial<Task>): Task => ({
+      id,
+      workspaceId: 'default',
+      goalId,
+      title: 'T',
+      status: 'open',
+      sessionIds: [],
+      createdAt: 1,
+      doneAt: null,
+      doneBy: null,
+      check: null,
+      leftWith: null,
+      lastSeenAt: null,
+      report: null,
+      originSessionId: null,
+      folder: null,
+      touchedBy: [],
+      ...over
+    })
+    const map = goalIdsBySessionOf(
+      [goal('g-1'), goal('g-2')],
+      [
+        task('k-1', 'g-1', { touchedBy: [{ sessionId: 's-touch', at: 1 }] }),
+        task('k-2', 'g-2', {
+          sessionIds: ['s-touch'],
+          touchedBy: [{ sessionId: 's-touch', at: 2 }]
+        }),
+        task('k-3', null, { touchedBy: [{ sessionId: 's-loose', at: 1 }] }),
+        task('k-4', 'g-gone', { touchedBy: [{ sessionId: 's-gone', at: 1 }] })
+      ]
+    )
+    expect(map.get('s-touch')).toEqual(['g-1', 'g-2'])
+    expect(map.has('s-loose')).toBe(false)
+    expect(map.has('s-gone')).toBe(false)
   })
 
   it('selectors keep only the cards linked to a picked goal', () => {

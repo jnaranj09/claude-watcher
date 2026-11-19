@@ -8,7 +8,7 @@
 // are mocked: `app.getPath` points at a real mkdtemp dir (the rename is a REAL fs rename), and
 // the fake Store's first construction throws a real `SyntaxError`, exactly like conf.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -133,5 +133,51 @@ describe('createElectronBlobStore', () => {
     expect(left).toHaveLength(1)
     expect(left[0]).toMatch(new RegExp(`^${NAME}\\.corrupt-\\d+\\.json$`))
     expect(() => store.backup()).not.toThrow() // already gone — the in-memory reset proceeds
+  })
+})
+
+describe('copy(label)', () => {
+  it('copies the live file to <name>.<label>-<ts>.json with the same bytes, and keeps the live file', () => {
+    writeLiveFile('{"templates":{"version":1}}')
+    const store = createElectronBlobStore<Blob>({ name: NAME, key: 'templates' })
+    expect(store.copy('pre-regroup')).toBe(true)
+    const left = files()
+    expect(left).toHaveLength(2)
+    expect(left).toContain(`${NAME}.json`)
+    const copy = left.find((f) => f !== `${NAME}.json`) ?? ''
+    expect(copy).toMatch(new RegExp(`^${NAME}\\.pre-regroup-\\d+\\.json$`))
+    expect(readFileSync(join(h.userData, copy))).toEqual(
+      readFileSync(join(h.userData, `${NAME}.json`))
+    )
+  })
+
+  it('with no file on disk returns false and writes nothing', () => {
+    const store = createElectronBlobStore<Blob>({ name: NAME, key: 'templates' })
+    expect(store.copy('pre-regroup')).toBe(false)
+    expect(files()).toEqual([])
+  })
+
+  it('never overwrites an existing copy (COPYFILE_EXCL): a second copy in the same ms throws', () => {
+    writeLiveFile('{"templates":{"version":1}}')
+    vi.spyOn(Date, 'now').mockReturnValue(42)
+    const store = createElectronBlobStore<Blob>({ name: NAME, key: 'templates' })
+    store.copy('pre-regroup')
+    writeLiveFile('{"templates":{"version":2}}')
+    expect(() => store.copy('pre-regroup')).toThrow(/EEXIST/)
+    expect(readFileSync(join(h.userData, `${NAME}.pre-regroup-42.json`), 'utf8')).toBe(
+      '{"templates":{"version":1}}'
+    )
+  })
+
+  it.skipIf(process.getuid?.() === 0)('an unwritable folder throws, never swallowed', () => {
+    writeLiveFile('{"templates":{"version":1}}')
+    const store = createElectronBlobStore<Blob>({ name: NAME, key: 'templates' })
+    chmodSync(h.userData, 0o500)
+    try {
+      expect(() => store.copy('pre-regroup')).toThrow(/EACCES/)
+    } finally {
+      chmodSync(h.userData, 0o700)
+    }
+    expect(files()).toEqual([`${NAME}.json`])
   })
 })

@@ -4,6 +4,7 @@ import {
   filterPastByFilters,
   filterPastByName,
   filterPastByScope,
+  openOrFocusPast,
   pastMemoryLine,
   pastSessionErrorMessage,
   pastSessionsEmptyCopy,
@@ -161,5 +162,54 @@ describe('pastMemoryLine', () => {
 
   it('a record from before the field shows no Memory line', () => {
     expect(pastMemoryLine(undefined)).toBeNull()
+  })
+})
+
+describe('openOrFocusPast', () => {
+  const opened = { terminalId: 't1', workspaceId: 'w1', name: 'Fix login' }
+  const wrapped = (code: string): Error =>
+    new Error(`Error invoking remote method 'past-sessions:open': Error: ${code}`)
+
+  it("is 'opened' when open resolves, and never asks focus", async () => {
+    const asked: string[] = []
+    const focus = (id: string): Promise<boolean> => {
+      asked.push(id)
+      return Promise.resolve(true)
+    }
+    await expect(openOrFocusPast(() => Promise.resolve(opened), focus, 's1')).resolves.toBe(
+      'opened'
+    )
+    expect(asked).toEqual([])
+  })
+
+  it("is 'focused' when open says already_open and focus took the view to the card", async () => {
+    const asked: string[] = []
+    const focus = (id: string): Promise<boolean> => {
+      asked.push(id)
+      return Promise.resolve(true)
+    }
+    await expect(
+      openOrFocusPast(() => Promise.reject(wrapped('already_open')), focus, 's1')
+    ).resolves.toBe('focused')
+    expect(asked).toEqual(['s1'])
+  })
+
+  it('rethrows already_open when focus could not show the card, and any other refusal', async () => {
+    const refused = wrapped('already_open')
+    await expect(
+      openOrFocusPast(
+        () => Promise.reject(refused),
+        () => Promise.resolve(false),
+        's1'
+      )
+    ).rejects.toBe(refused)
+    const missing = wrapped('folder_missing')
+    const asked: string[] = []
+    const focus = (id: string): Promise<boolean> => {
+      asked.push(id)
+      return Promise.resolve(true)
+    }
+    await expect(openOrFocusPast(() => Promise.reject(missing), focus, 's1')).rejects.toBe(missing)
+    expect(asked).toEqual([])
   })
 })

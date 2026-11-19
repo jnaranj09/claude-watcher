@@ -29,17 +29,28 @@ import { z } from 'zod'
 export const SESSION_NAME_MAX_LENGTH = 60
 
 /**
- * True when `value` contains a C0 control char, DEL, or a C1 control char.
+ * True for a C0 control char, DEL, or a C1 control char: the one code-point range every control
+ * check here uses.
  *
- * Written as a code-point scan rather than a regex character class: a class holding literal
+ * Written as a code-point test rather than a regex character class: a class holding literal
  * control characters trips eslint's `no-control-regex` AND is invisible in a diff, so a reviewer
  * cannot see what it matches. The bounds here are explicit and readable.
  */
+export function isControlCodePoint(cp: number): boolean {
+  return cp <= 0x1f || (cp >= 0x7f && cp <= 0x9f)
+}
+
+/** A character that must not sit inside a one-line name: a control character, or a Unicode line
+ *  or paragraph separator (U+2028, U+2029), which claude may read as a line break. */
+export function isLineUnsafe(cp: number): boolean {
+  return isControlCodePoint(cp) || cp === 0x2028 || cp === 0x2029
+}
+
+/** True when `value` contains a C0 control char, DEL, or a C1 control char. */
 export function hasControlChar(value: string): boolean {
   for (const ch of value) {
     const cp = ch.codePointAt(0)
-    if (cp === undefined) continue
-    if (cp <= 0x1f || (cp >= 0x7f && cp <= 0x9f)) return true
+    if (cp !== undefined && isControlCodePoint(cp)) return true
   }
   return false
 }

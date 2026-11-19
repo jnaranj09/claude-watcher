@@ -34,7 +34,8 @@ function seed(): { store: GoalsStore; goalId: string; t1: string; t2: string; t3
   return { store, goalId, t1, t2, t3 }
 }
 
-/** A goal from before folders were required (`defaultCwd` null), with one open task. */
+/** A goal with no folder (`defaultCwd` null: from before folders were required, or a memory goal
+ *  made for a session with no folder), with one open task. */
 function legacySeed(): { store: GoalsStore; goalId: string; t1: string } {
   const file = {
     version: 1,
@@ -72,7 +73,7 @@ function deps(
 }
 
 /** No MCP at all (the tool's own tests below wire it). */
-const noMcp = (store: GoalsStore): GoalSpawnDeps => ({ store, mcp: null })
+const noMcp = (store: GoalsStore): GoalSpawnDeps => ({ store, mcp: null, sessionName: () => null })
 
 const req = (over: Partial<GoalsStartRequest>): GoalsStartRequest => ({
   workspaceId: 'w1',
@@ -407,7 +408,13 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
   it('hook port ours + worker + markDone: the line, the config file and the one allowed tool', () => {
     const { store, t1 } = seed()
     const m = mcp()
-    const extras = goalSpawnExtras({ store, mcp: m }, 'sess-1', worker([t1]), false, null)
+    const extras = goalSpawnExtras(
+      { store, mcp: m, sessionName: () => null },
+      'sess-1',
+      worker([t1]),
+      false,
+      null
+    )
     expect(extras.appendPrompt).toContain(
       'When you finish a task, call the mark_task_done tool with its id.'
     )
@@ -426,7 +433,13 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
     const { store, t1 } = seed()
     const lines: string[] = []
     const m = mcp({ hookListening: () => false, log: (l) => lines.push(l) })
-    const extras = goalSpawnExtras({ store, mcp: m }, 'sess-1', worker([t1]), false, null)
+    const extras = goalSpawnExtras(
+      { store, mcp: m, sessionName: () => null },
+      'sess-1',
+      worker([t1]),
+      false,
+      null
+    )
     expect(extras.appendPrompt).toContain(t1)
     expect(extras.appendPrompt).not.toContain('mark_task_done')
     expect(extras.mcpConfigPath).toBeNull()
@@ -439,7 +452,13 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
   it('markDone off: no line, no MCP fields, no token', () => {
     const { store, t1 } = seed()
     const m = mcp()
-    const extras = goalSpawnExtras({ store, mcp: m }, 'sess-1', worker([t1], false), false, null)
+    const extras = goalSpawnExtras(
+      { store, mcp: m, sessionName: () => null },
+      'sess-1',
+      worker([t1], false),
+      false,
+      null
+    )
     expect(extras.appendPrompt).not.toContain('mark_task_done')
     expect([extras.mcpConfigPath, extras.allowedTools]).toEqual([null, null])
     expect(m.written).toEqual([])
@@ -457,7 +476,13 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
         remove: () => {}
       }
     })
-    const extras = goalSpawnExtras({ store, mcp: m }, 'sess-1', worker([t1]), false, null)
+    const extras = goalSpawnExtras(
+      { store, mcp: m, sessionName: () => null },
+      'sess-1',
+      worker([t1]),
+      false,
+      null
+    )
     expect(extras.appendPrompt).not.toContain('mark_task_done')
     expect([extras.mcpConfigPath, extras.allowedTools]).toEqual([null, null])
     expect(m.tokens.resolve(token)).toBeNull()
@@ -477,7 +502,7 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
         report: health.reporterFor('goals')
       })
       const extras = goalSpawnExtras(
-        { store, mcp: mcp({ configs }) },
+        { store, mcp: mcp({ configs }), sessionName: () => null },
         'sess-1',
         worker([t1]),
         false,
@@ -495,9 +520,15 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
   it("a Reopen of the same terminal keeps the operator's choice and mints for the new id", () => {
     const { store, t1 } = seed()
     const m = mcp()
-    goalSpawnExtras({ store, mcp: m }, 'sess-1', worker([t1]), false, null)
+    goalSpawnExtras({ store, mcp: m, sessionName: () => null }, 'sess-1', worker([t1]), false, null)
     m.tokens.revoke('sess-1') // the first session exited
-    const extras = goalSpawnExtras({ store, mcp: m }, 'sess-2', worker([t1]), false, 'sess-1')
+    const extras = goalSpawnExtras(
+      { store, mcp: m, sessionName: () => null },
+      'sess-2',
+      worker([t1]),
+      false,
+      'sess-1'
+    )
     expect(extras.mcpConfigPath).toBe('/cfg/sess-2.json')
     expect(m.tokens.resolve(m.written[1]?.token ?? '')).toMatchObject({ sessionId: 'sess-2' })
     expect(m.tokens.resolve(m.written[0]?.token ?? '')).toBeNull()
@@ -506,9 +537,15 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
   it('a resume in the same run gets the tool back with a fresh token', () => {
     const { store, t1 } = seed()
     const m = mcp()
-    goalSpawnExtras({ store, mcp: m }, 'sess-1', worker([t1]), false, null)
+    goalSpawnExtras({ store, mcp: m, sessionName: () => null }, 'sess-1', worker([t1]), false, null)
     m.tokens.revoke('sess-1') // archived
-    const extras = goalSpawnExtras({ store, mcp: m }, 'sess-1', null, true, null)
+    const extras = goalSpawnExtras(
+      { store, mcp: m, sessionName: () => null },
+      'sess-1',
+      null,
+      true,
+      null
+    )
     expect(extras.appendPrompt).toContain('mark_task_done')
     expect(m.written[1]?.token).not.toBe(m.written[0]?.token)
     expect(m.tokens.resolve(m.written[1]?.token ?? '')).toMatchObject({ sessionId: 'sess-1' })
@@ -517,9 +554,19 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
   it('a resume after a restart asks the past-session flag', () => {
     const { store, t1 } = seed()
     store.linkMany([t1], 'sess-old')
-    const without = goalSpawnExtras({ store, mcp: mcp() }, 'sess-old', null, true, null)
+    const without = goalSpawnExtras(
+      { store, mcp: mcp(), sessionName: () => null },
+      'sess-old',
+      null,
+      true,
+      null
+    )
     const flagged = goalSpawnExtras(
-      { store, mcp: mcp({ pastTasksMarkDone: (id) => id === 'sess-old' }) },
+      {
+        store,
+        mcp: mcp({ pastTasksMarkDone: (id) => id === 'sess-old' }),
+        sessionName: () => null
+      },
       'sess-old',
       null,
       true,
@@ -533,7 +580,7 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
     const { store, t1 } = seed()
     const m = mcp()
     store.setTaskStatus(t1, 'done', 'operator')
-    goalSpawnExtras({ store, mcp: m }, 'sess-1', worker([t1]), false, null)
+    goalSpawnExtras({ store, mcp: m, sessionName: () => null }, 'sess-1', worker([t1]), false, null)
     expect(m.written).toEqual([])
   })
 
@@ -542,7 +589,7 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
     store.setTaskStatus(t2, 'done', 'operator')
     const m = mcp()
     const extras = goalSpawnExtras(
-      { store, mcp: m },
+      { store, mcp: m, sessionName: () => null },
       'sess-p',
       { kind: 'planner', goalId },
       false,
@@ -555,8 +602,9 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
           { id: t1, title: 'Write the spec', status: 'open' },
           { id: t2, title: 'Cut the release', status: 'done' },
           { id: t3, title: 'Tell the team', status: 'open' }
-        ]
-      })
+        ],
+        sessions: []
+      }).text
     )
     expect(extras.mcpConfigPath).toBe('/cfg/sess-p.json')
     expect(extras.allowedTools).toBe(
@@ -584,7 +632,7 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
       .id
     store.saveTask({ workspaceId: 'w1', goalId: null, title: 'Loose' })
     const extras = goalSpawnExtras(
-      { store, mcp: mcp() },
+      { store, mcp: mcp(), sessionName: () => null },
       'sess-p',
       { kind: 'planner', goalId },
       false,
@@ -602,7 +650,15 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
     const planner: GoalLaunch = { kind: 'planner', goalId }
 
     const notOurs = mcp({ hookListening: () => false })
-    expect(goalSpawnExtras({ store, mcp: notOurs }, 'sess-p', planner, false, null)).toEqual(none)
+    expect(
+      goalSpawnExtras(
+        { store, mcp: notOurs, sessionName: () => null },
+        'sess-p',
+        planner,
+        false,
+        null
+      )
+    ).toEqual(none)
     expect(notOurs.written).toEqual([])
 
     const minted: string[] = []
@@ -613,16 +669,127 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
       minted.push(t)
       return t
     }
-    expect(goalSpawnExtras({ store, mcp: refused }, 'sess-p', planner, false, null)).toEqual(none)
+    expect(
+      goalSpawnExtras(
+        { store, mcp: refused, sessionName: () => null },
+        'sess-p',
+        planner,
+        false,
+        null
+      )
+    ).toEqual(none)
     expect(minted).toHaveLength(1)
     expect(refused.tokens.resolve(minted[0] ?? '')).toBeNull()
 
     store.removeGoal(goalId)
     const gone = mcp()
-    expect(goalSpawnExtras({ store, mcp: gone }, 'sess-p', planner, false, null)).toEqual(none)
+    expect(
+      goalSpawnExtras({ store, mcp: gone, sessionName: () => null }, 'sess-p', planner, false, null)
+    ).toEqual(none)
     expect(gone.written).toEqual([])
   })
+
+  describe('goalSpawnExtras: a planner sees the sessions that worked on its goal', () => {
+    const planner: GoalLaunch = { kind: 'planner', goalId: 'g1' }
+
+    it('lists them newest first, with the names sessionName gives and no name as no longer listed', () => {
+      const store = touchedSeed()
+      const extras = goalSpawnExtras(
+        {
+          store,
+          mcp: mcp(),
+          sessionName: (id) => (id === 's-new' ? 'login "fix" [2]' : null)
+        },
+        'sess-p',
+        planner,
+        false,
+        null
+      )
+      const lines = (extras.appendPrompt ?? '').split('\n')
+      const at = lines.indexOf('Sessions that worked on these tasks:')
+      expect(at).toBe(5)
+      expect(lines.slice(at + 1, at + 3)).toEqual([
+        '- "login ’fix’ (2)" [s-new]: b',
+        '- (no longer listed) [s-old]: b, a'
+      ])
+      expect(extras.taskIds).toEqual(['a', 'b', 'c'])
+    })
+
+    it('tasks over the list budget: taskIds leaves out the cut task', () => {
+      const ids = Array.from({ length: 120 }, (_, i) => `t${String(i).padStart(3, '0')}`)
+      const file = {
+        version: 1,
+        goals: [{ id: 'g1', workspaceId: 'w1', name: 'Auth', createdAt: 1, defaultCwd: '/work' }],
+        tasks: ids.map((id) => ({
+          id,
+          workspaceId: 'w1',
+          goalId: 'g1',
+          title: `${id} ${'x'.repeat(150)}`,
+          status: 'open',
+          createdAt: 1,
+          touchedBy: []
+        }))
+      }
+      const store = createGoalsStore({
+        blobStore: { read: () => file, write: () => {}, backup: () => {} }
+      })
+      const extras = goalSpawnExtras(
+        { store, mcp: mcp(), sessionName: () => null },
+        'sess-p',
+        planner,
+        false,
+        null
+      )
+      const last = ids.at(-1) ?? ''
+      expect(extras.taskIds.length).toBeGreaterThan(0)
+      expect(extras.taskIds.length).toBeLessThan(ids.length)
+      expect(extras.taskIds).not.toContain(last)
+      expect(extras.appendPrompt).not.toContain(`[${last}]`)
+      for (const id of extras.taskIds) expect(extras.appendPrompt).toContain(`[${id}]`)
+    })
+
+    it('no task touched: no sessions list', () => {
+      const { store, goalId } = seed()
+      const sessionName = vi.fn(() => 'never')
+      const extras = goalSpawnExtras(
+        { store, mcp: mcp(), sessionName },
+        'sess-p',
+        { kind: 'planner', goalId },
+        false,
+        null
+      )
+      expect(extras.appendPrompt).not.toContain('Sessions that worked on these tasks:')
+      expect(sessionName).not.toHaveBeenCalled()
+    })
+  })
 })
+
+/** A goal whose tasks memory saves touched: `a` and `b` by `s-old` (10, 20), `b` by `s-new` (30),
+ *  `c` by none. */
+function touchedSeed(): GoalsStore {
+  const task = (id: string, touchedBy: { sessionId: string; at: number }[]): object => ({
+    id,
+    workspaceId: 'w1',
+    goalId: 'g1',
+    title: `Task ${id}`,
+    status: 'open',
+    createdAt: 1,
+    touchedBy
+  })
+  const file = {
+    version: 1,
+    goals: [{ id: 'g1', workspaceId: 'w1', name: 'Auth', createdAt: 1, defaultCwd: '/work' }],
+    tasks: [
+      task('a', [{ sessionId: 's-old', at: 10 }]),
+      task('b', [
+        { sessionId: 's-old', at: 20 },
+        { sessionId: 's-new', at: 30 }
+      ]),
+      task('c', [])
+    ]
+  }
+  return createGoalsStore({ blobStore: { read: () => file, write: () => {}, backup: () => {} } })
+}
 
 describe('startPlanner', () => {
   it('launches one planner named after the goal (cut to the name limit), in its folder', async () => {

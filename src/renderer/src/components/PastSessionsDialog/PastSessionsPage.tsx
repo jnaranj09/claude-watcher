@@ -12,6 +12,7 @@ import { useEffect, useRef, useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { PastSession, Tag, Workspace } from '../../../../shared/ipc/contract'
 import { PAST_SESSIONS_MAX } from '../../../../shared/schemas/pastSession'
+import { PAST_SESSIONS_TERMS } from '../../copy/terms'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { Callout } from '../Callout/Callout'
 import type { DialogPageProps } from '../ManageDialog/dialogPage'
@@ -52,7 +53,7 @@ import {
   filterPastByFilters,
   filterPastByName,
   filterPastByScope,
-  isAlreadyOpenError,
+  openOrFocusPast,
   pastMemoryLine,
   pastSessionErrorMessage,
   pastSessionTagsErrorMessage,
@@ -159,15 +160,12 @@ export function PastSessionsPage({
     e.preventDefault()
     if (selected === null || busy) return
     setBusy(true)
+    const id = selected.id
     try {
-      await openPastSession(selected.id)
+      // Spec Open step 3: a session already live is gone to rather than reported.
+      await openOrFocusPast(() => openPastSession(id), focusLiveSession, id)
       dialog.actions.close()
     } catch (err) {
-      // Spec Open step 3: the session is already live, so go to it rather than report it.
-      if (isAlreadyOpenError(err) && (await focusLiveSession(selected.id))) {
-        dialog.actions.close()
-        return
-      }
       dialog.actions.setError(pastSessionErrorMessage(err))
       setBusy(false)
     }
@@ -266,7 +264,7 @@ export function PastSessionsPage({
             {loadFailed && (
               <Callout
                 tone="danger"
-                title="Could not load past sessions"
+                title={PAST_SESSIONS_TERMS.loadFailed}
                 testId="past-session-load-error"
               />
             )}

@@ -30,6 +30,8 @@ function deps(over: Partial<ClaudeSpawnDeps> = {}): ClaudeSpawnDeps & { skips: s
       hookPort: 19279,
       onSkip: (_id, reason) => skips.push(reason)
     },
+    notePlanner: () => undefined,
+    carrySessionGoal: () => undefined,
     goalSpawnExtras: () => NO_GOAL,
     memorySpawnExtras: () => ({ ...NO_MEMORY_EXTRAS, env: {} }),
     memoryResumed: () => undefined,
@@ -151,5 +153,53 @@ describe('claudeSpawnCommand', () => {
     const d = deps({ memoryResumed: (id, ws) => seen.push([id, ws]) })
     claudeSpawnCommand(d, request({ resume: false }))
     expect(seen).toEqual([])
+  })
+
+  describe('the memory goal carry and the planner record', () => {
+    const PREV = 'aaaaaaaa-0000-4000-8000-000000000000'
+    const GOALS = {
+      worker: { kind: 'worker', taskIds: ['t1'], markDone: false } as const,
+      planner: { kind: 'planner', goalId: 'g1' } as const
+    }
+    function run(over: Partial<ClaudeSpawnRequest>): string[] {
+      const calls: string[] = []
+      const d = deps({
+        carrySessionGoal: (p, n) => calls.push(`carry ${p} ${n}`),
+        notePlanner: (s, g) => calls.push(`planner ${s} ${g}`),
+        goalSpawnExtras: () => {
+          calls.push('goalSpawnExtras')
+          return NO_GOAL
+        }
+      })
+      claudeSpawnCommand(d, request(over))
+      return calls
+    }
+
+    it.each([
+      ['a plain session', null],
+      ['a worker', GOALS.worker]
+    ])('a Reopen of %s carries, and records no planner', (_n, goalLaunch) => {
+      expect(run({ previousSessionId: PREV, goalLaunch })).toEqual([
+        `carry ${PREV} ${SID}`,
+        'goalSpawnExtras'
+      ])
+    })
+
+    it('a Reopen of a planner carries, then records the planner, both before goalSpawnExtras', () => {
+      expect(run({ previousSessionId: PREV, goalLaunch: GOALS.planner })).toEqual([
+        `carry ${PREV} ${SID}`,
+        `planner ${SID} g1`,
+        'goalSpawnExtras'
+      ])
+    })
+
+    it('a planner first spawn records the planner and carries nothing', () => {
+      expect(run({ goalLaunch: GOALS.planner })).toEqual([`planner ${SID} g1`, 'goalSpawnExtras'])
+    })
+
+    it('a resume carries nothing, and a first spawn carries nothing', () => {
+      expect(run({ previousSessionId: PREV, resume: true })).toEqual(['goalSpawnExtras'])
+      expect(run({})).toEqual(['goalSpawnExtras'])
+    })
   })
 })

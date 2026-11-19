@@ -5,6 +5,7 @@
 // (`privateSpans.ts`), with the secret's code (the mod's sentence for it is not changed). `\r\n` and
 // a lone `\r` become `\n` first (P3-C14). Pure; logs nothing (the text is sensitive).
 import { MEMORY_LIMITS, MemoryTextSchema, type MemoryText } from '../../shared/schemas/memory'
+import { cutToUnits } from '../../shared/textCut'
 import type { RememberRefusal } from '../../shared/schemas/modMemory'
 import { hasSecret } from './extract/secretScan'
 import { holdsPrivate } from './privateSpans'
@@ -21,9 +22,7 @@ type RememberCode = Extract<
 /** `text` cut to `max` characters, the last one an ellipsis; never half of a surrogate pair. Also
  *  cuts a recall line (`memoryRecall.ts`). */
 export function capped(text: string, max: number): string {
-  if (text.length <= max) return text
-  const head = text.slice(0, max - ELLIPSIS.length)
-  return (/[\uD800-\uDBFF]$/.test(head) ? head.slice(0, -1) : head) + ELLIPSIS
+  return text.length <= max ? text : cutToUnits(text, max - ELLIPSIS.length) + ELLIPSIS
 }
 
 /** A specific when the one line splits into a key and a value that both fit; else null. The text

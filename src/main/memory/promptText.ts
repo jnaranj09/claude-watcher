@@ -5,6 +5,7 @@
 // open or close a wrapper claude puts around it, or forge the start of a memory block
 // (`wrapperSafe`, P3-C1): both helpers below end in it.
 // Pure; logs nothing (memory text is sensitive).
+import { isControlCodePoint } from '../../shared/schemas/launch'
 
 /** The first words of every block memory adds beside a prompt or after a tool result (phase 3).
  *  Read by a model, and by the slice cleaner, which never lets such a block be evidence. */
@@ -13,11 +14,6 @@ export const MEMORY_BLOCK_MARKER = 'Memory (Claude Watcher):'
 /** A line break as Unicode counts it: LF, VT, FF, CR, NEL, LINE and PARAGRAPH SEPARATOR. */
 function isLineBreak(cp: number): boolean {
   return (cp >= 0x0a && cp <= 0x0d) || cp === 0x85 || cp === 0x2028 || cp === 0x2029
-}
-
-/** C0 and C1 controls (a tab, an escape), checked by code point like `hasControlChar`. */
-function isControl(cp: number): boolean {
-  return cp <= 0x1f || (cp >= 0x7f && cp <= 0x9f)
 }
 
 /** The lines of `text`: CRLF is one break, every other break ends a line, and every other control
@@ -35,7 +31,7 @@ export function linesOf(text: string): string[] {
       lines.push(line)
       line = ''
     } else {
-      line += isControl(cp) ? ' ' : ch
+      line += isControlCodePoint(cp) ? ' ' : ch
     }
   }
   lines.push(line)

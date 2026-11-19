@@ -1170,8 +1170,9 @@ function passesFilter(session: BoardSession, filter: BoardFilter): boolean {
   return query === '' || session.sessionName.toLowerCase().includes(query)
 }
 
-/** Each session's goals: the goals of the tasks linked to it (loose tasks and gone goals add
- *  none). Pure: `useBoardFilter` builds it once per render. */
+/** Each session's goals: the goals of the tasks linked to it or touched by it (`touchedBy`: its
+ *  memory saves added or updated the task); loose tasks and gone goals add none. Pure:
+ *  `useBoardFilter` builds it once per render. */
 export function goalIdsBySessionOf(
   goals: readonly Goal[],
   tasks: readonly Task[]
@@ -1180,7 +1181,7 @@ export function goalIdsBySessionOf(
   const out = new Map<string, string[]>()
   for (const t of tasks) {
     if (t.goalId === null || !live.has(t.goalId)) continue
-    for (const sessionId of t.sessionIds) {
+    for (const sessionId of [...t.sessionIds, ...t.touchedBy.map((touch) => touch.sessionId)]) {
       const ids = out.get(sessionId) ?? []
       if (!ids.includes(t.goalId)) ids.push(t.goalId)
       out.set(sessionId, ids)

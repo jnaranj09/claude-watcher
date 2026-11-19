@@ -33,7 +33,8 @@ const SHIP = {
   name: 'Ship v2',
   defaultCwd: '/repo',
   saveToFile: false,
-  createdAt: 1
+  createdAt: 1,
+  memorySessionIds: []
 }
 
 beforeEach(() => {

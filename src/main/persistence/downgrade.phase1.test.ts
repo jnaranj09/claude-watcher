@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { createGoalsStore, type GoalsBlobStore } from './goals'
 import { createSettingsStore } from './settings'
 import {
-  GoalSchema,
+  GoalNameSchema,
   TASK_DONE_BY,
   TaskStatusValueSchema,
   TaskTitleSchema,
@@ -45,9 +45,17 @@ const Phase1SettingsSchema = SettingsSchema.omit({
   memoryRecallEnabled: true
 })
 
-// A FROZEN copy of the phase-1 task schema (`src/shared/schemas/goal.ts` at 120e59d). `GoalSchema`,
-// `TaskTitleSchema`, `TaskStatusValueSchema` and `TASK_DONE_BY` are unchanged since. Never update
-// it to follow the current schema: its point is that it does not.
+// FROZEN copies of the phase-1 goal and task schemas (`src/shared/schemas/goal.ts` at 120e59d).
+// `GoalNameSchema`, `TaskTitleSchema`, `TaskStatusValueSchema` and `TASK_DONE_BY` are unchanged
+// since. Never update either to follow the current schema: their point is that they do not.
+const Phase1GoalSchema = z.object({
+  id: z.string().min(1),
+  workspaceId: WorkspaceIdSchema,
+  name: GoalNameSchema,
+  defaultCwd: z.string().min(1).nullable().default(null),
+  saveToFile: z.boolean().default(false),
+  createdAt: z.number()
+})
 const Phase1TaskSchema = z.object({
   id: z.string().min(1),
   workspaceId: WorkspaceIdSchema,
@@ -61,7 +69,7 @@ const Phase1TaskSchema = z.object({
 })
 const Phase1GoalsFileSchema = z.object({
   version: z.literal(1),
-  goals: z.array(GoalSchema),
+  goals: z.array(Phase1GoalSchema),
   tasks: z.array(Phase1TaskSchema)
 })
 
@@ -77,23 +85,25 @@ describe('going back to the phase-1 build', () => {
 
   it('the phase-1 goals schema parses a goals file holding an extracted, reported task', () => {
     const file = blob<GoalsFile>()
+    let ids = 0
     const store = createGoalsStore({
       blobStore: file.blobStore as GoalsBlobStore,
-      newId: () => 't1',
+      newId: () => `id${++ids}`,
       now: () => 5,
       log: () => undefined
     })
-    store.addTaskFromExtraction({
+    const { task } = store.addTaskFromExtraction({
       workspaceId: 'w1',
-      goalId: null,
+      metaGoalId: null,
       title: 'Add a health check',
       check: 'curl localhost:9281/health',
       leftWith: 'session',
-      originSessionId: 's1',
+      sessionId: 's1',
+      sessionGoal: { name: 'api', folder: '/work/api' },
       folder: '/work/api',
       at: 5
     })
-    store.reportTask('t1', {
+    store.reportTask(task.id, {
       at: 6,
       sessionId: 's1',
       sessionName: 'api',
@@ -102,6 +112,6 @@ describe('going back to the phase-1 build', () => {
     })
     const parsed = Phase1GoalsFileSchema.safeParse(file.current())
     expect(parsed.success).toBe(true)
-    expect(parsed.data?.tasks.map((t) => [t.id, 'check' in t])).toEqual([['t1', false]])
+    expect(parsed.data?.tasks.map((t) => [t.id, 'check' in t])).toEqual([[task.id, false]])
   })
 })

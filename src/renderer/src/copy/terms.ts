@@ -52,7 +52,8 @@ export const GOAL_TERMS = {
   saveToFileHint: 'Keeps this goal and its tasks in GOALS.md in its folder, for source control.',
   tryAgain: 'Try again',
   fileNotUpdated: (reason: string): string => `Saved, but GOALS.md was not updated. ${reason}`,
-  /** A goal made before folders were required: it starts nothing until it has one. */
+  /** A goal with no folder (made before folders were required, or a memory goal made for a
+   *  session with no folder): it starts nothing until it has one. */
   noFolderYet: 'No folder yet. Choose one to start sessions.',
   /** The Goals sheet's task row: its ▸ / ▾ toggle (with the title after it) and its edit field. */
   showFullText: 'Show full text',
@@ -87,7 +88,17 @@ export const GOAL_TERMS = {
   removeRow: (n: number): string => `Remove session ${n}`,
   accept: 'Accept',
   reject: 'Reject',
-  rejectFailed: 'Could not reject the proposal.'
+  rejectFailed: 'Could not reject the proposal.',
+  /** The goal form's hint on a memory goal (one a memory save made for one session). */
+  madeByMemory: 'Made by memory.',
+  /** The goal form's section of the sessions whose saves added or updated its tasks, and its
+   *  row for a session with no live card and no Past sessions record. */
+  workedOnBy: 'Worked on by',
+  noLongerListed: 'No longer listed',
+  /** The goal Delete's armed label: the tasks that go with it, or `undefined` (no tasks) so
+   *  `ManageDialog.Delete` keeps its default `Confirm delete`. */
+  confirmDeleteWithTasks: (n: number): string | undefined =>
+    n === 0 ? undefined : `Confirm delete (${n} ${n === 1 ? 'task' : 'tasks'})`
 } as const
 
 /** A default folder on a workspace or a goal: the field's label and its controls (a goal's folder
@@ -125,7 +136,16 @@ export const MEMORY_TERMS = {
 /** The Sessions dialog's record of ended sessions: the ☰ Sessions row, the empty board's way
  *  there, and an episode's way to its record in the Memory dialog. */
 export const PAST_SESSIONS_TERMS = {
-  label: 'Past sessions'
+  label: 'Past sessions',
+  /** The history's load failed: the Past sessions page's Callout and the goal form's
+   *  `Worked on by` Callout. */
+  loadFailed: 'Could not load past sessions'
+} as const
+
+/** A list cut at its cap: the line under the shown rows (Memory's twins, a goal's
+ *  `Worked on by`). */
+export const LIST_TERMS = {
+  more: (n: number): string => `${n} more`
 } as const
 
 /** A thing's earlier versions and the way back to one: Context's instruction files and Memory's

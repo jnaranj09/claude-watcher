@@ -9,6 +9,11 @@
 // does not guarantee no second task: a title the model words differently on the re-run is a new
 // task.
 //
+// A new task goes to the session's goal through the goals store (`addTaskFromExtraction`: the goal
+// the session plans, else the goal its links name, else the session's own memory goal, made at its
+// first task, `memory_goal_created`). A new task, and an update whose evidence is a sighting,
+// record the session's touch (`Task.touchedBy`). Nothing is linked to a session.
+//
 // Nothing inside the batch catches a throw: the batch has no savepoint, so a caught store throw
 // would commit what came before it. Memory, task and command text are SENSITIVE: logs carry a
 // `code=` only.
@@ -21,6 +26,7 @@ import {
 import type { GoalsStore } from '../../persistence/goals'
 import type { MemoryCommands } from '../memoryCommands'
 import type { MemoryStore, StoredSource } from '../memoryStore'
+import { sessionGoalName } from '../sessionGoal'
 import { findValue, isSighting, type Checked } from './checkCandidates'
 import type { ExtractRow, ExtractState } from './extractState'
 import type { CleanEntry } from './sliceCleaner'
@@ -97,19 +103,28 @@ function writeTask(deps: ApplyDeps, row: ExtractRow, task: TaskCandidate, at: nu
         check: task.check,
         leftWith: task.leftWith,
         at,
-        seen: isSighting(task.basis)
+        seen: isSighting(task.basis),
+        sessionId: row.originSessionId
       })
     }
-    goals.addTaskFromExtraction({
+    const name = sessionGoalName(row.meta.sessionName, row.meta.folder, at)
+    const out = goals.addTaskFromExtraction({
       workspaceId: row.workspaceId,
-      goalId: row.meta.goalId,
+      metaGoalId: row.meta.goalId,
       title: task.title,
       check: task.check,
       leftWith: task.leftWith,
-      originSessionId: row.originSessionId,
+      sessionId: row.originSessionId,
+      sessionGoal: { name, folder: row.meta.folder },
       folder: row.meta.folder,
       at
     })
+    if (out.goalCreated) {
+      const folder = row.meta.folder === null ? 'no' : 'yes'
+      deps.log(
+        `${LOG_PREFIX} code=memory_goal_created folder=${folder} memory_goals=${out.memoryGoals}`
+      )
+    }
     return true
   } catch {
     deps.log(`${LOG_PREFIX} code=memory_task_write_failed`)

@@ -1,7 +1,8 @@
-// The ONE place electron-store is imported and constructed (settings + templates both wrap
-// this). Imported ONLY from `src/main/index.ts` — electron-store@11 runs `ipcMain.on(...)` at
-// MODULE EVAL, which would crash the bare-node `main-unit` runtime; every store module that
-// must stay unit-testable takes this as a DI seam instead.
+// The ONE place electron-store is imported and constructed (every `electron*BlobStore.ts` module
+// wraps this). Only those wrappers and this file's own test import it, and only
+// `src/main/index.ts` imports them — electron-store@11 runs `ipcMain.on(...)` at MODULE EVAL, which would crash the bare-node
+// `main-unit` runtime; every store module that must stay unit-testable takes this as a DI seam
+// instead.
 //
 // PACKAGING (load-bearing): electron-store@11 is ESM-only (`"type":"module"`), and the
 // packaged main bundle is CommonJS — a runtime `require('electron-store')` throws
@@ -11,7 +12,7 @@
 // from node_modules); `npm run smoke` proves both survive packaging.
 import Store from 'electron-store'
 import { app } from 'electron'
-import { renameSync } from 'node:fs'
+import { constants, copyFileSync, existsSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import type { PersistedBlobStore } from './persistedBlob'
 
@@ -35,12 +36,17 @@ function corruptPathFor(file: string): string {
   return `${file.replace(/\.json$/i, '')}.corrupt-${Date.now()}.json`
 }
 
+/** The store plus `copy(label)`: copies the live file to `<file>.<label>-<ts>.json` beside it and
+ *  leaves the live file. false = no file on disk yet (nothing copied); any other failure throws,
+ *  and an existing copy is never overwritten (`COPYFILE_EXCL`). */
+export type ElectronBlobStore<T> = PersistedBlobStore<T> & { copy(label: string): boolean }
+
 /** One JSON file per `name`; `backup()` renames it to `<name>.corrupt-<ts>.json` so a reset
  *  never destroys the operator's data. Requires app-ready (electron-store needs userData). */
 export function createElectronBlobStore<T>({
   name,
   key
-}: ElectronBlobStoreOptions): PersistedBlobStore<T> {
+}: ElectronBlobStoreOptions): ElectronBlobStore<T> {
   const construct = (): Store<Record<string, T | undefined>> =>
     new Store<Record<string, T | undefined>>({ name, fileExtension: 'json' })
 
@@ -77,6 +83,12 @@ export function createElectronBlobStore<T>({
       } catch {
         // nothing to back up (or an unwritable dir) — the in-memory reset still proceeds
       }
+    },
+    copy(label: string): boolean {
+      if (!existsSync(store.path)) return false
+      const target = `${store.path.replace(/\.json$/i, '')}.${label}-${Date.now()}.json`
+      copyFileSync(store.path, target, constants.COPYFILE_EXCL)
+      return true
     }
   }
 }

@@ -9,6 +9,7 @@ const goal = (over: Partial<Goal> = {}): Goal => ({
   defaultCwd: null,
   saveToFile: false,
   createdAt: 1,
+  memorySessionIds: [],
   ...over
 })
 const task = (over: Partial<Task> = {}): Task => ({
@@ -27,6 +28,7 @@ const task = (over: Partial<Task> = {}): Task => ({
   report: null,
   originSessionId: null,
   folder: null,
+  touchedBy: [],
   ...over
 })
 const view = (goals: Goal[], tasks: Task[]): GoalsView => ({
@@ -72,6 +74,25 @@ beforeEach(() => {
 })
 
 describe('goalsStore', () => {
+  it('lists the operator goals in array order, then memory goals newest first, ties by id', () => {
+    const goals = [
+      goal({ id: 'm-old', createdAt: 1, memorySessionIds: ['s1'] }),
+      goal({ id: 'b', createdAt: 9 }),
+      goal({ id: 'm-z', createdAt: 5, memorySessionIds: ['s2'] }),
+      goal({ id: 'a', createdAt: 2 }),
+      goal({ id: 'm-a', createdAt: 5, memorySessionIds: ['s3'] }),
+      goal({ id: 'other', workspaceId: 'w2' })
+    ]
+    m.goalsStore.getState().hydrate(view(goals, []))
+    expect(
+      m
+        .selectGoalsIn('w1')(m.goalsStore.getState())
+        .map((g) => g.id)
+    ).toEqual(['b', 'a', 'm-a', 'm-z', 'm-old'])
+    // Two operator goals compare equal: a stable sort keeps the array order.
+    expect(m.compareGoalsForLists(goal({ id: 'z', createdAt: 9 }), goal({ id: 'a' }))).toBe(0)
+  })
+
   it('counts open tasks of the workspace, goal and loose, not done ones or other workspaces', () => {
     m.goalsStore
       .getState()

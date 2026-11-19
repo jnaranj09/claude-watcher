@@ -26,7 +26,8 @@ const task: Task = {
   lastSeenAt: null,
   report: null,
   originSessionId: null,
-  folder: null
+  folder: null,
+  touchedBy: []
 }
 
 describe('TaskRow', () => {

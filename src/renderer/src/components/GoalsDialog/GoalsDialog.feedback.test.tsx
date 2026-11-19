@@ -61,7 +61,14 @@ describe('GoalsDialog — feedback', () => {
       sessionIds: [],
       createdAt: 1,
       doneAt: null,
-      doneBy: null
+      doneBy: null,
+      check: null,
+      leftWith: null,
+      lastSeenAt: null,
+      report: null,
+      originSessionId: null,
+      folder: null,
+      touchedBy: []
     }
     const goal = {
       id: 'g1',
@@ -69,7 +76,8 @@ describe('GoalsDialog — feedback', () => {
       name: 'Ship v2',
       defaultCwd: null,
       saveToFile: false,
-      createdAt: 1
+      createdAt: 1,
+      memorySessionIds: []
     }
     const retry = deferred<unknown>()
     const saveTask = vi

@@ -160,12 +160,12 @@ variant="toolbar"` + magnifier, 32px like the board's) + the same `Filter` butto
 - Memory's pages: `Specifics` and `Facts` edit; an item a save kept with its quote has
   `Open source` in its action row (the quote opens under the read-only lines). After `Check`, the
   form places the item (spec 2026-11-14 memory context index §8): `Folder` (a `Select`, `No
-  folder` first, then the folders the dialog knows; a row draws the name and its parent path as
+folder` first, then the folders the dialog knows; a row draws the name and its parent path as
   the Folder filter's rows do, `title` = the whole path), `Goal` (a `Select`, `No goal` first, the
   workspace's goals; not rendered for a global item or under `Global`), `Tags` (the picked tags'
   `TagChipRow` and the session card's ghost tag button opening `TagPicker`), then ONE
   `ManageDialog.Hint` (`Sessions in this folder, goal or with these tags list this item. With
-  none, every session of the workspace does.`). On an open specific or fact these replace the
+none, every session of the workspace does.`). On an open specific or fact these replace the
   read-only `Folder` and `Tags` lines (`Origin session` and `Workspace` stay; an episode keeps
   all four). A New form starts from the rail's filters; `Global` on clears the goal and the tags a
   global item cannot hold. A stored goal or tag that is gone is not drawn, sent or dropped. A specific main marks
@@ -419,12 +419,29 @@ of the sheet and where a deleted goal leaves it, so the sheet has no placeholder
 which opens on its first category). Every task, in the sheet and in the focused task panel, is the
 one boxed `TaskRow` (44px, `md` `Done` / `Undo`, `md` ghost ✕). In the focused task panel the rows
 sit `--gap-section` under the `Tasks` head; on the sheet the progress bar, the rows, `+ New task`
-and the start bar sit in ONE darker box (`--bg-inset`, `--gap-group` apart), and `Plan with Claude`
-sits `--gap-section` below it, outside.
+and the start bar sit in ONE darker box (`--bg-inset`, `--gap-group` apart); a goal's
+`Worked on by` section sits `--gap-section` below it, outside, and `Plan with Claude` sits
+`--gap-section` below that section, or below the box when there is none.
+The rail lists the operator's goals first, in creation order, then memory goals, newest first
+(`compareGoalsForLists`, also the order of the board's Goal filter, the Memory dialog's goal lists
+and the focused task panel's groups).
 A goal's form: `Default folder` with `Choose…` (a goal's folder is never cleared; a new goal's
 `Create` opens the picker first), then the `Save to GOALS.md` `Switch` and its hint; a file
 problem is a danger `Callout` with `Try again`. A goal with no folder (made before folders were
-required) shows a danger `Callout` instead, and no switch, `Plan with Claude` or select boxes.
+required, or a memory goal made for a session with no folder) shows a danger `Callout` instead,
+and no switch, `Plan with Claude` or select boxes. A memory goal has the `Hint` `Made by memory.`
+right under its name. Any goal whose tasks a session's memory save touched (`touchedBy`) has a
+`Worked on by` section after the tasks box (also with no folder): one row per session, newest touch
+first (`goalSessions`), at most 20, then `<n> more` (`LIST_TERMS.more`); each row is a head line
+over the session's task titles (one line, ellipsis, full text in `title`). A live session's head is
+its `SessionOpenButton` (the task row's button: status dot + name; a click closes the sheet and
+opens the card); a Past sessions record's is its name and a ghost `sm` `Open` (busy per row; on
+success or `already_open` the sheet closes, any other refusal is the sheet's result toast in the
+Past sessions wording); any other reads `No longer listed` (`--text-secondary`), no button. The form
+reloads Past sessions when it shows a touched goal; until the first load, non-live rows show
+their titles only, and a failed load is a danger `Callout` `Could not load past sessions` above the
+rows. The goal's `Delete` arms as `Confirm delete (<n> task|tasks)`, plain `Confirm delete` when it
+has none.
 On the sheet only, a ghost `▸` / `▾` before ✕ opens a row: the title wraps in full and `Edit`
 shows; `Edit` swaps the title for a 3-row `TextArea` (the title wraps) with `Save` / `Cancel`
 (Enter saves, a pasted line break becomes a space, Escape cancels the edit only, empty or
@@ -480,6 +497,11 @@ undone.` The Sessions dialog's armed Delete does not offer the box.
   dialog's own result toast, through the quiet exit core (`archiveTerminalCore` /
   `deleteTerminalCore` / `exitSessions`): no board toast, no jump to the board. `Open` closes the
   dialog, then `openFromNotification`.
+- **One open step for a record** (`openOrFocusPast`, `pastSessionsView.ts`): open, and on
+  `already_open` go to the live card (`focusLiveSession`, passed in); anything else is rethrown
+  for the caller's copy. Past sessions `Open`, Import, the archive toast's `Resume` and a goal's
+  `Worked on by` `Open` all use it; `tests/main/openOrFocusPast.guard.test.ts` fails when a
+  renderer file calls `focusLiveSession(` outside `pastSessionsStore.ts`.
 - **No key archives** (R27); Archive button label names no chord.
 - `Esc to return` only while focus is outside the terminal.
 - Rail foot: "Keeps the 200 most recent sessions" (UX-15) — a `ListNote` in `ListBottomDivided`
@@ -572,10 +594,10 @@ feedbackShown={copied !== null}`. `busy` = disabled + `aria-busy`; busy `Delete`
   `Needs claude <version> or newer.`). The title stays short so only a long name is cut.
 - Settings → Memory: the `Memory` Switch; while it is on, `Memory recall` (Switch, first),
   `Memory checkpoint` (Select `Off` / `10 turns` / `15 turns` / `25 turns`), `Save open work as
-  tasks` (Switch) and `Memory model` (Select `Haiku` / `Sonnet`), each with its hint; off, the
+tasks` (Switch) and `Memory model` (Select `Haiku` / `Sonnet`), each with its hint; off, the
   four are not rendered.
 - Context → Memory: `Injected` starts with the index the session got (`Index: <n> tokens · <m>
-  items`), then one row per reason the index listed or counted keys for, in its order (`Pinned`,
+items`), then one row per reason the index listed or counted keys for, in its order (`Pinned`,
   `Same task`, `Same goal`, `This folder`, `Folders above`, `Whole workspace`, `Same template`,
   `Same tags`, `Folders below`, `Episodes`; details `<n> items`, `<n> pulled` when claude read any
   with `memory_get`, `<n> not listed` when the group had a count line), then lists each item

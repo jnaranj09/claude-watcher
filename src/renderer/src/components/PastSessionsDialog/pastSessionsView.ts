@@ -1,8 +1,10 @@
 // Past sessions — PURE helpers behind PastSessionsPage.tsx: the scope, name and session filters
 // (spec 2026-10-16), the three empty sentences, the relative time, the `Memory:` line (memory
-// phase 2) and the error copy (open, resume by id, tag edits). No React, no store.
+// phase 2), the error copy (open, resume by id, tag edits) and `openOrFocusPast`, the one open
+// step every Open of a record shares (its caller passes the store's open and focus). No React, no
+// store.
 import { formatVersion, MIN_CLAUDE_VERSION } from '../../../../shared/launch/claudeVersion'
-import type { PastSession } from '../../../../shared/ipc/contract'
+import type { PastSession, PastSessionOpenResult } from '../../../../shared/ipc/contract'
 import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 import { matchesFilters, type SessionFilters } from '../../lib/sessionFilters'
 
@@ -158,8 +160,29 @@ export function pastSessionTagsErrorMessage(err: unknown): string {
 /** Open's `already_open` refusal — the session is live on the board (spec Open step 3: the
  *  dialog takes the operator to its card). Matched like `pastSessionErrorMessage`, for the same
  *  Electron-wrapping reason. */
-export function isAlreadyOpenError(err: unknown): boolean {
+function isAlreadyOpenError(err: unknown): boolean {
   return err instanceof Error && err.message.includes('already_open')
+}
+
+/**
+ * Open a record, or go to its live card (spec Open step 3; spec 2026-11-18, "Shared open step"):
+ * `'opened'` when `open` resolves; on `already_open`, `'focused'` when `focus(id)` took the view to
+ * the card. Anything else (and `already_open` for a card the renderer cannot show) is rethrown for
+ * the caller's own error copy. Callers pass `focusLiveSession` as `focus`, so this file stays pure;
+ * `tests/main/openOrFocusPast.guard.test.ts` keeps every caller on this step.
+ */
+export async function openOrFocusPast(
+  open: () => Promise<PastSessionOpenResult>,
+  focus: (id: string) => Promise<boolean>,
+  id: string
+): Promise<'opened' | 'focused'> {
+  try {
+    await open()
+    return 'opened'
+  } catch (err) {
+    if (isAlreadyOpenError(err) && (await focus(id))) return 'focused'
+    throw err
+  }
 }
 
 /** UX-15 — the history drops the oldest record past the cap, so the dialog says there is one. */

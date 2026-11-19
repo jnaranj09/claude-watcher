@@ -72,7 +72,7 @@ async function openResumed(result: PastSessionOpenResult): Promise<PastSessionOp
  * popover does (`openLaunchedTerminal`: registry + focus). The record's workspace becomes the
  * active one first, or the focused terminal would sit hidden under another workspace's board.
  * Rethrows the code (`not_found` / `folder_missing` / `already_open`) for the dialog's error toast
- * (`already_open` first tries `focusLiveSession`).
+ * (every caller goes through `openOrFocusPast`, which tries `focusLiveSession` on `already_open`).
  */
 export async function openPastSession(id: string): Promise<PastSessionOpenResult> {
   return openResumed(await window.pastSessions.open(id))

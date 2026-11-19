@@ -12,6 +12,7 @@ function goal(over: Partial<Goal> & Pick<Goal, 'id'>): Goal {
     defaultCwd: SHOP,
     saveToFile: false,
     createdAt: 1,
+    memorySessionIds: [],
     ...over
   }
 }
@@ -31,6 +32,7 @@ function task(over: Partial<Task> & Pick<Task, 'id' | 'createdAt'>): Task {
     report: null,
     originSessionId: null,
     folder: null,
+    touchedBy: [],
     ...over
   }
 }

@@ -27,6 +27,7 @@ const task = (id: string, title: string, over: Partial<Task> = {}): Task => ({
   report: null,
   originSessionId: null,
   folder: null,
+  touchedBy: [],
   ...over
 })
 
@@ -48,7 +49,8 @@ function viewWith(proposals: Proposal[]): GoalsView {
         name: 'Chores',
         defaultCwd: '/home/j',
         saveToFile: false,
-        createdAt: 1
+        createdAt: 1,
+        memorySessionIds: []
       }
     ],
     tasks: [task('t1', 'Water plants'), task('t2', 'Take out trash'), task('t3', 'Clean garage')],
