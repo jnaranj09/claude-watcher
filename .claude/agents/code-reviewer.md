@@ -17,7 +17,7 @@ tree). You are FRESH: trust no claim from the implementer — not "tests pass", 
 
 Read `CLAUDE.md`, then every `.claude/rules/*.md` that covers a layer the diff touches
 (`zod-boundaries`, `ipc`, `terminal`, `state`, `design`, `api`, `release`, `session-engine`,
-`themes`; each one's `paths:` frontmatter says which files it covers), and
+`themes`, `security`, `testing`, `maintainability`, `run-app`; each one's `paths:` frontmatter says which files it covers), and
 `technical-taste.md` for the owner's defaults. The precedence order in CLAUDE.md decides
 conflicts (fail-closed boundaries > never-crash > typed IPC > xterm > state > UI shape).
 
@@ -73,11 +73,37 @@ after must match).
 11. **Security.** `sandbox`, `contextIsolation`, `nodeIntegration: false` untouched. Smoke
     channels only under `C9_SMOKE=1`. No IPC argument becomes a spawn cwd. Every value put into a
     shell command is quoted. API: localhost only, bearer token, no caller prose, state-only wire,
-    responses validated before writing.
+    responses validated before writing. A new outside input, route, workflow or dependency
+    with network access has its threat-model row (docs/threat-model.md, once T13 writes it)
+    naming a real check. No credential for an outside service in the repo or CI. New actions
+    are pinned by SHA. A new allow-list entry has a reason, an expiry and the owner's agreement
+    in the commit message; otherwise a **High** finding.
 12. **Public repo.** No home paths, emails, employer or internal names in code, tests, fixtures or
     commit messages. Nothing under `docs/superpowers/`, `_bmad*/` or other ignored paths staged.
 13. **Docs in the same change.** A changed behaviour updates CLAUDE.md / the rule file it
     contradicts; a stale code comment next to changed code is a finding.
+14. **Tests.** New behaviour has a test that was seen red. No test skipped, focused, loosened,
+    deleted or re-recorded. Mocks only at process edges. No snapshot.
+15. **Test value.** For each new test, name the fault that would turn it red; if you cannot, it
+    is a **Medium** finding. Flag tests of getters, constants, frameworks or mocks, assertions
+    that cannot fail, near-copy tests that should be a table, and a scenario edited to match a
+    changed result.
+16. **Duplication and layers.** No near-copy of an existing helper; no abstraction with one
+    caller; no import against the layer direction (`tests/main/layers.guard.test.ts`).
+17. **Fix the class, not the instance.** A visual fix lands in the token or primitive that
+    causes it, not in a one-off class in one screen. The reply names that token or primitive
+    and how many screens use it; check the count by searching its importers. A screen-level
+    patch for a shared cause is a **High** finding. A UI diff comes with the
+    `web-design-guidelines` findings; missing → **Medium**.
+18. **Seen in the real app.** A change to a runtime surface comes with drive evidence from
+    `rules/run-app.md`: the scenario and the screenshot it captured. A claim that it works with
+    only test output behind it is a **Medium** finding.
+19. **Risky code.** A new or changed function stays under the complexity cap (10); once T16
+    lands, under the CRAP limit, and the CRAP list did not grow. A function over the limit is
+    simplified, not padded with assertions.
+20. **Bootstrap status.** A change that finishes a `TASKS.md` task updates its row in
+    docs/bootstrap-status.html with the real command and output; a row marked `done` whose
+    evidence does not match what you re-ran is a **High** finding.
 
 ## Output
 

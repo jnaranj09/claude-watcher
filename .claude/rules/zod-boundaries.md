@@ -79,6 +79,16 @@ input, PTY content). Log PATH + CODE only — never `error`, never the body. Ass
 schema over parsed output (the timestamp transform expects a string). Launch synthesis CONSTRUCTS a
 valid `Session`, never re-parses.
 
+**Past the boundary, the type is the proof.** No re-validation, no cast to force a value through.
+A cast lives only inside a small, named, tested helper. Sensor: `tsc` strict + ESLint
+`no-explicit-any`; casts: the per-file `as` budget (`tests/main/typeAssertions.guard.test.ts`).
+
+**Each boundary has a test with a bad input** that shows the fail-closed result (refusal, reset
+with backup, or `code=` log). Prose only (the reviewer's "Fail-closed Zod boundaries" check).
+
+**State is a tagged union with an exhaustive match**, not a set of booleans. A forgotten case is a
+compile error. Sensor: `tsc` + ESLint `switch-exhaustiveness-check`.
+
 ## Don't
 
 - Enum-lock `status` or `hook_event_name`.

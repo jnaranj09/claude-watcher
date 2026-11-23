@@ -21,6 +21,31 @@ only".
 - **No branching in a test.** Lint: `vitest/no-conditional-in-test`, `vitest/no-conditional-expect`.
 - **Every test asserts.** Lint: `vitest/expect-expect` (a helper named `expect*`/`assert*` counts).
 - **No snapshots** (technical-taste §13). Lint: `vitest/no-restricted-matchers`.
+- **No global coverage percentage as a target.** Coverage barely predicts whether tests catch
+  faults; fault injection and mutation testing instead. Per-function coverage only feeds the CRAP
+  score (see "Risky code"), never a number to reach. Prose only.
+
+## Every test earns its place
+
+- **A test names the fault that would turn it red.** No tests of getters, framework code,
+  constants or the mock itself; no assertion that cannot fail (`expect(true)`, "does not throw"
+  alone); no near-copy tests that differ only in data (use `it.each`). Lint: `vitest/expect-expect`;
+  the rest is prose only, checked by the reviewer's "Test value" check.
+- **A test written only to raise a number is a finding.** Prose only.
+- **Low-value tests are reported, never deleted by the agent.** The clean-up pass lists tests that
+  kill no mutant; the owner decides. Sensor: StrykerJS (`npm run mutate`, run by hand).
+
+## Risky code
+
+- **Complexity cap.** A function over the cap (10) is split or simplified. Prose only until
+  `TASKS.md` T16 adds the ESLint `complexity` rule.
+- **CRAP limit.** A function's CRAP score (complexity and per-function coverage) stays under the
+  limit; old offenders sit on a pinned list that only shrinks. Prose only until T16 adds guard
+  `crap-budget`.
+- **Behaviour has a plain scenario** (Given / When / Then) through the public surface, added in the
+  same change as the behaviour; never edited to match a changed result without the owner.
+  Prose only until T16 confirms the scenario runner (Playwright-Electron); editing to match is
+  reviewer only.
 
 ## Renderer tests (jsdom)
 

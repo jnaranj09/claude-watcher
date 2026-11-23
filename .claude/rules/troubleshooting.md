@@ -53,6 +53,8 @@ Listed `com.claudewatcher.app` ⇒ started fine; problem is show/stack/minimize.
 - Packaged build has no StrictMode — "passes in prod" does not clear a dev-only bug.
 - Empty console ≠ healthy: it rules transport OUT, not the bug.
 - A manual repro with real `claude` beats any scripted diagnostic that can't run claude.
+- A bug that took more than one wrong theory adds a row to the table above, with the cheapest
+  test that would have found it. Prose only.
 
 ## Worked example (blank 2nd terminal)
 

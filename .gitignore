@@ -33,3 +33,8 @@ docs/themes/examples/liquid-glass/src/*.jpg
 # StrykerJS mutation run output (`npm run mutate`), regenerable.
 /reports/
 .stryker-tmp/
+
+# dev-project-bootstrap setup records (TASKS.md + status page + evidence store), local only.
+/TASKS.md
+docs/bootstrap-status.html
+docs/bootstrap-evidence.json

@@ -83,6 +83,21 @@ the rule's own factory, helper, token or hook outside its migration step. For ru
 new refusal code goes into the surface's existing copy map, which still matches the code inside
 the message.
 
+## Habits (prose only, no guard)
+
+- **Search before you write.** Look for the existing helper, component or type first. No new
+  abstraction without a second real caller; inline a shared helper once it grows a flag or branch
+  for one caller. Copies are caught by jscpd (`npm run lint`); the rest is prose only.
+- **"Why" comments stay.** A comment that states a constraint or an incident is kept; a commit that
+  removes one says so. Prose only.
+- **Split by entanglement, not line count** (technical-taste.md: "hidden state and entanglement"). Refactor the biggest,
+  most-changed file first. Prose only.
+- **Plain over clever.** Plain functions and data over class hierarchies; explicit over magic; long,
+  specific names. Prose only.
+- **Small steps.** One task per change; a refactor commit changes no behaviour, a behaviour commit
+  does not reshuffle code. Prose only.
+- **Parallel agents only in separate worktrees**, one writer per build/test gate. Prose only.
+
 ## Enforcement
 
 **How to read this part.** Each block or bullet is **landed** (the guard, test or tool it names

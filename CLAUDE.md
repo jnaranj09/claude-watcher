@@ -15,7 +15,7 @@ and tag their own picks `[AGENT]` in the spec.
 
 - `docs/superpowers/` (specs/plans — write there, never `git add`; a skill step saying "commit the
   spec" stops at the write), `_bmad-output/`, `_bmad/`, `.claude/skills/` (one tracked file under
-  `_bmad-output/planning-artifacts` stays), `.claude/settings.local.json`.
+  `_bmad-output/planning-artifacts` stays), `.claude/settings.local.json`, `TASKS.md`, `docs/bootstrap-*`.
 - Build/test output: `node_modules`, `dist`, `out`, `test-results/`, `*.tsbuildinfo`,
   `.eslintcache`, `*.log*`. Never `git add -f`.
 
@@ -156,7 +156,7 @@ Manage dialog, and every new one, maps it to `STORE_WRITE_FAILED_COPY`). Other w
 change and report `write_failed` (`persistOrReport()`; removal paths never throw). Also
 `corrupt_reset`, `read_failed`. Workspace delete commits before its cascade.
 
-## Security (never weaken)
+## Security (never weaken; threat model, pins and scans: `rules/security.md`)
 
 `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`. Every main IPC listener goes
 through `ipc` (`createRendererIpc`, `ipc/trustedIpc.ts`): only the app's own renderer top frame is

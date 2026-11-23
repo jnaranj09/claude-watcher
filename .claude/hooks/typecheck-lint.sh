@@ -13,10 +13,12 @@
 #     hand-written `src/preload/index.d.ts` Window.pty augmentation).
 #
 # Reads the changed file path from the hook's stdin JSON (`tool_input.file_path`).
-# Exits non-zero on any tsc/eslint error so the agent sees the failure.
+# Exit 2 on any tsc/eslint error, with the output on stderr: Claude Code hands a PostToolUse
+# hook's stderr back to the agent only on exit 2 (exit 1 shows it to the user alone).
+# A missing tool also exits 2 (npx --no-install fails), so "no errors" means the check ran.
 set -uo pipefail
 
-cd "$(dirname "$0")/../.." || exit 1
+cd "$(dirname "$0")/../.." || exit 2
 ROOT="$(pwd)"
 
 # --- read the changed file path from stdin (hook payload) ---------------------
@@ -39,7 +41,7 @@ STATUS=0
 
 # --- 1) ESLint on the single changed file (fast, cached) ----------------------
 if [ -f "$FILE" ]; then
-  if ! npx --no-install eslint --cache "$FILE"; then
+  if ! npx --no-install eslint --cache "$FILE" >&2; then
     STATUS=1
   fi
 fi
@@ -52,7 +54,7 @@ TS_NODE='npx --no-install tsc --noEmit --incremental --tsBuildInfoFile .tsbuild-
 TS_WEB='npx --no-install tsc --noEmit --incremental --tsBuildInfoFile .tsbuild-web.tsbuildinfo -p tsconfig.web.json --composite false'
 TS_TEST='npx --no-install tsc --noEmit --incremental --tsBuildInfoFile .tsbuild-test.tsbuildinfo -p tsconfig.test.json'
 
-run() { eval "$1" || STATUS=1; }
+run() { eval "$1" >&2 || STATUS=1; }
 
 # Match BOTH absolute (Claude Code passes `tool_input.file_path` absolute today)
 # AND repo-relative paths (the in-tree guard above also admits `src/*`/`tests/*`),
@@ -66,4 +68,8 @@ case "$FILE" in
   * ) run "$TS_NODE"; run "$TS_WEB"; run "$TS_TEST" ;;
 esac
 
-exit $STATUS
+if [ "$STATUS" -ne 0 ]; then
+  echo "typecheck-lint: $FILE has errors (above). Fix them before moving on." >&2
+  exit 2
+fi
+exit 0

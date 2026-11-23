@@ -21,6 +21,36 @@ settings page. No need to reinvent the wheel visually." — 2026-10-03)
 names that thing and reuse the word (technical-taste §4 "Same thing, same word"). A word used in
 more than one place comes from `copy/terms.ts`; a spec lists every new word in its `## Copy` table.
 
+## UI pipeline (every UI change goes through all eight stages, in order)
+
+Design system: own primitives in `src/renderer/src/components/` (owner's pick). There is no design
+file yet, so stages 1–3 are prose only until `TASKS.md` T11 adds one.
+
+1. **Design first.** A new token or reusable component is designed before it is coded. No design
+   file yet: the reference is the running app and the "Reuse before you draw" rule above. Prose
+   only; a miss shows in stage 6.
+2. **Tokens follow the design.** Tokens live in `src/shared/theme/tokens.ts` and
+   `src/renderer/src/styles/tokens.css`. Sensor: `styles/tokens.test.ts`; guard `design-tokens`
+   when a design file exists (T11).
+3. **Components follow the design.** Each reusable component maps to one primitive. Prose only
+   until T11 adds guard `design-parity`.
+4. **Only primitives style.** Raw spacing, colours and banned elements stay out of feature code.
+   Sensor: `styles/spacing.guard.test.ts`, `styles/noHexLiterals.test.ts`, the "Banned
+   primitives" guard tests below.
+5. **Compose, don't configure.** A primitive takes a `variant`, not a pile of booleans; content
+   goes in as children; a primitive is never copied into a feature folder. Sensor: jscpd
+   (`npm run lint`) for copies; the API shape is prose only (reviewer).
+6. **Review before done.** Run the `web-design-guidelines` skill on the UI diff (these rule files
+   win over its taste lines), then drive the built app (`run-app.md`) and screenshot the change.
+   Prose only (the reviewer asks for the findings and screenshots).
+7. **Runtime probes are green.** axe on every opened state, the layout probe and the action probe.
+   Prose only until T12 adds `eslint-plugin-jsx-a11y`, `@axe-core/playwright`, guards `ui-probe`
+   and `action-feedback`.
+8. **Fix the class, not the instance.** A visual fix lands in the token or primitive that causes
+   it, never in a one-off class in the screen where it was seen. The reply names the token or
+   primitive and how many screens use it. Sensor: stage 4 guards block most route-level fixes;
+   the reviewer's "Fix the class, not the instance" check for the rest.
+
 ## Canonical shape
 
 ```tsx

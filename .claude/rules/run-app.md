@@ -1,7 +1,7 @@
 ---
 paths:
   - 'tests/drive/**'
-  - 'src/renderer/**/*.css'
+  - 'src/**'
 ---
 
 # Rule: see a visual change in the real app
@@ -9,6 +9,15 @@ paths:
 Tests can't see CSS, stacking, animation or pixels (jsdom has no layout; CSS modules are a proxy).
 For a VISUAL change, drive the built app: `tests/drive/driveApp.mjs` (Playwright, real `claude`,
 real hook POSTs, screenshots; same seams as `tests/e2e/native-engine.e2e.ts`).
+
+## Profiles (never touch the owner's instances)
+
+| Name    | Starts with                   | Ports                 | Data folder                      | Env var                        |
+| ------- | ----------------------------- | --------------------- | -------------------------------- | ------------------------------ |
+| default | packaged app, `npm run smoke` | hook 9279, API 9281   | `~/.config/claude-watcher`       | none                           |
+| dev     | `npm run dev`                 | hook 19279, API 19281 | `~/.config/claude-watcher-dev`   | `ELECTRON_RENDERER_URL`        |
+| e2e     | `npm run test:e2e`            | hook 39279, API 39281 | temp dir per launch              | `CLAUDE_WATCHER_PROFILE=e2e`   |
+| drive   | `tests/drive/driveApp.mjs`    | hook 29279, API 29281 | `~/.config/claude-watcher-drive` | `CLAUDE_WATCHER_PROFILE=drive` |
 
 ## Recipe
 
@@ -34,10 +43,21 @@ real hook POSTs, screenshots; same seams as `tests/e2e/native-engine.e2e.ts`).
 4. Look at the PNG in `test-results/drive/`. Blank frame = failure. Zoom:
    `magick in.png -crop WxH+X+Y -filter point -resize 800% out.png`; measure with PIL.
 
+5. **Probe around the change** at the same surface: a wrong input, the action twice, stale state.
+   Report each probe, including the ones that held. Prose only.
+
 Helpers (`page` first, except hooks): `launchSession`, `needsYou(pickDir, id)`,
 `working(pickDir, id)`, `hook(pickDir, id, body)`, `cardIds`, `activeWorkspace`, `workspaceNames`,
 `switchWorkspace`, `createWorkspace`, `deleteWorkspace`, `openSwitcher`/`closeSwitcher`,
 `shot(page, name, { region: 'header' })`.
+
+## What a drive is not
+
+- Running the test suite or the typechecker. That is the gate. Prose only.
+- Importing a module from the source tree and calling it. Go to the surface that calls it (a
+  window, an API route, a hook POST). Prose only.
+- A destructive path (delete, archive, quit with live sessions) with no safe target: do not drive
+  it live; say which path was not exercised and why. Prose only.
 
 ## Gotchas
 

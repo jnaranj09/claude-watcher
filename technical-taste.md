@@ -428,6 +428,35 @@ yet. Prefer turning prose-only rules into sensors.
     `sendSync` in the preload). File-protocol privileges
     are still on (§14).
 
+### Security, UI, real-app checks and test value
+
+23. **Security basics for the shape.** A threat model lists every threat and the check that covers
+    it; secrets, dependency CVEs with a fix, repo-written SAST rules, workflow config and pins are
+    checked in the gate. _Consensus_. Sensor: prose only until `TASKS.md` T13 adds guard
+    `threat-model`, gitleaks, Trivy fs, Semgrep, zizmor and guard `supply-chain-pins`
+    (`.claude/rules/security.md`).
+24. **One design source; the code follows it.** Tokens and primitives come from one source and
+    only primitives style. _Consensus_. Sensors: `styles/tokens.test.ts`, the spacing and hex
+    guards, the banned-primitive guards. No design file yet, so `design-tokens` and
+    `design-parity` wait for T11 (`design.md` "UI pipeline").
+25. **UI basics are probed in a real browser.** axe on every opened state, a layout probe, and an
+    action probe (every tap shows feedback). _Consensus_. Sensor: prose only until T12 adds
+    `eslint-plugin-jsx-a11y`, `@axe-core/playwright` and guards `ui-probe`, `action-feedback`.
+26. **A change is seen working in the real app.** Tests prove the parts; the seams break only in
+    the running app. _Consensus_. Sensor: the drive recipe (`run-app.md`,
+    `tests/drive/driveApp.mjs`); the reviewer asks for the drive evidence. Guard `drive-recipe`
+    comes with T15.
+27. **Risky code is simple or tested (CRAP).** A complexity cap (10) in the lint, and a CRAP list
+    of old offenders that only shrinks. Per-function coverage feeds the score, never a target.
+    _Consensus_. Sensor: prose only until T16 adds ESLint `complexity` and guard `crap-budget`.
+28. **Behaviour is specified in plain scenarios.** Given / When / Then through the public
+    surface, added with the behaviour, never edited to match a changed result without the owner.
+    _Taste_. Sensor: prose only until T16 confirms the runner (Playwright-Electron).
+29. **Every test earns its place.** A test names the fault that would turn it red; tests that
+    kill no mutant are reported to the owner, never deleted by the agent. _Consensus_. Sensor:
+    `vitest/expect-expect`; the reviewer's "Test value" check; `npm run mutate` in the clean-up
+    pass.
+
 ### Budgets that keep agent decay in check
 
 - **A scheduled clean-up pass.** It changes no behaviour, passes the full gate, and goes in its
@@ -438,6 +467,9 @@ yet. Prefer turning prose-only rules into sensors.
   Steinberger spends about 20% of his time on it. _Consensus_, with correlational evidence: AI
   adoption raised complexity by about 41% and static-analysis warnings by about 30%, and both
   stayed high (CMU 2026).
+- **The CRAP list only shrinks** (guard `crap-budget`, once T16 lands).
+- **Tests earn their place.** Low-value tests are reported in the clean-up pass for the owner to
+  decide.
 - **Code is an asset here, not throwaway.** The app has versioned, persisted user data, so the
   "code has under a year of shelf life" view (Yegge) does not apply. _Taste_.
 
