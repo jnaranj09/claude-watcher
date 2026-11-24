@@ -125,6 +125,37 @@ export function shellQuote(s: string): string {
   return `'${s.split("'").join(`'\\''`)}'`
 }
 
+/** Login shells whose `-c` reads `shellQuote`'s POSIX quoting exactly as `/bin/sh` does. */
+const POSIX_LOGIN_SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'mksh', 'ash'])
+
+/** The env var that carries a composed command to `/bin/sh` (`loginShellRun`). */
+export const LOGIN_SHELL_COMMAND_ENV = 'CLAUDE_WATCHER_LAUNCH_CMD'
+
+/**
+ * How every claude spawn runs its composed command under the operator's login shell (for its
+ * PATH). `shellQuote` is POSIX quoting, and fish (or any non-POSIX shell) reads `\'` and `(…)`
+ * differently, so outside text (a session name, a prompt, a memory line) could run as a command
+ * there (security audit finding `claudeBin.ts:shellQuote:posix-only-quoting-under-login-shell`).
+ * A POSIX shell (`POSIX_LOGIN_SHELLS`) reads the composed command as it always did. Any other
+ * login shell (fish, or one not known) reads only one fixed line, the same in every shell, and
+ * the composed command reaches `/bin/sh` through the env; `/bin/sh` drops the var before it
+ * execs, so claude never inherits it. Every `exec` keeps the pid, so the spawned pid is claude's.
+ */
+export function loginShellRun(
+  shell: string,
+  command: string
+): {
+  args: string[]
+  env: Record<string, string>
+} {
+  if (POSIX_LOGIN_SHELLS.has(shell.slice(shell.lastIndexOf('/') + 1)))
+    return { args: ['-l', '-c', command], env: {} }
+  return {
+    args: ['-l', '-c', `exec /bin/sh -c "$${LOGIN_SHELL_COMMAND_ENV}"`],
+    env: { [LOGIN_SHELL_COMMAND_ENV]: `unset ${LOGIN_SHELL_COMMAND_ENV}; exec ${command}` }
+  }
+}
+
 /**
  * Deterministic-attention (spec DA-4) — the question-format nudge injected into every
  * APP-LAUNCHED claude (probe-verified on claude ≥2.1.245: --append-system-prompt is

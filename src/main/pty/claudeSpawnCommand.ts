@@ -11,7 +11,7 @@ import type { ClaudeAutoMemory } from '../../shared/schemas/settings'
 import type { GoalLaunch, GoalSpawnExtras } from '../goals/goalLaunch'
 import type { MemorySpawnExtras } from '../memory/memoryLaunch'
 import { applyBridgeMod } from '../mods/bridgeModSpawn'
-import { composeClaudeCommand } from './claudeBin'
+import { composeClaudeCommand, loginShellRun } from './claudeBin'
 import type { ClaudeLaunchFlags } from './launchSession'
 import { spawnExtras } from './spawnExtras'
 
@@ -141,36 +141,33 @@ export function claudeSpawnCommand(
     bridgePluginDir
   })
 
-  return {
-    file: deps.shell,
-    // Composed in claudeBin.ts. Name-sync adds `-n <name>` so claude runs under the operator's
-    // name instead of generating its own title, `--settings <file>` carries the hook block
-    // WITHOUT touching the operator's project, and `--append-system-prompt` injects the
-    // deterministic-attention question-format nudge (DA-4; probe-verified GO), plus the task
-    // block of a session started from goal tasks and, for a session without recall, the memory
-    // index, with each server's `--mcp-config` file and tools, and one `--plugin-dir` per mod
-    // (the bridge mod first, then `watcher-memory` when the session gets recall).
-    args: [
-      '-l',
-      '-c',
-      composeClaudeCommand({
-        claudeCommand: request.claudeCommand,
-        sessionId,
-        displayName: request.displayName,
-        hookSettingsPath: deps.hookSettingsPath(),
-        ...extras.fields,
-        model: request.flags.model,
-        permissionMode: request.flags.permissionMode,
-        effort: request.flags.effort,
-        // The programmatic API threads the template's filled-in prompt through here (it rode
-        // the durable launch recipe from `launchService.launch`); the in-app launch flows carry
-        // none, so for them the composed command stays byte-identical to before.
-        initialPrompt: request.initialPrompt,
-        // Past sessions (D-1) — a resume composes `claude --resume <id>` instead (claudeBin.ts
-        // keeps `-n` (R3) and drops the template flags and the positional prompt for that form).
-        resume: request.resume
-      })
-    ],
-    env: extras.env
-  }
+  // Composed in claudeBin.ts. Name-sync adds `-n <name>` so claude runs under the operator's
+  // name instead of generating its own title, `--settings <file>` carries the hook block
+  // WITHOUT touching the operator's project, and `--append-system-prompt` injects the
+  // deterministic-attention question-format nudge (DA-4; probe-verified GO), plus the task
+  // block of a session started from goal tasks and, for a session without recall, the memory
+  // index, with each server's `--mcp-config` file and tools, and one `--plugin-dir` per mod
+  // (the bridge mod first, then `watcher-memory` when the session gets recall).
+  // Run by `loginShellRun`: a non-POSIX login shell (fish) never parses it.
+  const run = loginShellRun(
+    deps.shell,
+    composeClaudeCommand({
+      claudeCommand: request.claudeCommand,
+      sessionId,
+      displayName: request.displayName,
+      hookSettingsPath: deps.hookSettingsPath(),
+      ...extras.fields,
+      model: request.flags.model,
+      permissionMode: request.flags.permissionMode,
+      effort: request.flags.effort,
+      // The programmatic API threads the template's filled-in prompt through here (it rode
+      // the durable launch recipe from `launchService.launch`); the in-app launch flows carry
+      // none, so for them the composed command stays byte-identical to before.
+      initialPrompt: request.initialPrompt,
+      // Past sessions (D-1) — a resume composes `claude --resume <id>` instead (claudeBin.ts
+      // keeps `-n` (R3) and drops the template flags and the positional prompt for that form).
+      resume: request.resume
+    })
+  )
+  return { file: deps.shell, args: run.args, env: { ...extras.env, ...run.env } }
 }

@@ -9,6 +9,7 @@ import type { PastSessionOpenResult, ShellOpenResult } from '../../shared/ipc/co
 import {
   resolveClaudeBin,
   prependToPath,
+  loginShellRun,
   shellQuote,
   type ClaudeBinResolution
 } from '../pty/claudeBin'
@@ -94,7 +95,7 @@ export function resolveClaudeOnDisk(
 
 // Claude version gate — read the installed version the SAME way the spawn resolves it.
 //
-// The spawn runs `$SHELL -l -c "<claude> ..."`, and `resolveClaudeBin` may legitimately hand
+// The spawn runs `$SHELL -l -c "<claude> ..."` (through `loginShellRun`, like this probe), and `resolveClaudeBin` may legitimately hand
 // back a bare `claude` that only resolves on the login shell's PATH. Probing through anything
 // else would report "missing" for an install that works fine, so the probe uses the same shell.
 //
@@ -107,7 +108,9 @@ export function resolveClaudeOnDisk(
 export function readClaudeVersionRaw(shell: string): string | null {
   try {
     const claude = resolveClaudeOnDisk(process.env)
-    return execFileSync(shell, ['-l', '-c', `${shellQuote(claude.command)} --version`], {
+    const run = loginShellRun(shell, `${shellQuote(claude.command)} --version`)
+    return execFileSync(shell, run.args, {
+      env: { ...process.env, ...run.env },
       encoding: 'utf8',
       timeout: 10_000,
       stdio: ['ignore', 'pipe', 'ignore']
@@ -290,6 +293,10 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
   // the shell, and prepends its directory to the child PATH so claude's own subprocesses get
   // the same lookup the operator has in a terminal. The `$SHELL -l -c` wrapper is UNCHANGED —
   // it is load-bearing for pid correlation (claude must be a CHILD of the pty leader, F3).
+  //
+  // SECURITY AUDIT UPDATE: the wrapper is built by `loginShellRun` (claudeBin.ts). A POSIX login
+  // shell still reads the composed command; a non-POSIX one (fish) reads only a fixed
+  // `exec /bin/sh -c "$CLAUDE_WATCHER_LAUNCH_CMD"`, so the POSIX quoting is never parsed by it.
   function rawClaudeSpawn(
     sessionId: string,
     displayName: string,

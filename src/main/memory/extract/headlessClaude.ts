@@ -22,7 +22,7 @@ import {
   ExtractOutputSchema,
   type ExtractOutput
 } from '../../../shared/schemas/memoryExtract'
-import { prependToPath, shellQuote } from '../../pty/claudeBin'
+import { loginShellRun, prependToPath, shellQuote } from '../../pty/claudeBin'
 
 export type ExtractCallFailure = 'spawn' | 'timeout' | 'exit' | 'envelope' | 'output' | 'cancelled'
 export type ExtractCallResult =
@@ -40,7 +40,7 @@ export interface ExtractCall {
   killNow(): void
 }
 
-/** The command for `$SHELL -l -c`, every value through `shellQuote`:
+/** The command for `$SHELL -l -c` (run through `loginShellRun`), every value through `shellQuote`:
  *  '<claude>' -p --model '<model>' --output-format json --json-schema '<schema>' --system-prompt '<prompt>'
  *  --no-session-persistence --setting-sources '' --tools '' --strict-mcp-config --disable-slash-commands
  *  --max-budget-usd <budgetUsd> */
@@ -294,9 +294,11 @@ export function runExtractCall(
   }
 
   try {
-    child = deps.spawn(deps.shell, ['-l', '-c', deps.command], {
+    // A non-POSIX login shell (fish) gets the command through the env, never parsed by it.
+    const run = loginShellRun(deps.shell, deps.command)
+    child = deps.spawn(deps.shell, run.args, {
       cwd: deps.cwd,
-      env: deps.env,
+      env: { ...deps.env, ...run.env },
       detached: true,
       stdio: ['pipe', 'pipe', 'ignore']
     })

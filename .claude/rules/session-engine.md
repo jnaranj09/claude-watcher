@@ -467,6 +467,11 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   required `isDirectory`, throws `folder_missing` (in-app: a toast over the name prompt "That folder
   no longer exists."; API: 409 before the 503s). Dead-pane Reopen not checked. Hook server unbound → API 503
   `hooks_unavailable` (after `claude_version`, before `no_window`).
+- **Every claude spawn goes through `loginShellRun`** (`pty/claudeBin.ts`: the session, the
+  `--version` probe, the headless save call). The command is POSIX-quoted (`shellQuote`), so a
+  POSIX login shell (sh, bash, zsh, dash, ksh) reads it as before; any other (fish) reads only
+  `exec /bin/sh -c "$CLAUDE_WATCHER_LAUNCH_CMD"`, and `/bin/sh` unsets the var before it execs
+  claude. Sensor: `src/main/pty/loginShellRun.test.ts` (real bash and fish).
 - **Identity minted at launch:** `claude --session-id <uuid>`; card synthesized immediately via
   `reducer.upsertLaunched` (status `Connecting`). Identity = stable `id`, never `pid`.
 - **Hooks own every status transition** (POST to `127.0.0.1:9279`). **Zero footprint:**
