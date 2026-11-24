@@ -34,9 +34,12 @@ file yet, so stages 1–3 are prose only until `TASKS.md` T11 adds one.
    when a design file exists (T11).
 3. **Components follow the design.** Each reusable component maps to one primitive. Prose only
    until T11 adds guard `design-parity`.
-4. **Only primitives style.** Raw spacing, colours and banned elements stay out of feature code.
-   Sensor: `styles/spacing.guard.test.ts`, `styles/noHexLiterals.test.ts`, the "Banned
-   primitives" guard tests below.
+4. **Only primitives style.** Raw spacing, borders, radii, colours, shadows, z-index, type and
+   motion values come from tokens, and banned elements stay out of feature code. Sensor:
+   stylelint (`stylelint.config.mjs`, in `npm run lint`; old raw values sit in
+   `stylelint-suppressions.json`, pinned shrink-only by
+   `tests/main/stylelintSuppressions.guard.test.ts`), `styles/spacing.guard.test.ts`,
+   `styles/noHexLiterals.test.ts`, the "Banned primitives" guard tests below.
 5. **Compose, don't configure.** A primitive takes a `variant`, not a pile of booleans; content
    goes in as children; a primitive is never copied into a feature folder. Sensor: jscpd
    (`npm run lint`) for copies; the API shape is prose only (reviewer).
@@ -44,8 +47,11 @@ file yet, so stages 1–3 are prose only until `TASKS.md` T11 adds one.
    win over its taste lines), then drive the built app (`run-app.md`) and screenshot the change.
    Prose only (the reviewer asks for the findings and screenshots).
 7. **Runtime probes are green.** axe on every opened state, the layout probe and the action probe.
-   Prose only until T12 adds `eslint-plugin-jsx-a11y`, `@axe-core/playwright`, guards `ui-probe`
-   and `action-feedback`.
+   Sensor: `eslint-plugin-jsx-a11y` recommended rules as errors on `src/renderer/**/*.tsx` (old
+   hits in `eslint-suppressions.json`); axe on the board and every header-menu dialog
+   (`tests/e2e/axe.e2e.ts`, `npm run test:e2e`, WCAG 2.0–2.2 A/AA; old violations in its
+   shrink-only `ALLOWED`). A new dialog adds its state there. The layout and action probes are
+   prose only until T12 adds guards `ui-probe` and `action-feedback`.
 8. **Fix the class, not the instance.** A visual fix lands in the token or primitive that causes
    it, never in a one-off class in the screen where it was seen. The reply names the token or
    primitive and how many screens use it. Sensor: stage 4 guards block most route-level fixes;

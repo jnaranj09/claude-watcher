@@ -16,7 +16,8 @@
   },
   "scripts": {
     "format": "prettier --write .",
-    "lint": "eslint --cache . && npm run -s lint:dead && npm run -s lint:dupes",
+    "lint": "eslint --cache . && npm run -s lint:css && npm run -s lint:dead && npm run -s lint:dupes",
+    "lint:css": "stylelint \"src/**/*.css\"",
     "lint:dead": "knip --no-progress",
     "lint:dupes": "jscpd --silent",
     "mutate": "stryker run",
@@ -57,6 +58,7 @@
     "zustand": "5.0.14"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
@@ -80,6 +82,7 @@
     "electron-vite": "^5.0.0",
     "eslint": "^9.39.1",
     "eslint-plugin-jest-dom": "^5.10.1",
+    "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-playwright": "^2.12.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
@@ -91,6 +94,8 @@
     "prettier": "^3.7.4",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
+    "stylelint": "18.0.0",
+    "stylelint-declaration-strict-value": "1.13.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.8",
     "vitest": "^4.1.9"

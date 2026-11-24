@@ -185,8 +185,8 @@ open dialog. `Esc to return` shows only while focus is outside.
   `noImplicitOverride`, `noFallthroughCasesInSwitch`). Never drop a flag — fix the consumer.
 - Hooks (`.claude/hooks/`): PostToolUse runs `tsc` + `eslint` on edited TS; Stop runs `vitest run`.
 - ESLint: `no-floating-promises`, `consistent-type-imports`, `no-literal-channels`,
-  `switch-exhaustiveness-check`. `npm run lint` also runs knip (dead code, `knip.json`) and jscpd
-  (duplication ≤ 0.5%, `.jscpd.json`).
+  `switch-exhaustiveness-check`. `npm run lint` also runs stylelint (raw CSS values → tokens),
+  knip (dead code, `knip.json`) and jscpd (duplication ≤ 0.5%, `.jscpd.json`).
 - Guard tests in `tests/main/`: layers, comment-only `catch` allow-list, per-file `as` budget
   (both lists only shrink). `.only` fails Vitest and Playwright.
 - `code-reviewer`: a fresh reviewer re-runs the gate, fault-injects every guard (revert → a test red).

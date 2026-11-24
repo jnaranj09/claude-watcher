@@ -176,6 +176,12 @@ Landed walks today:
 
 - **Tokens live in `tokens.ts` and `tokens.css`.** Landed: `TOKENS` in `src/shared/theme/tokens.ts` and
   `styles/tokens.css` hold the same set, and `styles/tokens.test.ts` fails when one has a key the
+- **Raw CSS values.** Landed (2026-11-23): stylelint fails on a raw spacing, border, radius,
+  colour, shadow, z-index, type or motion value in any renderer CSS file but the token files
+  (`stylelint.config.mjs`; `var()`, `calc()` and keywords pass). It does not check that a value
+  matches a token, which is what the planned radius, height and stacking walks below add. Sensor:
+  `npm run lint`; old hits in `stylelint-suppressions.json`, pinned by
+  `tests/main/stylelintSuppressions.guard.test.ts`.
   other lacks, or a value differs. A new radius or height token goes in both, then `npm run gen:theme-docs`. Every
   `TOKENS` key is themeable. Planned: the `--z-*` rungs are not themeable, because
   stacking order is app behaviour, not look. They follow the landed sibling `styles/motion.css`

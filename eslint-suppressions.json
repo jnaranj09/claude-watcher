@@ -187,6 +187,11 @@
       "count": 1
     }
   },
+  "src/renderer/src/components/AppMenu/AppMenu.tsx": {
+    "jsx-a11y/no-static-element-interactions": {
+      "count": 1
+    }
+  },
   "src/renderer/src/components/Button/Button.test.tsx": {
     "jest-dom/prefer-to-have-attribute": {
       "count": 10
@@ -195,6 +200,11 @@
       "count": 4
     },
     "testing-library/no-container": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/Calendar/Calendar.tsx": {
+    "jsx-a11y/interactive-supports-focus": {
       "count": 1
     }
   },
@@ -252,6 +262,21 @@
       "count": 1
     }
   },
+  "src/renderer/src/components/FilterChips/FilterChips.test.tsx": {
+    "jsx-a11y/no-static-element-interactions": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/FilterChips/FilterChips.tsx": {
+    "jsx-a11y/no-static-element-interactions": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/GoalsDialog/LinkSessionMenu.tsx": {
+    "jsx-a11y/no-static-element-interactions": {
+      "count": 1
+    }
+  },
   "src/renderer/src/components/Icon/LucideIcon.test.tsx": {
     "jest-dom/prefer-to-have-attribute": {
       "count": 9
@@ -288,6 +313,14 @@
     },
     "testing-library/no-container": {
       "count": 4
+    }
+  },
+  "src/renderer/src/components/ManageDialog/ManageDialogParts.tsx": {
+    "jsx-a11y/no-noninteractive-element-interactions": {
+      "count": 2
+    },
+    "jsx-a11y/no-static-element-interactions": {
+      "count": 1
     }
   },
   "src/renderer/src/components/NewSessionMenu/NewSessionButton.test.tsx": {
@@ -343,6 +376,11 @@
       "count": 4
     },
     "testing-library/no-unnecessary-act": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/Popover/menuArrows.test.tsx": {
+    "jsx-a11y/no-static-element-interactions": {
       "count": 1
     }
   },
@@ -407,6 +445,9 @@
     },
     "jest-dom/prefer-to-have-text-content": {
       "count": 3
+    },
+    "jsx-a11y/no-static-element-interactions": {
+      "count": 1
     },
     "testing-library/no-container": {
       "count": 1
@@ -502,6 +543,11 @@
       "count": 4
     }
   },
+  "src/renderer/src/components/ShortcutsDialog/PhraseEditor.tsx": {
+    "jsx-a11y/no-noninteractive-element-interactions": {
+      "count": 1
+    }
+  },
   "src/renderer/src/components/ShortcutsDialog/ShortcutsDialog.favorites.test.tsx": {
     "jest-dom/prefer-to-have-attribute": {
       "count": 3
@@ -548,6 +594,14 @@
   "src/renderer/src/components/SplitDivider/SplitDivider.test.tsx": {
     "jest-dom/prefer-to-have-attribute": {
       "count": 8
+    }
+  },
+  "src/renderer/src/components/SplitDivider/SplitDivider.tsx": {
+    "jsx-a11y/no-noninteractive-element-interactions": {
+      "count": 1
+    },
+    "jsx-a11y/no-noninteractive-tabindex": {
+      "count": 1
     }
   },
   "src/renderer/src/components/StatusDot/StatusDot.test.tsx": {
@@ -600,12 +654,25 @@
       "count": 12
     }
   },
+  "src/renderer/src/components/TagIndicator/TagIndicator.tsx": {
+    "jsx-a11y/aria-role": {
+      "count": 2
+    }
+  },
   "src/renderer/src/components/TagMenu/TagMenu.test.tsx": {
     "testing-library/no-container": {
       "count": 2
     }
   },
+  "src/renderer/src/components/TagPicker/TagPicker.keyboard.test.tsx": {
+    "jsx-a11y/no-static-element-interactions": {
+      "count": 1
+    }
+  },
   "src/renderer/src/components/TagPicker/TagPicker.test.tsx": {
+    "jsx-a11y/no-static-element-interactions": {
+      "count": 1
+    },
     "testing-library/no-unnecessary-act": {
       "count": 1
     }
@@ -711,6 +778,11 @@
     },
     "testing-library/no-container": {
       "count": 7
+    }
+  },
+  "src/renderer/src/components/WorkspacesDialog/WorkspacesDialog.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 1
     }
   },
   "src/renderer/src/components/attention/AttentionRail.rows.test.tsx": {

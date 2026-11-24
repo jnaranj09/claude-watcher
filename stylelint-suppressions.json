@@ -1,0 +1,237 @@
+{
+  "src/renderer/src/App.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 5
+    }
+  },
+  "src/renderer/src/assets/main.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 3
+    }
+  },
+  "src/renderer/src/glass/GlassLayer.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/styles/emphasis.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/terminal/EmbeddedTerminal.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 5
+    }
+  },
+  "src/renderer/src/terminal/TerminalContextMenu.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/views/FocusedSession.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/views/SessionTasks.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/AppMenu/AppMenu.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/Button/Button.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 9
+    }
+  },
+  "src/renderer/src/components/Calendar/Calendar.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 4
+    }
+  },
+  "src/renderer/src/components/Callout/Callout.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 9
+    }
+  },
+  "src/renderer/src/components/Checkbox/Checkbox.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/ColumnHeader/ColumnHeader.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 3
+    }
+  },
+  "src/renderer/src/components/ContextDialog/ContextDialog.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 10
+    }
+  },
+  "src/renderer/src/components/CountPill/CountPill.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/ExpanderBox/ExpanderBox.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/FilterBar/FilterToggle.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/FilterChips/FilterChips.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 9
+    }
+  },
+  "src/renderer/src/components/GoalsDialog/GoalsDialog.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 4
+    }
+  },
+  "src/renderer/src/components/ManageDialog/ManageDialog.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 8
+    }
+  },
+  "src/renderer/src/components/MemoryDialog/MemoryDialog.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/NewSessionMenu/NewSessionMenu.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/Popover/Popover.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 6
+    }
+  },
+  "src/renderer/src/components/QuitGuard/QuitGuard.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 4
+    }
+  },
+  "src/renderer/src/components/Radio/Radio.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 3
+    }
+  },
+  "src/renderer/src/components/SessionCard/SessionCard.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 8
+    }
+  },
+  "src/renderer/src/components/SessionNameDialog/SessionNameDialog.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 3
+    }
+  },
+  "src/renderer/src/components/Settings/Settings.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 4
+    }
+  },
+  "src/renderer/src/components/ShortcutsDialog/ShortcutsDialog.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 7
+    }
+  },
+  "src/renderer/src/components/SplitDivider/SplitDivider.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/StopConfirm/StopConfirm.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/StorageNotice/StorageNotice.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/Switch/Switch.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/TagChip/TagChip.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 3
+    }
+  },
+  "src/renderer/src/components/TagMenu/TagMenu.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 3
+    }
+  },
+  "src/renderer/src/components/TaskRow/TaskRow.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/TextArea/TextArea.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/TextInput/TextInput.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/Toaster/Toaster.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 5
+    }
+  },
+  "src/renderer/src/components/WorkspaceLabel/WorkspaceLabel.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/WorkspaceSwitcher/WorkspaceSwitcher.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 5
+    }
+  },
+  "src/renderer/src/components/WorkspacesDialog/WorkspacesDialog.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/attention/AttentionRail.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 22
+    }
+  },
+  "src/renderer/src/components/board/Board.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/board/StartingBanner.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/Select/Select.module.css": {
+    "scale-unlimited/declaration-strict-value": {
+      "count": 4
+    }
+  }
+}

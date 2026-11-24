@@ -8,6 +8,7 @@ import vitestPlugin from '@vitest/eslint-plugin'
 import playwrightPlugin from 'eslint-plugin-playwright'
 import testingLibraryPlugin from 'eslint-plugin-testing-library'
 import jestDomPlugin from 'eslint-plugin-jest-dom'
+import jsxA11y from 'eslint-plugin-jsx-a11y'
 // Story 0.2 — authored local rule banning string-literal IPC channels.
 import localIpc from './eslint-rules/no-literal-channels.js'
 // Story 0.3 (Task 6) — type-checked lint rules need the typescript-eslint parser
@@ -39,9 +40,9 @@ export default defineConfig(
       '**/dist',
       '**/out',
       'eslint-rules/__fixtures__/**',
-      // Vendored agent skills (beaf0c7): third-party scripts, not app code.
       // Semgrep rule fixtures: forbidden calls on purpose (`semgrep --test` reads them).
       'security/semgrep/**',
+      // Vendored agent skills (beaf0c7): third-party scripts, not app code.
       '.agents/**',
       // The bridge mod's engine tests: typed and run by claude itself (`npm run test:mod`); no
       // tsconfig here can see `claude-code/testing`.
@@ -68,6 +69,12 @@ export default defineConfig(
       ...eslintPluginReactHooks.configs.recommended.rules,
       ...eslintPluginReactRefresh.configs.vite.rules
     }
+  },
+  {
+    // UI pipeline stage 7 (design.md): the static a11y check, recommended rules as errors.
+    // Hits that existed when it landed (2026-11-23) sit in eslint-suppressions.json.
+    files: ['src/renderer/**/*.tsx'],
+    ...jsxA11y.flatConfigs.recommended
   },
   {
     // Story 0.2 — enforce the typed IPC seam: no string-literal channels.
