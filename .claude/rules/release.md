@@ -34,7 +34,9 @@ Spec: `docs/superpowers/specs/2026-09-30-release-pipeline-linux-design.md` (loca
    Sigstore through the run's OIDC token; no key anywhere) → a DRAFT GitHub Release whose notes
    start with the verify command.
 5. Read the draft. Download one package and run the notes' `gh attestation verify <file> --repo
-<owner>/<repo> --signer-workflow <owner>/<repo>/.github/workflows/release.yml`; it must pass.
+<owner>/<repo> --signer-workflow <owner>/<repo>/.github/workflows/release.yml --source-ref
+refs/tags/<tag>`; it must pass. `--signer-workflow` names only the workflow file;
+   `--source-ref` also pins the run to the release tag.
    Edit the notes, press Publish. Nothing is public before that.
 
 A tag that does not match `package.json` `version` fails the release job before upload.

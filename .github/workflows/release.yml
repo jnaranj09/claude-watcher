@@ -157,10 +157,10 @@ jobs:
           {
             echo '### Verify a download'
             echo
-            echo 'Every package, the SBOM and `SHA256SUMS` carry a signed build attestation from this workflow:'
+            echo 'Every package, the SBOM and `SHA256SUMS` carry a signed build attestation from this workflow, run on this tag:'
             echo
             echo '```sh'
-            echo "gh attestation verify <file> --repo $REPO --signer-workflow $REPO/.github/workflows/release.yml"
+            echo "gh attestation verify <file> --repo $REPO --signer-workflow $REPO/.github/workflows/release.yml --source-ref refs/tags/$GITHUB_REF_NAME"
             echo '```'
           } > verify.md
           gh release create "$GITHUB_REF_NAME" pkgs/* \
