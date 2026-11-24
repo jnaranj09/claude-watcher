@@ -40,11 +40,15 @@ real hook POSTs, screenshots; same seams as `tests/e2e/native-engine.e2e.ts`).
    })
    ```
 
-4. Look at the PNG in `test-results/drive/`. Blank frame = failure. Zoom:
+4. Capture in `test-results/drive/` (git-ignored) and look at the PNG. Blank frame = failure. Zoom:
    `magick in.png -crop WxH+X+Y -filter point -resize 800% out.png`; measure with PIL.
 
 5. **Probe around the change** at the same surface: a wrong input, the action twice, stale state.
    Report each probe, including the ones that held. Prose only.
+
+Smallest scenario: `tests/drive/example.mjs` (one shot, no claude; a taken drive port prints
+`refused: 127.0.0.1:29279 is taken` and exits 2). Guard: `tests/main/driveRecipe.guard.test.ts`
+(the driver's port, data folder and port check match `src/main/profile.ts` and the table above).
 
 Helpers (`page` first, except hooks): `launchSession`, `needsYou(pickDir, id)`,
 `working(pickDir, id)`, `hook(pickDir, id, body)` (posts under the session's own channel token,
