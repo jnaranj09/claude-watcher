@@ -35,6 +35,7 @@ jobs:
           node-version: 24
       - run: npm ci
       # A failure prints fast-check's seed and the shrunk input: add it as a plain test with the fix.
-      - run: npx vitest run --project main-unit src/main/hooks/boundaries.fuzz.test.ts
+      # 20000 runs take about 8 s a property on the runner, past Vitest's 5 s default.
+      - run: npx vitest run --project main-unit --testTimeout=600000 src/main/hooks/boundaries.fuzz.test.ts
         env:
           FUZZ_RUNS: '20000'
