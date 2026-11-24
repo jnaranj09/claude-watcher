@@ -42,8 +42,16 @@ Each rule below names its sensor, or says "Prose only".
   `tests/main/rendererHardening.guard.test.ts` (CSP, webPreferences), `ipcMainImport.guard.test.ts`,
   `tests/unit/electronFuses.test.ts` and `smoke`; the rest is the reviewer's
   "Security" check.
-- **No scan of a real deployment runs in CI.** The app is not deployed; DAST (T14) runs only
-  against a throwaway e2e-profile app. Prose only.
+- **No scan of a real deployment runs in CI.** The app is not deployed; DAST runs only against a
+  throwaway e2e-profile app on the CI runner. Sensor: `tests/e2e/dast.e2e.ts` (ZAP API scan, CI job
+  `dast`); a ZAP rule with no decision in `security/zap-rules.tsv` fails it, and the default for a
+  real weakness is FAIL and a fix.
+- **Every API response carries the security headers; a parser never crashes on outside input.**
+  Sensor: `src/main/api/apiHeaders.test.ts`, the fuzz targets in
+  `src/main/hooks/boundaries.fuzz.test.ts` (seeds in `npm test`, long runs in `weekly.yml`).
+- **A release ships only from main, signed, with an SBOM.** Sensor: `security/tag-on-main.sh` (the
+  release job's first step) and the attestation steps in `release.yml`; the GitHub rulesets are
+  `manual:` rows in the threat model.
 - **A security check that could not run is reported as NOT RUN**, never as clean, and a missing
   tool is red. Sensor: `security/run.mjs`
   (red on a missing tool, a failed pull, or zero commits, files or workflows scanned).

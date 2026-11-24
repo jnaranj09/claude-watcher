@@ -15,6 +15,7 @@
 //
 // NEVER-LOG-THE-VALUE: an unreadable asset logs a bare CODE — no path, no errno message, no file
 // name. [.claude/rules/zod-boundaries.md; src/main/api/apiServer.ts]
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
@@ -32,6 +33,14 @@ const FILES: Record<string, string> = {
  *  redirect we do not serve. No `persistAuthorization` (SEC-4): it saved the pasted token in
  *  this origin's localStorage, where another local user who binds the port while the API is off
  *  could read it. The operator pastes the token again after a reload. */
+const BOOT_SCRIPT = `
+window.ui = SwaggerUIBundle({
+  url: '/openapi.json',
+  dom_id: '#swagger-ui',
+  presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+  layout: 'BaseLayout'
+})
+`
 const INDEX_HTML = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>claude-watcher API</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -39,14 +48,23 @@ const INDEX_HTML = `<!doctype html>
 <body><div id="swagger-ui"></div>
 <script src="/docs/swagger-ui-bundle.js"></script>
 <script src="/docs/swagger-ui-standalone-preset.js"></script>
-<script>
-window.ui = SwaggerUIBundle({
-  url: '/openapi.json',
-  dom_id: '#swagger-ui',
-  presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
-  layout: 'BaseLayout'
-})
-</script></body></html>`
+<script>${BOOT_SCRIPT}</script></body></html>`
+
+/**
+ * The page's CSP (docs/threat-model.md T-A4). Scripts: the two bundle files and the ONE inline boot
+ * script, by its hash, so an injected `<script>` never runs. Swagger UI sets inline styles and
+ * draws data: images, so those stay open; it fetches only `/openapi.json` and the API itself.
+ */
+export const DOCS_CSP = [
+  "default-src 'none'",
+  `script-src 'self' 'sha256-${createHash('sha256').update(BOOT_SCRIPT).digest('base64')}'`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "connect-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'none'",
+  "form-action 'none'"
+].join('; ')
 
 /**
  * The `swagger-ui-dist` package directory, or null when it cannot be resolved (a broken or
@@ -100,7 +118,12 @@ export function createDocsRoutes(opts: {
           body: 'Swagger UI files are not installed'
         }
       }
-      return { status: 200, contentType: 'text/html; charset=utf-8', body: INDEX_HTML }
+      return {
+        status: 200,
+        contentType: 'text/html; charset=utf-8',
+        body: INDEX_HTML,
+        csp: DOCS_CSP
+      }
     }
     if (path.startsWith('/docs/')) {
       const name = path.slice('/docs/'.length)

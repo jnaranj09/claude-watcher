@@ -437,7 +437,8 @@ yet. Prefer turning prose-only rules into sensors.
     it; secrets, dependency CVEs with a fix, repo-written SAST rules, workflow config and pins are
     checked in the gate. _Consensus_. Sensor: `npm run security` (gitleaks, Trivy fs, Semgrep with
     the rules in `security/semgrep/`, zizmor; CI job `security`) and the guards `threat-model`,
-    `supply-chain-pins`, `security-allow-list` (`.claude/rules/security.md`, `docs/threat-model.md`).
+    `supply-chain-pins`, `security-allow-list` (`.claude/rules/security.md`, `docs/threat-model.md`);
+    release checks: DAST (`tests/e2e/dast.e2e.ts`, CI job `dast`), fuzz targets, signed releases.
 24. **One design source; the code follows it.** Tokens and primitives come from one source and
     only primitives style. _Consensus_. Sensors: `styles/tokens.test.ts`, the spacing and hex
     guards, the banned-primitive guards. No design file yet, so `design-tokens` and

@@ -1,0 +1,5 @@
+# ZAP rule decisions for tests/e2e/dast.e2e.ts: <pluginid> TAB <FAIL|WARN|IGNORE> TAB <reason>.
+# An alert from a rule not listed here fails the scan. The default for a real weakness is FAIL.
+90004	FAIL	Cross-Origin-Resource-Policy missing: apiHeaders() sets same-origin on every response; a miss is a regression.
+10049	IGNORE	Informational only: says whether a response is cacheable. Every API response sends Cache-Control no-store on purpose.
+100000	IGNORE	Informational only: the 4xx answers ZAP provokes itself (unknown paths, refused creates); refusing is the correct answer.

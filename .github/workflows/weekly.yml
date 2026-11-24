@@ -1,0 +1,40 @@
+# Weekly (docs/threat-model.md T-C2, T-C9): a new CVE in a locked dependency is found within a
+# week without a push, and the fuzz targets run long. GitHub turns a schedule off after 60 days
+# with no activity in a public repo, without a notice: the threat model's manual row covers it.
+name: Weekly
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  security:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - run: npm run security
+
+  fuzz:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - run: npm ci
+      # A failure prints fast-check's seed and the shrunk input: add it as a plain test with the fix.
+      - run: npx vitest run --project main-unit src/main/hooks/boundaries.fuzz.test.ts
+        env:
+          FUZZ_RUNS: '20000'

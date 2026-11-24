@@ -30,6 +30,36 @@ export interface PublicRouteReply {
   status: number
   contentType: string
   body: string | Buffer
+  /** Replaces the default `Content-Security-Policy` (a route that serves an HTML page). */
+  csp?: string
+}
+
+/** The CSP of every response that is not a page: nothing may load, nothing may frame it. */
+export const API_DEFAULT_CSP =
+  "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+
+/**
+ * The headers EVERY response carries (docs/threat-model.md T-A4), with its own content type.
+ * Every `writeHead` in this server goes through here; `apiHeaders.test.ts` checks each kind of
+ * response.
+ */
+export function apiHeaders(
+  contentType: string,
+  extra: { csp?: string | undefined; [name: string]: string | undefined } = {}
+): Record<string, string> {
+  const { csp, ...rest } = extra
+  const out: Record<string, string> = {
+    'Content-Type': contentType,
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+    // Another origin's page may not embed or read these bytes (ZAP 90004).
+    'Cross-Origin-Resource-Policy': 'same-origin',
+    // Session state is never cached; a stream overrides it with `no-cache`.
+    'Cache-Control': 'no-store',
+    'Content-Security-Policy': csp ?? API_DEFAULT_CSP
+  }
+  for (const [k, v] of Object.entries(rest)) if (v !== undefined) out[k] = v
+  return out
 }
 
 export interface ApiServerOptions {
@@ -110,7 +140,7 @@ export function createApiServer(options: ApiServerOptions): ApiServer {
     const body: { error: { code: ApiErrorCode; path?: string } } = {
       error: { code, ...(path !== undefined ? { path } : {}) }
     }
-    if (!res.headersSent) res.writeHead(status, { 'Content-Type': 'application/json' })
+    if (!res.headersSent) res.writeHead(status, apiHeaders('application/json'))
     res.end(JSON.stringify(body))
   }
   function writeErr(res: ServerResponse, err: ApiErr): void {
@@ -151,11 +181,10 @@ export function createApiServer(options: ApiServerOptions): ApiServer {
       start() {
         if (started) return
         started = true
-        res.writeHead(200, {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          Connection: 'keep-alive'
-        })
+        res.writeHead(
+          200,
+          apiHeaders('text/event-stream', { 'Cache-Control': 'no-cache', Connection: 'keep-alive' })
+        )
         res.flushHeaders()
         ping = setInterval(() => {
           if (!ended) res.write(': ping\n\n')
@@ -215,7 +244,7 @@ export function createApiServer(options: ApiServerOptions): ApiServer {
     // are how a caller learns to authenticate, so they cannot require a token themselves.
     const pub = options.publicRoutes?.({ method, path: pathname }) ?? null
     if (pub !== null) {
-      res.writeHead(pub.status, { 'Content-Type': pub.contentType })
+      res.writeHead(pub.status, apiHeaders(pub.contentType, { csp: pub.csp }))
       res.end(pub.body)
       return
     }
@@ -347,7 +376,7 @@ export function createApiServer(options: ApiServerOptions): ApiServer {
         writeError(res, 500, 'internal')
         return
       }
-      res.writeHead(result.status, { 'Content-Type': 'application/json' })
+      res.writeHead(result.status, apiHeaders('application/json'))
       res.end(JSON.stringify(out.data))
     } catch {
       // The thrown value is DROPPED, never logged: an Error from a handler can carry a session

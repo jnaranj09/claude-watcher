@@ -6,7 +6,7 @@
 //   npm:<script>           a package.json script
 //   ci:<workflow>/<job>    a job in .github/workflows/<workflow>
 //   accepted: / out of scope: / manual: <text>   a written reason (no check)
-//   gap: <text>            allowed until T14 lands its checks; then GAP_ALLOWED turns false
+//   gap: <text>            a known hole; red since T14 landed its checks (GAP_ALLOWED false)
 import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -15,8 +15,8 @@ import ts from 'typescript'
 const ROOT = resolve(__dirname, '../..')
 const DOC = 'docs/threat-model.md'
 
-/** T14's last step flips this: from then on a `gap:` row is red. */
-const GAP_ALLOWED = true
+/** T14's last step flipped this: a `gap:` row is red. */
+const GAP_ALLOWED = false
 
 const TYPES = ['test', 'file', 'npm', 'ci', 'accepted', 'out of scope', 'manual', 'gap'] as const
 

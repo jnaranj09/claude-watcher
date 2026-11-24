@@ -29,8 +29,13 @@ Spec: `docs/superpowers/specs/2026-09-30-release-pipeline-linux-design.md` (loca
 3. `git tag vX.Y.Z && git push origin vX.Y.Z`.
 4. `.github/workflows/release.yml` runs: gate (`ci.yml`) → deb/rpm/pacman on `ubuntu-22.04` →
    packaged smoke under `xvfb` → install check on debian:12, ubuntu:22.04, fedora, archlinux →
-   a DRAFT GitHub Release with the packages + `SHA256SUMS`.
-5. Read the draft, edit the notes, press Publish. Nothing is public before that.
+   release job: refuse a tag not on `main` (`security/tag-on-main.sh`), CycloneDX SBOM (pinned
+   Trivy), signed build attestations for every package, the SBOM and `SHA256SUMS` (keyless,
+   Sigstore through the run's OIDC token; no key anywhere) → a DRAFT GitHub Release whose notes
+   start with the verify command.
+5. Read the draft. Download one package and run the notes' `gh attestation verify <file> --repo
+<owner>/<repo> --signer-workflow <owner>/<repo>/.github/workflows/release.yml`; it must pass.
+   Edit the notes, press Publish. Nothing is public before that.
 
 A tag that does not match `package.json` `version` fails the release job before upload.
 

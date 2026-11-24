@@ -102,11 +102,17 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # the draft release
+      id-token: write # keyless signing: Sigstore through this run's OIDC token, no stored key
+      attestations: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
+          fetch-depth: 0
+      # docs/threat-model.md T-C8: a tag whose commit is not on main never ships. Fails closed.
+      - name: Tag is on main
+        run: security/tag-on-main.sh "$GITHUB_SHA" origin main
       - name: Tag matches package.json version
         run: |
           v="$(node -p "require('./package.json').version")"
@@ -118,11 +124,44 @@ jobs:
         with:
           name: linux-packages
           path: pkgs
+      # CycloneDX SBOM of the locked dependencies, from the Trivy image security/tools.Dockerfile pins.
+      - name: SBOM
+        run: |
+          ref="$(sed -n 's/^FROM \(.*\) AS trivy$/\1/p' security/tools.Dockerfile)"
+          test -n "$ref"
+          docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo "$ref" \
+            fs --include-dev-deps --format cyclonedx \
+            --output "pkgs/claude-watcher-$GITHUB_REF_NAME.cdx.json" package-lock.json
       - name: Checksums
         run: cd pkgs && sha256sum -- * > SHA256SUMS && cat SHA256SUMS
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            pkgs/*.deb
+            pkgs/*.rpm
+            pkgs/*.pacman
+            pkgs/*.cdx.json
+            pkgs/SHA256SUMS
+      - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: |
+            pkgs/*.deb
+            pkgs/*.rpm
+            pkgs/*.pacman
+          sbom-path: pkgs/claude-watcher-${{ github.ref_name }}.cdx.json
       - name: Draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >
-          gh release create "$GITHUB_REF_NAME" pkgs/*
-          --draft --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+          REPO: ${{ github.repository }}
+        run: |
+          {
+            echo '### Verify a download'
+            echo
+            echo 'Every package, the SBOM and `SHA256SUMS` carry a signed build attestation from this workflow:'
+            echo
+            echo '```sh'
+            echo "gh attestation verify <file> --repo $REPO --signer-workflow $REPO/.github/workflows/release.yml"
+            echo '```'
+          } > verify.md
+          gh release create "$GITHUB_REF_NAME" pkgs/* \
+            --draft --verify-tag --generate-notes --notes-file verify.md --title "$GITHUB_REF_NAME"

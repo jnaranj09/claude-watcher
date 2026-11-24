@@ -111,6 +111,12 @@ Served before the bearer check. OpenAPI 3.1 via `z.toJSONSchema`; request schema
 `{ io: 'input' }` (so `.default()` fields publish optional). `.trim()`/`.refine()` are lost →
 add a description. Swagger UI from `swagger-ui-dist` (`createRequire(__filename)`), a 3-file NAME
 allow-list (no path join, no traversal). **Never `persistAuthorization`** (SEC-4, `docs.test.ts`).
+**Every response carries security headers** through `apiHeaders()` in `apiServer.ts`:
+`nosniff`, `no-referrer`, `Cross-Origin-Resource-Policy: same-origin`, `Cache-Control: no-store`
+(a stream: `no-cache`) and a CSP that loads and frames nothing (`API_DEFAULT_CSP`). The `/docs`
+page has its own (`DOCS_CSP` in `docs.ts`): its files plus its one inline boot script by sha256 (the
+hash is computed from `BOOT_SCRIPT`, so editing it needs nothing else). Sensor:
+`src/main/api/apiHeaders.test.ts` (every kind of response) and the DAST scan (T14).
 `swagger-ui-dist` pinned EXACTLY (5.32.15); **keep `"scarfSettings": { "enabled": false }`** in
 `package.json` (telemetry opt-out).
 
