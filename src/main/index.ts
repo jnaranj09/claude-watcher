@@ -1289,9 +1289,10 @@ app
             lineStore: createFsTelemetryLineStore(app.getPath('userData'))
           })
     } catch (err) {
+      // The error's code only: an fs message quotes the userData path (Semgrep log-parsed-input).
+      const errno = err instanceof Error && 'code' in err ? String(err.code) : 'unknown'
       console.error(
-        '[c9watch][telemetry] code=telemetry_store_init_failed (using in-memory):',
-        err instanceof Error ? err.message : 'unknown'
+        `[c9watch][telemetry] code=telemetry_store_init_failed errno=${errno} (using in-memory)`
       )
       telemetryStore = createTelemetryStore()
     }

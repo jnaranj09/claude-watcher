@@ -485,10 +485,8 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
       } catch (err) {
         // The store's record() never throws itself (never-crash), but be defensive on the outer
         // path too. Code-only log — never log the event value (Guardrail #6).
-        console.warn(
-          '[c9watch][telemetry] code=telemetry_record_error',
-          err instanceof Error ? err.message : 'unknown'
-        )
+        const errno = err instanceof Error && 'code' in err ? String(err.code) : 'unknown'
+        console.warn(`[c9watch][telemetry] code=telemetry_record_error errno=${errno}`)
       }
     })
   }
