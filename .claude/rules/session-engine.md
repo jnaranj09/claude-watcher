@@ -575,7 +575,7 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   open prompt (a denied one sends no tool event). Enter/`1`/`2` in that terminal → `Working` (R4,
   `code=permission_answered_key`), except while an AskUserQuestion prompt is open (ST-2: Enter may
   answer question 1 only; its PostToolUse is the way out; one with no `tool_use_id` keeps R4). `pendingToolName` and `pendingToolDetail` set only while waiting (R14); the detail is one line
-  from `hooks/toolDetail.ts`, follows the name, and shows on the card and on the OS notification's second body line
+  from `hooks/toolDetail.ts`, follows the name, and shows on the card and on the OS notification's second body line (escaped on Linux, where KDE reads the body as markup: `osNotificationBody`)
   (owner, 2026-10-19; never on the API or Past sessions). A `PermissionRequest` takes the detail of its own
   `agent_id`'s last `PreToolUse` (same tool only); the `Notification` that follows a card already in
   `NeedsPermission` keeps the call it shows, never a parallel agent's later one.

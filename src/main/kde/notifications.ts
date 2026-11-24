@@ -90,6 +90,18 @@ export interface AttentionNotifier {
 export const MAX_RETAINED_NOTIFICATIONS = 50
 
 /**
+ * The body as the OS notification server gets it. On Linux, Electron hands the body to
+ * libnotify as is, and a server with `body-markup` (KDE Plasma) reads it as markup: a pending
+ * command such as `<a href=…>` or `<img src=…>` would show as a link or fetch an image. So `&`,
+ * `<` and `>` are escaped there. The title is plain text on every server; macOS and Windows show
+ * the body as plain text, so it stays as is.
+ */
+export function osNotificationBody(body: string, platform: NodeJS.Platform): string {
+  if (platform !== 'linux') return body
+  return body.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+}
+
+/**
  * The default factory — a thin wrapper over Electron's `Notification`. This is the ONLY
  * place Electron's `Notification` is constructed, and it is NOT on the unit-test path (the
  * test injects its own factory, so this body never runs there). It gates on
@@ -103,7 +115,10 @@ export const MAX_RETAINED_NOTIFICATIONS = 50
  */
 export const electronNotificationFactory: NotificationFactory = (opts) => {
   if (!Notification.isSupported()) return null
-  const n = new Notification({ title: opts.title, body: opts.body })
+  const n = new Notification({
+    title: opts.title,
+    body: osNotificationBody(opts.body, process.platform)
+  })
   if (opts.onActivate) {
     n.on('click', () => opts.onActivate?.())
   }
