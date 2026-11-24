@@ -56,7 +56,7 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   Origin probed on claude 2.1.309; `prompt.submit` is present in the 2.1.307–2.1.309 binaries; 2.1.304–2.1.306 are unverified (the mod
   floor stays 2.1.304: there the origin never arrives and the `UserPromptSubmit` fallback below
   applies). Context (`ContextDialog`) shows it, `mods/fileHistory.ts` keeps file
-  versions, and Restore is the one operator-started write to an operator file (technical-taste
+  versions (the newest 10 a file, 5 MiB and 200 files in all; past them the file seen longest ago goes), and Restore is the one operator-started write to an operator file (technical-taste
   §5). A goal's `GOALS.md` is the other write into a project: the operator switches it on, then
   every change rewrites it, a session's `create_task` / `mark_task_done` included. Open in editor takes any absolute path, but never a program (an execute bit or a
   launcher type: `file_runnable`); History and Restore take only an absolute `.md` path

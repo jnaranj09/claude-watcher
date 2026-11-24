@@ -149,13 +149,17 @@ describe('createFileHistory', () => {
     expect(total).toBeLessThanOrEqual(FILE_HISTORY_MAX_TOTAL_BYTES)
   })
 
-  it('never drops a file’s newest version, even over the total cap', async () => {
+  it('over the total cap with only newest versions left, drops the file seen longest ago, never the one just kept', async () => {
     const w = world()
     const h = createFileHistory(w.deps)
     const paths = Array.from({ length: 6 }, (_, i) => `/p/f${i}.md`)
-    for (const p of paths) w.operator.set(p, p.padEnd(900 * 1024, '.'))
-    await h.snapshot(paths)
-    for (const p of paths) expect(h.list(p)).toHaveLength(1)
+    for (const [i, p] of paths.entries()) {
+      w.operator.set(p, p.padEnd(900 * 1024, '.'))
+      w.clock.now = 1000 + i
+      await h.snapshot([p])
+    }
+    expect(paths.map((p) => h.list(p).length)).toEqual([0, 1, 1, 1, 1, 1])
+    expect(blobCount(w.store)).toBe(5)
   })
 
   it('lists a file over the size cap as too large and adds no version, with one code', async () => {

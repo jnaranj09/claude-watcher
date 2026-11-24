@@ -4,7 +4,9 @@
 // (FileHistoryIndexSchema) plus content blobs named by SHA-256, one blob per distinct content.
 //
 // - Retention: the newest FILE_HISTORY_MAX_VERSIONS per file; over FILE_HISTORY_MAX_TOTAL_BYTES the
-//   oldest version of the largest history goes first. A file's newest version is never dropped.
+//   oldest version of the largest history goes first, then (also past FILE_HISTORY_MAX_PATHS files)
+//   the whole history of the file seen longest ago. The file just snapshotted always keeps its
+//   newest version.
 // - A file over FILE_HISTORY_MAX_FILE_BYTES is listed (`tooLarge`) but not snapshotted. Only an
 //   absolute `.md` path is snapshotted (`isInstructionPath`); a report may name any file.
 // - An index it could not read is moved aside (`index.unread-<now>.json`) before the first save
@@ -28,6 +30,7 @@ import type { StorageProblemCode } from '../../shared/schemas/storageHealth'
 export const FILE_HISTORY_MAX_VERSIONS = 10
 export const FILE_HISTORY_MAX_TOTAL_BYTES = 5 * 1024 * 1024
 export const FILE_HISTORY_MAX_FILE_BYTES = 1024 * 1024
+export const FILE_HISTORY_MAX_PATHS = 200
 
 /** The folder under userData; its own store. */
 export const FILE_HISTORY_DIR = 'claude-watcher-file-history'
@@ -142,25 +145,49 @@ export function createFileHistory(deps: {
       return false
     }
     versions.push({ id: deps.newId(), path, hash, size: data.length, seenAt: deps.now() })
-    await prune()
+    await prune(path)
     return persist()
   }
 
-  async function prune(): Promise<void> {
+  /** Retention, after a version of `current` was added. Per file the newest
+   *  FILE_HISTORY_MAX_VERSIONS stay. Over FILE_HISTORY_MAX_TOTAL_BYTES the oldest version of the
+   *  largest history goes first; when only newest versions are left, or past
+   *  FILE_HISTORY_MAX_PATHS files, the whole history of the file seen longest ago goes, never
+   *  `current`'s. Each file's list is built once, so a prune costs about its version count. */
+  async function prune(current: string): Promise<void> {
     const before = new Set(versions.map((v) => v.hash))
-    for (const path of new Set(versions.map((v) => v.path))) {
-      const drop = new Set(of(path).slice(FILE_HISTORY_MAX_VERSIONS))
-      versions = versions.filter((v) => !drop.has(v))
+    const byPath = new Map<string, FileVersion[]>()
+    for (const v of versions) byPath.set(v.path, [...(byPath.get(v.path) ?? []), v])
+    // Newest first: reversed insertion, then a stable sort by `seenAt` (as `of` orders them).
+    for (const [path, list] of byPath) {
+      const newest = list.reverse().sort((x, y) => y.seenAt - x.seenAt)
+      byPath.set(path, newest.slice(0, FILE_HISTORY_MAX_VERSIONS))
     }
-    while (blobBytes() > FILE_HISTORY_MAX_TOTAL_BYTES) {
-      const victim = largestHistoryWithOld()
-      if (victim === null) break
-      const oldest = of(victim).at(-1)
-      versions = versions.filter((v) => v !== oldest)
+    const refs = new Map<string, number>()
+    let total = 0
+    const count = (v: FileVersion, by: 1 | -1): void => {
+      const n = (refs.get(v.hash) ?? 0) + by
+      if (n === 0) refs.delete(v.hash)
+      else refs.set(v.hash, n)
+      if ((by === 1 && n === 1) || (by === -1 && n === 0)) total += by * v.size
     }
-    const kept = new Set(versions.map((v) => v.hash))
+    for (const list of byPath.values()) for (const v of list) count(v, 1)
+    while (total > FILE_HISTORY_MAX_TOTAL_BYTES) {
+      const victim = largestHistoryWithOld(byPath)
+      const oldest = victim?.pop()
+      if (oldest === undefined) break
+      count(oldest, -1)
+    }
+    while (total > FILE_HISTORY_MAX_TOTAL_BYTES || byPath.size > FILE_HISTORY_MAX_PATHS) {
+      const stale = stalestPath(byPath, current)
+      if (stale === null) break
+      for (const v of byPath.get(stale) ?? []) count(v, -1)
+      byPath.delete(stale)
+    }
+    const keptVersions = new Set([...byPath.values()].flat())
+    versions = versions.filter((v) => keptVersions.has(v))
     for (const hash of before) {
-      if (kept.has(hash)) continue
+      if (refs.has(hash)) continue
       try {
         await deps.fs.removeStoreFile(blobPath(hash))
       } catch {
@@ -169,25 +196,30 @@ export function createFileHistory(deps: {
     }
   }
 
-  /** Bytes on disk: one blob per distinct content. */
-  function blobBytes(): number {
-    const sizes = new Map(versions.map((v) => [v.hash, v.size]))
-    let total = 0
-    for (const size of sizes.values()) total += size
-    return total
-  }
-
-  /** The path whose versions weigh the most, among those with more than their newest. */
-  function largestHistoryWithOld(): string | null {
-    let best: string | null = null
+  /** The history (newest first) that weighs the most, among those with more than their newest. */
+  function largestHistoryWithOld(byPath: Map<string, FileVersion[]>): FileVersion[] | null {
+    let best: FileVersion[] | null = null
     let bestBytes = -1
-    for (const path of new Set(versions.map((v) => v.path))) {
-      const list = of(path)
+    for (const list of byPath.values()) {
       if (list.length < 2) continue
       const bytes = list.reduce((sum, v) => sum + v.size, 0)
       if (bytes > bestBytes) {
-        best = path
+        best = list
         bestBytes = bytes
+      }
+    }
+    return best
+  }
+
+  /** The file whose newest version was seen longest ago, other than `current`. */
+  function stalestPath(byPath: Map<string, FileVersion[]>, current: string): string | null {
+    let best: string | null = null
+    let bestAt = Infinity
+    for (const [path, list] of byPath) {
+      const at = list[0]?.seenAt ?? -Infinity
+      if (path !== current && at < bestAt) {
+        best = path
+        bestAt = at
       }
     }
     return best
