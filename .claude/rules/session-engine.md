@@ -499,7 +499,7 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   (`channelAllows`: own id, or an id no card holds, which keeps `/clear` adoption working).
   `/clear` moves the token and file, a removed card revokes and deletes them, a Reopen revokes
   the replaced id's first, a resume mints fresh (`pty/claudeSpawnCommand.ts`). Logs never hold
-  the token or a URL. Probed on claude 2.1.331: an http hook keeps the URL's path. Not covered:
+  the token or a URL. Memory treats `/h/<token>` in a transcript as a secret (`secretScan.ts`). Probed on claude 2.1.331: an http hook keeps the URL's path. Not covered:
   a token holder adopting another card through `/clear` (`sessionRebind.ts` proof only). Sensor:
   `src/main/hooks/hookServer.channel.test.ts`, `src/main/pty/claudeSpawnCommand.test.ts`.
 - **No bind, no `--settings` (SEC-6):** `hookSettingsPathIfListening` gives the flag only while

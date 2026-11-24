@@ -67,7 +67,9 @@ const fakeSecrets: [string, string][] = [
   ['a quoted -u pair with a space', '-u "' + 'admin:' + 'two words' + '"'],
   ['a quoted password with spaces', 'pass' + 'word: "' + 'correct horse battery' + '"'],
   ['an x-api-key of 20+ letters with no digit', 'x-api' + '-key: ' + 'aBcD'.repeat(6)],
-  ['an APIKEY env value of letters only', 'API' + 'KEY=' + 'aBcD'.repeat(6)]
+  ['an APIKEY env value of letters only', 'API' + 'KEY=' + 'aBcD'.repeat(6)],
+  // threat model T-D13: the hook channel secret
+  ['a hook channel token', '/h/' + 'f0'.repeat(32)]
 ]
 
 describe('redactSecrets', () => {

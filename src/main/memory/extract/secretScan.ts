@@ -41,6 +41,10 @@ export const SECRET_PATTERNS: readonly RegExp[] = [
   /-----BEGIN [A-Z ]{0,40}PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END [A-Z ]{0,40}PRIVATE KEY(?: BLOCK)?-----|$)/g,
   // A JWT: three base64url parts, the first starting `eyJ`, only at the start of its run
   /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
+  // The app's hook channel secret (T-D13): 64 lowercase hex right after `/h/` in a hook URL or the
+  // bridge mod's `CLAUDE_WATCHER_MOD_URL` (`hooks/hookChannel.ts`). Only that path shape: a bare
+  // 64-hex run is far more often a sha256 digest. The `/h/` goes with it.
+  /\/h\/[0-9a-f]{64}(?![0-9A-Za-z])/g,
   // A bearer token
   /\bBearer\s+[A-Za-z0-9._~+/=-]{20,}/g,
   // An authorization header or key: its value, with the scheme word before it (`Basic`, `Digest`…)
