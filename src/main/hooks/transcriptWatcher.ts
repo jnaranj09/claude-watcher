@@ -27,11 +27,16 @@
 import { watch, statSync, type FSWatcher } from 'node:fs'
 import { open, stat } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { StringDecoder } from 'node:string_decoder'
 import { transcriptSignal, type TranscriptSignalResult } from './transcriptSignal'
 
 /** Poll interval (ms) backing up `fs.watch`. Slow on purpose: it is a floor for the rare
  *  missed inotify event, not the mechanism — the watch is what makes this feel instant. */
 export const TRANSCRIPT_POLL_MS = 2000
+
+/** The most one read takes, and the longest partial line held. The transcript path comes from a
+ *  hook payload (outside input), so a hostile or huge file must not make main allocate its size. */
+export const TRANSCRIPT_MAX_DRAIN_BYTES = 1024 * 1024
 
 interface WatchEntry {
   path: string
@@ -39,6 +44,10 @@ interface WatchEntry {
   offset: number
   /** A trailing partial line awaiting its newline (rule 2). */
   partial: string
+  /** The held line passed `TRANSCRIPT_MAX_DRAIN_BYTES`: drop text up to the next newline. */
+  skipLine: boolean
+  /** Keeps a UTF-8 character split across two chunks whole. */
+  decoder: StringDecoder
   watcher?: FSWatcher
   /** Guards against two drains overlapping (watch + poll can fire together). */
   draining: boolean
@@ -70,7 +79,9 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
   const entries = new Map<string, WatchEntry>()
   let poll: ReturnType<typeof setInterval> | undefined
 
-  /** Read everything appended since `offset` and emit any signals found. */
+  /** Read everything appended since `offset`, one bounded chunk at a time, and emit any
+   *  signals found. The path comes from a hook payload, so the file may be huge: no read and no
+   *  held partial line is ever larger than `TRANSCRIPT_MAX_DRAIN_BYTES`. */
   async function drain(sessionId: string, entry: WatchEntry): Promise<void> {
     if (entry.draining || entry.closed) return
     entry.draining = true
@@ -80,38 +91,22 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
       if (info.size < entry.offset) {
         entry.offset = 0
         entry.partial = ''
+        entry.skipLine = false
+        entry.decoder = new StringDecoder('utf8')
       }
       if (info.size === entry.offset) return
 
       const handle = await open(entry.path, 'r')
       try {
-        const length = info.size - entry.offset
-        const buffer = Buffer.allocUnsafe(length)
-        const { bytesRead } = await handle.read(buffer, 0, length, entry.offset)
-        entry.offset += bytesRead
-
-        const text = entry.partial + buffer.subarray(0, bytesRead).toString('utf8')
-        const lines = text.split('\n')
-        // The final element is whatever follows the last newline — hold it back (rule 2).
-        entry.partial = lines.pop() ?? ''
-
-        for (const line of lines) {
-          if (entry.closed) return
-          if (line.trim().length === 0) continue
-          let parsed: unknown
-          try {
-            parsed = JSON.parse(line)
-          } catch {
-            continue // not JSON → drop in silence (rule 3)
-          }
-          const signal = transcriptSignal(parsed)
-          if (signal !== null) {
-            try {
-              onSignal(sessionId, signal)
-            } catch {
-              /* a consumer fault must never take down the tail */
-            }
-          }
+        const buffer = Buffer.allocUnsafe(
+          Math.min(info.size - entry.offset, TRANSCRIPT_MAX_DRAIN_BYTES)
+        )
+        while (entry.offset < info.size && !entry.closed) {
+          const length = Math.min(info.size - entry.offset, buffer.length)
+          const { bytesRead } = await handle.read(buffer, 0, length, entry.offset)
+          if (bytesRead === 0) return
+          entry.offset += bytesRead
+          emitLines(sessionId, entry, entry.decoder.write(buffer.subarray(0, bytesRead)))
         }
       } finally {
         await handle.close()
@@ -120,6 +115,43 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
       // Missing file, permission error, races — all non-fatal. The poll retries.
     } finally {
       entry.draining = false
+    }
+  }
+
+  /** Split a chunk into complete lines (rule 2) and emit their signals (rule 3). A line longer
+   *  than the cap is dropped whole: its head is let go and the rest is skipped to its newline. */
+  function emitLines(sessionId: string, entry: WatchEntry, chunk: string): void {
+    let text = entry.partial + chunk
+    entry.partial = ''
+    if (entry.skipLine) {
+      const end = text.indexOf('\n')
+      if (end === -1) return
+      text = text.slice(end + 1)
+      entry.skipLine = false
+    }
+    const lines = text.split('\n')
+    // The final element is whatever follows the last newline — hold it back (rule 2).
+    const rest = lines.pop() ?? ''
+    if (rest.length > TRANSCRIPT_MAX_DRAIN_BYTES) entry.skipLine = true
+    else entry.partial = rest
+
+    for (const line of lines) {
+      if (entry.closed) return
+      if (line.trim().length === 0) continue
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(line)
+      } catch {
+        continue // not JSON → drop in silence (rule 3)
+      }
+      const signal = transcriptSignal(parsed)
+      if (signal !== null) {
+        try {
+          onSignal(sessionId, signal)
+        } catch {
+          /* a consumer fault must never take down the tail */
+        }
+      }
     }
   }
 
@@ -188,6 +220,8 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
         path,
         offset: startOffset,
         partial: '',
+        skipLine: false,
+        decoder: new StringDecoder('utf8'),
         draining: false,
         closed: false
       }
