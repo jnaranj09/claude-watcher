@@ -17,5 +17,8 @@ export default {
   incrementalFile: 'reports/mutation/stryker-incremental.json',
   reporters: ['clear-text', 'progress', 'html'],
   htmlReporter: { fileName: 'reports/mutation/mutation.html' },
-  tempDirName: '.stryker-tmp'
+  tempDirName: '.stryker-tmp',
+  // Local, git-ignored agent skill folders. `.claude/skills/` holds symlinks to folders in
+  // `.agents/skills/`, and the sandbox copy fails on them (EISDIR). Tests never read either.
+  ignorePatterns: ['.claude/skills', '.agents']
 }
