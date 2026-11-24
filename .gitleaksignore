@@ -1,0 +1,7 @@
+# gitleaks false positives, by fingerprint (<sha>:<path>:<rule>:<line>). Each one has its reason on
+# the line above it. Guard `security-allow-list` refuses a fingerprint with no comment line above.
+
+# A made-up "db password" string in a test that proves memory ids are never echoed back.
+7585b8eea60d5592522388219365fd07c8651086:src/main/memory/memoryTools.getIds.test.ts:generic-api-key:194
+# `baseline_commit:` in a story file is a git object hash, not a key.
+f066c2fb11f3fabcbe33c3e54634a45adc866275:_bmad-output/implementation-artifacts/3-5-self-instrument-idle-wait-timing-sm-2.md:generic-api-key:2

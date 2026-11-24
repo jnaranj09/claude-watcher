@@ -32,11 +32,16 @@ jobs:
     # glibc 2.35: node-pty's pty.node links against the BUILD host's glibc. Never ubuntu-latest.
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        # No npm cache: a cache any PR run can write must not feed the release build (zizmor
+        # cache-poisoning). v4 has no `package-manager-cache` input (it logs a warning); v5+ caches
+        # by default without it, so it is set now for the day Dependabot bumps the major.
         with:
           node-version: 24
-          cache: npm
+          package-manager-cache: false
       - name: Packaging tools
         run: sudo apt-get update -qq && sudo apt-get install -y -qq rpm libarchive-tools xvfb
       - run: npm ci
@@ -46,7 +51,7 @@ jobs:
         env:
           SMOKE_WEBGL: optional
         run: xvfb-run -a npm run smoke
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: linux-packages
           path: |
@@ -58,18 +63,34 @@ jobs:
   install-check:
     needs: linux
     runs-on: ubuntu-latest
+    # Each distro image is pinned by digest (guard supply-chain-pins). archlinux has only rolling
+    # tags, so its `latest` names the digest's day, not a version; bump the digest to re-check.
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { image: 'debian:12', glob: '*.deb' }
-          - { image: 'ubuntu:22.04', glob: '*.deb' }
-          - { image: 'fedora:latest', glob: '*.rpm' }
-          - { image: 'archlinux:latest', glob: '*.pacman' }
+          - {
+              image: 'debian:12@sha256:268fb24c39bca92d326dd83ea3abebe4a3f7751c804ffef23bb6d857dd343ff8',
+              glob: '*.deb'
+            }
+          - {
+              image: 'ubuntu:22.04@sha256:b000e69a50ff940390233025e7a337fb8469b509e2334fa4d018ac30f3e18cdb',
+              glob: '*.deb'
+            }
+          - {
+              image: 'fedora:45@sha256:a7d72ba2745b100a3351087472e5ee7b2450af7cf331e7673007e3817612839c',
+              glob: '*.rpm'
+            }
+          - {
+              image: 'archlinux:latest@sha256:375a401bb3c6376b37f40b6dfa25067db37ec78d0b7af67ae6315f43a0184a9d',
+              glob: '*.pacman'
+            }
     container: ${{ matrix.image }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: linux-packages
           path: pkgs
@@ -83,7 +104,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Tag matches package.json version
         run: |
           v="$(node -p "require('./package.json').version")"
@@ -91,7 +114,7 @@ jobs:
             echo "::error::tag $GITHUB_REF_NAME does not match package.json version $v"
             exit 1
           fi
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: linux-packages
           path: pkgs

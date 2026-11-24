@@ -74,7 +74,7 @@ after must match).
     channels only under `C9_SMOKE=1`. No IPC argument becomes a spawn cwd. Every value put into a
     shell command is quoted. API: localhost only, bearer token, no caller prose, state-only wire,
     responses validated before writing. A new outside input, route, workflow or dependency
-    with network access has its threat-model row (docs/threat-model.md, once T13 writes it)
+    with network access has its threat-model row (`docs/threat-model.md`)
     naming a real check. No credential for an outside service in the repo or CI. New actions
     are pinned by SHA. A new allow-list entry has a reason, an expiry and the owner's agreement
     in the commit message; otherwise a **High** finding.

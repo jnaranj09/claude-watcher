@@ -432,9 +432,9 @@ yet. Prefer turning prose-only rules into sensors.
 
 23. **Security basics for the shape.** A threat model lists every threat and the check that covers
     it; secrets, dependency CVEs with a fix, repo-written SAST rules, workflow config and pins are
-    checked in the gate. _Consensus_. Sensor: prose only until `TASKS.md` T13 adds guard
-    `threat-model`, gitleaks, Trivy fs, Semgrep, zizmor and guard `supply-chain-pins`
-    (`.claude/rules/security.md`).
+    checked in the gate. _Consensus_. Sensor: `npm run security` (gitleaks, Trivy fs, Semgrep with
+    the rules in `security/semgrep/`, zizmor; CI job `security`) and the guards `threat-model`,
+    `supply-chain-pins`, `security-allow-list` (`.claude/rules/security.md`, `docs/threat-model.md`).
 24. **One design source; the code follows it.** Tokens and primitives come from one source and
     only primitives style. _Consensus_. Sensors: `styles/tokens.test.ts`, the spacing and hex
     guards, the banned-primitive guards. No design file yet, so `design-tokens` and

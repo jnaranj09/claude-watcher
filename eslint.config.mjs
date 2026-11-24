@@ -40,6 +40,8 @@ export default defineConfig(
       '**/out',
       'eslint-rules/__fixtures__/**',
       // Vendored agent skills (beaf0c7): third-party scripts, not app code.
+      // Semgrep rule fixtures: forbidden calls on purpose (`semgrep --test` reads them).
+      'security/semgrep/**',
       '.agents/**',
       // The bridge mod's engine tests: typed and run by claude itself (`npm run test:mod`); no
       // tsconfig here can see `claude-code/testing`.

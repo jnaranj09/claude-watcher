@@ -1,0 +1,16 @@
+# Threat T-R2 (docs/threat-model.md): text run as code. The renderer CSP has no 'unsafe-eval',
+# so in the renderer this would fail at run time; in main it would run.
+rules:
+  - id: dynamic-code
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      Text is run as code. Use a function, never a string, and never eval or new Function.
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+      - pattern: Function(...)
+      - pattern: setTimeout("...", ...)
+      - pattern: setInterval("...", ...)
+      - pattern: vm.runInThisContext(...)
+      - pattern: vm.runInNewContext(...)

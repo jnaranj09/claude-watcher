@@ -1,5 +1,6 @@
-# The gate (CLAUDE.md "Gates"): typecheck, lint, test, build. Runs on every push and
-# PR to main, and is CALLED by release.yml so a release never skips it.
+# The gate (CLAUDE.md "Gates"): typecheck, lint, test, build, and the security scans
+# (`npm run security`, docs/threat-model.md). Runs on every push and PR to main, and is CALLED by
+# release.yml so a release never skips it.
 name: CI
 
 on:
@@ -15,8 +16,10 @@ jobs:
   gate:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm
@@ -25,3 +28,17 @@ jobs:
       - run: npm run lint
       - run: npm run test
       - run: npm run build
+
+  security:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          # gitleaks reads the whole history; a shallow clone is red ("0 commits").
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      # Node built-ins and docker only: no `npm ci`.
+      - run: npm run security

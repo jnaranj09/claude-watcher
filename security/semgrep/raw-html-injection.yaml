@@ -1,0 +1,15 @@
+# Threat T-R1 (docs/threat-model.md): HTML built from data reaches the DOM unescaped.
+# React escapes text by default; these are the doors around that.
+rules:
+  - id: raw-html-injection
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      Raw HTML reaches the DOM. Render text through React (it escapes), or build the nodes.
+    pattern-either:
+      - pattern: <$EL dangerouslySetInnerHTML={$X} />
+      - pattern: <$EL dangerouslySetInnerHTML={$X}>...</$EL>
+      - pattern: $NODE.innerHTML = $X
+      - pattern: $NODE.outerHTML = $X
+      - pattern: $NODE.insertAdjacentHTML(...)
+      - pattern: document.write(...)

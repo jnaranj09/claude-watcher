@@ -1,0 +1,24 @@
+# Pinned versions get bump PRs (.claude/rules/security.md "Everything is pinned"): actions by SHA
+# (the `# vX.Y.Z` comment moves with it) and the scanner images in security/tools.Dockerfile (tag
+# and digest together). A release must be 7 days old before a PR proposes it.
+# The install-check images in release.yml sit in a matrix Dependabot does not read: bump by hand.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ['*']
+  - package-ecosystem: docker
+    directory: /security
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      scanners:
+        patterns: ['*']

@@ -1,0 +1,14 @@
+# Threat T-A3 (docs/threat-model.md): a thrown error's text reaches an HTTP client. API and hook
+# replies carry a code (and a path), never a message (api.md, apiServer.ts `writeError`).
+rules:
+  - id: raw-error-to-client
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      An error's text is sent to the client. Reply with a typed code (writeError), never the message.
+    pattern-either:
+      - pattern: $RES.end(<... $E.message ...>, ...)
+      - pattern: $RES.end(<... $E.stack ...>, ...)
+      - pattern: $RES.write(<... $E.message ...>, ...)
+      - pattern: $RES.write(<... $E.stack ...>, ...)
+      - pattern: $RES.end(<... String($E) ...>, ...)

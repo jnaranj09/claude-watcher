@@ -39,7 +39,7 @@ Single test — Vitest projects `unit` (jsdom), `shared-node`, `main-unit`, `zon
 
 **Visual changes:** tests cannot see CSS. `npm run build`, then drive the built app
 (`tests/drive/driveApp.mjs`) — recipe in `.claude/rules/run-app.md`.
-**Gates:** `typecheck / lint / test / build`. Changes touching node-pty / preload / packaging also
+**Gates:** `typecheck / lint / test / build / security` (scans need Docker). node-pty / preload / packaging also
 need `build:dir` + `smoke` (proves node-pty survives packaging — load-bearing).
 
 ## Architecture
@@ -193,7 +193,7 @@ open dialog. `Esc to return` shows only while focus is outside.
 
 ## Versions (don't bump in passing)
 
-Electron **44** (ABI 149), zod 4, zustand 5, React 19, @xterm/xterm 6, node-pty 1.1, Vitest 4.
-Electron 44 notes: `npm install` doesn't download the binary (first run or `npx install-electron
---no`); a new major needs a `node-abi` that knows it; main `clipboard` is async; Playwright
+Electron **44** (ABI 149), zod 4, zustand 5, React 19, @xterm/xterm 6, node-pty 1.1, Vitest 4. Node: each workflow's
+`node-version` (kept equal by guard `supply-chain-pins`); scanners: `security/tools.Dockerfile`.
+Electron 44 notes: `npm install` doesn't download the binary (first run or `npx install-electron --no`); a new major needs a `node-abi` that knows it; main `clipboard` is async; Playwright
 `firstWindow()` resolves before `loadFile` — wait for the page first.

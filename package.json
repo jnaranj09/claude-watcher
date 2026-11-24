@@ -20,6 +20,7 @@
     "lint:dead": "knip --no-progress",
     "lint:dupes": "jscpd --silent",
     "mutate": "stryker run",
+    "security": "node security/run.mjs",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json",

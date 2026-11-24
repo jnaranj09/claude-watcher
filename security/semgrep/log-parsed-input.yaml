@@ -1,0 +1,18 @@
+# Threat T-L1 (docs/threat-model.md, zod-boundaries.md): a log line carries a value from outside
+# (a body, a parsed object, an error message that can quote the value). Logs hold PATH + CODE only.
+rules:
+  - id: log-parsed-input
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      This log line can carry an outside value. Log the error path and a code, never the value.
+    patterns:
+      - pattern-either:
+          - pattern: $LOG(..., <... JSON.stringify(...) ...>, ...)
+          - pattern: $LOG(..., <... $R.body ...>, ...)
+          - pattern: $LOG(..., <... $E.message ...>, ...)
+          - pattern: $LOG(..., <... $E.issues ...>, ...)
+          - pattern: $LOG(..., <... $E.stack ...>, ...)
+      - metavariable-regex:
+          metavariable: $LOG
+          regex: ^(console\.(log|info|warn|error|debug)|log|.*\.log|logger\.\w+)$
