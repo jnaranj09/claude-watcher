@@ -15,8 +15,14 @@
 // unfalsifiable — reverting it would leave the suite green. That is a defect class this repo
 // has hit before (see spec-session-naming.md's KEEP note).
 //
+// The title is outside input (claude's, or the operator's `/rename`): it is cut to
+// `SESSION_NAME_MAX_LENGTH` and must pass `SessionNameSchema`, because the name is stored in Past
+// sessions, whose file parse fails closed on a bad name and would reset the whole history.
+//
 // PURE: no I/O, no logging. The inputs are SENSITIVE (a session name is operator content) —
 // callers must never log either name. [spec-claude-session-name-sync.md]
+
+import { SESSION_NAME_MAX_LENGTH, SessionNameSchema } from '../../shared/schemas/launch'
 
 /** The fields of a validated hook event this decision reads. Structural, so callers can pass
  *  a full `HookEvent` without this module depending on the schema. */
@@ -32,7 +38,8 @@ export interface TitleReadBackInput {
  * Returns `null` — meaning DO NOTHING — when:
  *  - a push is PENDING for this session (`pushPending`) — see below;
  *  - the event carries no `session_title` (every event that is not `UserPromptSubmit`);
- *  - the title is blank (never blank out a card's name);
+ *  - the title is blank (never blank out a card's name), or holds a control character
+ *    (`SessionNameSchema`); a title over `SESSION_NAME_MAX_LENGTH` is cut to it first;
  *  - there is no such card (`currentName` undefined — a hook racing a stop/exit, or an
  *    external session that must stay off the board);
  *  - the name already matches.
@@ -56,9 +63,18 @@ export function titleReadBackRename(
   // reported name only becomes authoritative once the push has landed (the next prompt).
   if (pushPending) return null
 
-  const claudeTitle = evt.session_title
-  if (claudeTitle === undefined || claudeTitle.length === 0) return null
+  if (evt.session_title === undefined) return null
+  const claudeTitle = cutName(evt.session_title)
+  if (!SessionNameSchema.safeParse(claudeTitle).success) return null
   if (currentName === undefined) return null
   if (currentName === claudeTitle) return null
   return claudeTitle
+}
+
+/** Cut to `SESSION_NAME_MAX_LENGTH` UTF-16 units, never splitting a surrogate pair. */
+function cutName(title: string): string {
+  if (title.length <= SESSION_NAME_MAX_LENGTH) return title
+  const cut = title.slice(0, SESSION_NAME_MAX_LENGTH)
+  const last = cut.charCodeAt(cut.length - 1)
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut
 }
