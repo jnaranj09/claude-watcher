@@ -427,7 +427,7 @@ describe('checkCandidates: the shape', () => {
     expect(
       check([
         cand({ head: '  API port ', body: ' 9281 ', check: ' ss -ltn ' }),
-        task('  Update the README ', 'Which port', { check: ' grep port README.md ' })
+        task('  Update the README ', 'Which port', { check: ' ss -ltn ' })
       ]).kept
     ).toEqual([
       { ...portItem('observed'), check: 'ss -ltn' },
@@ -436,7 +436,7 @@ describe('checkCandidates: the shape', () => {
         action: 'add',
         id: null,
         title: 'Update the README',
-        check: 'grep port README.md',
+        check: 'ss -ltn',
         leftWith: 'operator',
         basis: 'stated'
       }

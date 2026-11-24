@@ -281,6 +281,20 @@ function bringsSeenValue(oldBody: string, newBody: string, at: CleanEntry | unde
   return fresh.length > 0 && at !== undefined && fresh.every((v) => standsIn(at.text, v))
 }
 
+/** A check is a command later sessions are told to run, so the extraction model never makes one
+ *  up: it stands whole (`valueAt`) in the entry the quote was found in, or in any evidence entry
+ *  but claude's own prose (a tool call claude ran, its result, the operator's text). Prompt rule 5
+ *  asks the same; this makes it hold. */
+function checkSeen(check: string, quoteEntryId: string, entries: readonly CleanEntry[]): boolean {
+  const wanted = normalise(check)
+  return entries.some(
+    (entry) =>
+      entry.evidence &&
+      (entry.entryId === quoteEntryId || entry.kind !== 'claude') &&
+      entry.text.split(MARKS).some((segment) => valueAt(normalise(segment), wanted) !== -1)
+  )
+}
+
 /** Steps 2 to 5 for one candidate whose shape passed. After D16, an item update whose evidence is
  *  no sighting is dropped (`claude_only`, P3-R1), and a fact update that brings no new exact
  *  value its evidence entry holds is dropped as `no_new_value` (P3-C6, P3-C30: its quote is a
@@ -299,10 +313,17 @@ function checkOne(c: ExtractCandidate, s: Shaped, ctx: Ctx): Checked | DropReaso
     return { kind: 'episode', title: s.title, body: s.body, source }
   }
   if (found === null || source === null) return 'evidence_not_found'
+  if (s.check !== null && !checkSeen(s.check, found.entryId, ctx.entries))
+    return 'evidence_not_found'
   if (s.kind === 'task') {
+    const task = reconcileTask(c, s.title, ctx.tasks)
+    // P3-R1 for a task: a check only claude's own text or a tool call supports never lands on a
+    // task that is already there.
+    if (task.action === 'update' && s.check !== null && !isSighting(found.basis))
+      return 'claude_only'
     return {
       kind: 'task',
-      ...reconcileTask(c, s.title, ctx.tasks),
+      ...task,
       title: s.title,
       check: s.check,
       leftWith: s.leftWith,

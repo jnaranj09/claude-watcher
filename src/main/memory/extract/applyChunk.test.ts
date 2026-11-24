@@ -408,13 +408,17 @@ describe('last-seen dates (R48)', () => {
     leftWith: null,
     evidence: quote
   })
-  const taskUpdate = (id: string, quote: string): ExtractCandidate => ({
+  const taskUpdate = (
+    id: string,
+    quote: string,
+    check: string | null = 'curl localhost:9281/health'
+  ): ExtractCandidate => ({
     type: 'task',
     action: 'update',
     id,
     head: 'Add a health check',
     body: null,
-    check: 'curl localhost:9281/health',
+    check,
     leftWith: 'session',
     evidence: quote
   })
@@ -468,21 +472,28 @@ describe('last-seen dates (R48)', () => {
     expect(store.get(id)?.lastSeenAt).toBe(NOW + 100 * DAY)
   })
 
-  it("a task update found only in claude's own text keeps its last-seen date and takes the check", () => {
+  it("a task update found only in claude's own text keeps its last-seen date", () => {
     const id = openTask()
     const echo = 'Memory lists an open task: Add a health check.'
-    checkAndApply([taskUpdate(id, echo)], [entry(4, 'claude', echo)])
+    checkAndApply([taskUpdate(id, echo, null)], [entry(4, 'claude', echo)])
     expect(goals.view().tasks).toEqual([
-      expect.objectContaining({ id, lastSeenAt: NOW, check: 'curl localhost:9281/health' })
+      expect.objectContaining({ id, lastSeenAt: NOW, check: null })
     ])
   })
 
-  it('a task update found in a tool result moves its last-seen date', () => {
+  it('a task update found in a tool result moves its last-seen date and takes the check it shows', () => {
     const id = openTask()
     const quote = 'GET /health 404 Not Found'
-    checkAndApply([taskUpdate(id, quote)], [entry(5, 'result', quote)])
+    checkAndApply(
+      [taskUpdate(id, quote)],
+      [entry(5, 'result', `$ curl localhost:9281/health\n${quote}`)]
+    )
     expect(goals.view().tasks).toEqual([
-      expect.objectContaining({ id, lastSeenAt: NOW + 100 * DAY })
+      expect.objectContaining({
+        id,
+        lastSeenAt: NOW + 100 * DAY,
+        check: 'curl localhost:9281/health'
+      })
     ])
   })
 })
@@ -878,7 +889,7 @@ describe('a failed memory write', () => {
         evidence: 'listening on 9281'
       }
     ]
-    const entries = [entry(5, 'result', 'listening on 9281')]
+    const entries = [entry(5, 'result', 'curl localhost:9281 says listening on 9281')]
     const open = goals.view().tasks.filter((t) => t.status === 'open')
     const checked = checkCandidates(
       { candidates, note: 'n' },

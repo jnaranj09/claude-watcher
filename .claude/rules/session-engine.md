@@ -381,7 +381,7 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   result passes `ClaudeResultSchema` then `ExtractOutputSchema`, else the call failed. A candidate
   is kept only when its quote stands as whole words in the cleaned slice (a value next to a dotted
   or hyphenated continuation is not whole, R15), holds no secret and is not an item the operator
-  wrote (D16); its basis is where the quote was found. An update that only claude's own text or a
+  wrote (D16); its basis is where the quote was found. A check (a command later sessions are told to run) must stand whole in the quote's entry or in any entry but claude's prose, else `evidence_not_found`; a task update that brings a check needs a sighting, else `claude_only`. An update that only claude's own text or a
   tool call supports is dropped (`claude_only`, P3-R1). A save updates a fact only when it brings a
   new exact value (a token of at least 4 characters with a digit, `_`, `/` or `.`,
   `memory/exactTerms.ts`) that stands in the entry its quote was found in; a reworded or renamed
