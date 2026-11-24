@@ -60,7 +60,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   §5). A goal's `GOALS.md` is the other write into a project: the operator switches it on, then
   every change rewrites it, a session's `create_task` / `mark_task_done` included. Open in editor takes any absolute path, but never a program (an execute bit or a
   launcher type: `file_runnable`); History and Restore take only an absolute `.md` path
-  (`isInstructionPath`). A second mod, `src/mod/watcher-memory` (memory phase 3), ships and
+  (`isInstructionPath`), and through a link only when the file it ends at is one too (opened
+  no-follow, non-blocking, a regular file: `mods/contextHandlers.ts`, `mods/fileHistory.ts`). A second mod, `src/mod/watcher-memory` (memory phase 3), ships and
   installs the same way into `<userData>/mods/watcher-memory` (`mods/startMods.ts`
   `installAppMods`: each install on its own, a failed one reports `bridge_mod` and logs
   `code=mod_install_failed`, the other still installs); a spawn passes it, after the bridge mod's

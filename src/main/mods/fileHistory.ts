@@ -14,7 +14,8 @@
 // - Never throws to its caller and never logs a path (it names the operator's folders): a failed
 //   write reports `write_failed` and the history goes on in memory.
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { mkdir, open, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { isInstructionPath } from '../../shared/schemas/contextIpc'
 import {
@@ -38,8 +39,9 @@ export type OperatorFileRead =
   | { ok: false; reason: 'missing' | 'not_file' | 'too_large' | 'unreadable' }
 
 export interface FileHistoryFs {
-  /** The operator's file: a regular file (a symlink to one counts), at most `maxBytes`. A
-   *  dangling symlink is `missing`; a folder or device is `not_file`. Never throws. */
+  /** The operator's file: a regular file (a symlink counts only when the file it ends at is an
+   *  absolute `.md`), at most `maxBytes`. A dangling symlink is `missing`; a folder, a device or
+   *  a link out to any other file is `not_file`. Never throws. */
   readOperatorFile(path: string, maxBytes: number): Promise<OperatorFileRead>
   /** A file inside the store; null when it does not exist. */
   readStoreFile(path: string): Promise<Buffer | null>
@@ -270,14 +272,34 @@ const isMissing = (err: unknown): boolean =>
 export const nodeFileHistoryFs: FileHistoryFs = {
   async readOperatorFile(path, maxBytes) {
     try {
-      // `stat` follows a symlink: a link to a regular file counts, a dangling one is ENOENT.
-      const s = await stat(path)
-      if (!s.isFile()) return { ok: false, reason: 'not_file' }
-      if (s.size > maxBytes) return { ok: false, reason: 'too_large' }
-      const data = await readFile(path)
-      // The file may have grown between the stat and the read.
-      if (data.length > maxBytes) return { ok: false, reason: 'too_large' }
-      return { ok: true, data }
+      // A link counts only when the file it ends at is itself an absolute `.md` (a CLAUDE.md
+      // linked to AGENTS.md); a link out to any other file is `not_file`. The resolved file is
+      // opened no-follow and non-blocking (a FIFO never hangs) and checked on its descriptor.
+      // A dangling link is ENOENT, so `missing`.
+      const real = await realpath(path)
+      if (!isInstructionPath(real)) return { ok: false, reason: 'not_file' }
+      const handle = await open(
+        real,
+        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK
+      )
+      try {
+        const s = await handle.stat()
+        if (!s.isFile()) return { ok: false, reason: 'not_file' }
+        if (s.size > maxBytes) return { ok: false, reason: 'too_large' }
+        // One byte over the cap tells a file that grew past it after the stat.
+        const buffer = Buffer.alloc(maxBytes + 1)
+        let length = 0
+        for (;;) {
+          const { bytesRead } = await handle.read(buffer, length, buffer.length - length, length)
+          if (bytesRead === 0) break
+          length += bytesRead
+          if (length === buffer.length) break
+        }
+        if (length > maxBytes) return { ok: false, reason: 'too_large' }
+        return { ok: true, data: buffer.subarray(0, length) }
+      } finally {
+        await handle.close()
+      }
     } catch (err) {
       return { ok: false, reason: isMissing(err) ? 'missing' : 'unreadable' }
     }

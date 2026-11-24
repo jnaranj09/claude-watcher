@@ -10,8 +10,9 @@
 // Restore is the one write to an operator's file (spec Decisions; technical-taste §12): it keeps
 // the file as it is now first, never creates a folder, and writes only a path that is both in
 // the history and in a live report.
-import { basename, dirname, extname } from 'node:path'
-import { stat, writeFile } from 'node:fs/promises'
+import { basename, dirname, extname, join } from 'node:path'
+import { constants } from 'node:fs'
+import { open, realpath, stat } from 'node:fs/promises'
 import {
   FileRefSchema,
   isAbsolutePath,
@@ -186,6 +187,32 @@ export const nodeContextFs: ContextFs = {
     }
   },
   async writeFile(path, data) {
-    await writeFile(path, data)
+    // Restore writes only an absolute `.md`: through a link only when the file it ends at is one
+    // (a CLAUDE.md linked to AGENTS.md), never out to any other file. A missing file is created
+    // in its (resolved) folder; a dangling link there fails (O_NOFOLLOW). The open is non-blocking
+    // so a FIFO never hangs main, and the descriptor must be a regular file before any byte goes.
+    // O_NOFOLLOW guards the last component only; the folders above are the operator's own.
+    const target = await restoreTarget(path)
+    if (!isInstructionPath(target)) throw new Error('restore target is not an instruction file')
+    const flags =
+      constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_NONBLOCK
+    const handle = await open(target, flags, 0o644)
+    try {
+      if (!(await handle.stat()).isFile()) throw new Error('restore target is not a regular file')
+      await handle.truncate(0)
+      await handle.writeFile(data)
+    } finally {
+      await handle.close()
+    }
+  }
+}
+
+/** The real path a restore writes: the file's, or for a missing file its folder's plus its name. */
+async function restoreTarget(path: string): Promise<string> {
+  try {
+    return await realpath(path)
+  } catch (err) {
+    if (!(err instanceof Error && 'code' in err && err.code === 'ENOENT')) throw err
+    return join(await realpath(dirname(path)), basename(path))
   }
 }
