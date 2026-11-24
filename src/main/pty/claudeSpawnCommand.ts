@@ -2,13 +2,16 @@
 // env (`rawClaudeSpawn`, ipc/registerLaunchIpc.ts). It lives here, not inline in the registrar,
 // because the registrar is only reachable through Electron's ipc: a test can reach this, so the
 // mod folders, the goals and memory parts and the order they are asked in each have a test.
-// Order: the bridge mod (its env var goes into `env`), then the Reopen carry of the memory goal
-// and the planner record (both before goals), then goals (links the tasks to the minted
-// id), then memory (inside `spawnExtras`), then the hook settings file.
+// Order: the hook channel token (a Reopen's old one revoked first), then the bridge mod (its env
+// var goes into `env`), then the Reopen carry of the memory goal and the planner record (both
+// before goals), then goals (links the tasks to the minted id), then memory (inside
+// `spawnExtras`), then the hook settings file.
 import type { ClaudeVersion } from '../../shared/launch/claudeVersion'
 import type { ModSkipReason } from '../../shared/schemas/contextIpc'
 import type { ClaudeAutoMemory } from '../../shared/schemas/settings'
 import type { GoalLaunch, GoalSpawnExtras } from '../goals/goalLaunch'
+import type { HookChannel } from '../hooks/hookChannel'
+import type { HookSettingsFiles } from '../hooks/hookSettingsFile'
 import type { MemorySpawnExtras } from '../memory/memoryLaunch'
 import { applyBridgeMod } from '../mods/bridgeModSpawn'
 import { composeClaudeCommand, loginShellRun } from './claudeBin'
@@ -20,6 +23,11 @@ export interface ClaudeSpawnDeps {
   shell: string
   /** SEC-6: THIS process holds the hook port. */
   hookListening: () => boolean
+  /** The app's hook channel (`hooks/hookChannel.ts`): one token per spawn, minted only while the
+   *  hook port is ours; a Reopen revokes the replaced id's token. */
+  hookChannel: Pick<HookChannel, 'mint' | 'revoke'>
+  /** The per-session hook settings files: a Reopen deletes the replaced id's. */
+  hookSettingsFiles: Pick<HookSettingsFiles, 'remove'>
   /** The bridge mod (spec 2026-10-18 §1.1): read at spawn time. */
   bridgeMod: {
     installedDir: () => string | null
@@ -54,8 +62,9 @@ export interface ClaudeSpawnDeps {
   memoryResumed: (sessionId: string, workspaceId: string) => void
   activeWorkspaceId: () => string
   claudeAutoMemory: () => ClaudeAutoMemory
-  /** The `--settings` file, or null (SEC-6, a refused write). */
-  hookSettingsPath: () => string | null
+  /** The `--settings` file for `sessionId`'s channel `token`, or null (no token, SEC-6, a refused
+   *  write). */
+  hookSettingsPath: (sessionId: string, token: string | null) => string | null
   log: (line: string) => void
 }
 
@@ -81,13 +90,22 @@ export function claudeSpawnCommand(
 ): { file: string; args: string[]; env: Record<string, string> } {
   const { sessionId, previousSessionId, env } = request
 
+  // The hook channel (T-D13): the one secret the hook URL and the mod's report URL carry. A Reopen
+  // (and a resume of the terminal) is a new spawn: the replaced id's token and file go first, and
+  // this spawn mints its own.
+  if (previousSessionId !== null) {
+    deps.hookChannel.revoke(previousSessionId)
+    deps.hookSettingsFiles.remove(previousSessionId)
+  }
+  const hookToken = deps.hookListening() ? deps.hookChannel.mint({ sessionId }) : null
+
   // The bridge mod: its folder (handed to spawnExtras, which lists it for `--plugin-dir`) plus
   // the report URL in the env, or a reason Context shows.
   // FAIL OPEN: a skip launches the session exactly as before the mod existed.
   const bridgePluginDir = applyBridgeMod({
     sessionId,
     env,
-    listening: deps.hookListening,
+    channelToken: hookToken,
     installedDir: deps.bridgeMod.installedDir,
     version: deps.bridgeMod.claudeVersion,
     hookPort: deps.bridgeMod.hookPort,
@@ -141,6 +159,13 @@ export function claudeSpawnCommand(
     bridgePluginDir
   })
 
+  // The token goes in the settings file and the mod's env, never on argv. Used by neither, it is
+  // revoked.
+  const hookSettingsPath = deps.hookSettingsPath(sessionId, hookToken)
+  if (hookToken !== null && hookSettingsPath === null && bridgePluginDir === null) {
+    deps.hookChannel.revoke(sessionId)
+  }
+
   // Composed in claudeBin.ts. Name-sync adds `-n <name>` so claude runs under the operator's
   // name instead of generating its own title, `--settings <file>` carries the hook block
   // WITHOUT touching the operator's project, and `--append-system-prompt` injects the
@@ -155,7 +180,7 @@ export function claudeSpawnCommand(
       claudeCommand: request.claudeCommand,
       sessionId,
       displayName: request.displayName,
-      hookSettingsPath: deps.hookSettingsPath(),
+      hookSettingsPath,
       ...extras.fields,
       model: request.flags.model,
       permissionMode: request.flags.permissionMode,

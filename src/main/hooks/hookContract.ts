@@ -1,7 +1,8 @@
 // Hook-status feature — single source of truth for hook constants.
 //
-// Imported by hookServer.ts (the HTTP listener) and hookSettingsFile.ts (the `--settings`
-// flag file handed to each spawned claude). The reducer does NOT import this module (it must
+// Imported by hookServer.ts (the HTTP listener), hookChannel.ts (the per-session URL claude and
+// the bridge mod post to) and hookSettingsFile.ts (the `--settings` flag file handed to each
+// spawned claude). The reducer does NOT import this module (it must
 // not depend on the hooks layer). [.claude/rules/zod-boundaries.md; spec Code Map]
 
 import { PROFILE } from '../profile'
@@ -12,9 +13,6 @@ export const HOST = '127.0.0.1'
 /** HTTP port the hook listener binds to (Ask-First decision: 9279; `npm run dev` uses the dev
  *  profile's own port so it can run beside the installed app — `../profile.ts`). */
 export const PORT = PROFILE.hookPort
-
-/** The full URL Claude Code posts hook events to. */
-export const HOOK_URL = `http://${HOST}:${PORT}/`
 
 /**
  * The Claude Code lifecycle events we register for. Every event in this list
@@ -66,11 +64,12 @@ export const REGISTERED_EVENTS: readonly string[] = [
 // removed with the c9watch CLI — hooks are the ONLY status source now, so there is
 // no competing poll to outrank.
 
-/** The bridge mod POSTs its report here, on the hook listener (spec 2026-10-18 §2). */
+/** The bridge mod POSTs its report here, on the hook listener, after its session's channel
+ *  prefix (`/h/<token>`, `hookChannel.ts`; spec 2026-10-18 §2). */
 export const MOD_REPORT_PATH = '/mod/report'
 
 /** The bridge mod POSTs who sent each prompt here (`prompt.submit`'s `origin.kind`), on the hook
- *  listener. The mod derives it from its report URL; tests/main/modPromptContract.test.ts pins
+ *  listener after the same channel prefix. The mod derives it from its report URL; tests/main/modPromptContract.test.ts pins
  *  the mod's copy of both paths. */
 export const MOD_PROMPT_PATH = '/mod/prompt'
 

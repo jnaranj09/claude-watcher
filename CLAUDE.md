@@ -55,8 +55,8 @@ need `build:dir` + `smoke` (proves node-pty survives packaging — load-bearing)
   (hook-POST adapter), `schemas/session.ts`.
 - `src/__fixtures__/` — fake hook feed, launched-session fixtures (never shipped).
 
-Flow (one-way): launch spawn (minted `--session-id`) → `reducer.upsertLaunched`; hook POSTs →
-Zod → `reducer.applyHookStatus`; mod `/mod/prompt` → `ModPromptSchema` → `reducer.promptOrigin`; reducer → validated deltas over `CH.watchEvents` → renderer store →
+Flow (one-way): launch spawn (minted `--session-id` + a channel token) → `reducer.upsertLaunched`;
+hook POSTs to `/h/<token>/` → channel check → Zod → `reducer.applyHookStatus`; mod `/h/<token>/mod/prompt` → `ModPromptSchema` → `reducer.promptOrigin`; reducer → validated deltas over `CH.watchEvents` → renderer store →
 selectors → components. Renderer never invents/mutates session truth.
 
 ## Load-bearing constraints (precedence order; read the rule file before touching a layer)
@@ -164,7 +164,7 @@ answered; only `index.ts` may import `ipcMain` (guard). Exception: electron-stor
 `electron-store-get-data` listener (unreachable: the preload exposes no `sendSync`). Packaged fuses:
 no RunAsNode / NODE_OPTIONS / `--inspect`, asar-only (`electron-builder.yml`). **Smoke channels
 exist only under `C9_SMOKE=1`** (`smoke/smokeIpc.ts`, SEC-8): `CH.ptyStart`/`ptyInput`/`ptyResize`/
-`smokeReport` go through `registerSmokeIpc`; `CH.smokeConfig` is always registered.
+`smokeReport` go through `registerSmokeIpc`; `CH.smokeConfig` is always registered. **A session id is no credential** (on argv): hooks, `/mod/report`, `/mod/prompt` need its channel token in the path (`hooks/hookChannel.ts`; 401 without, 403 for another live session; T-D13).
 
 ## No application menu (`appMenu/appMenu.ts`)
 

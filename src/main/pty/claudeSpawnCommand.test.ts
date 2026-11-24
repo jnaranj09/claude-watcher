@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import type { GoalSpawnExtras } from '../goals/goalLaunch'
 import { NO_MEMORY_EXTRAS } from '../memory/memoryLaunch'
+import { createHookChannel, type HookChannel } from '../hooks/hookChannel'
 import { QUESTION_FORMAT_PROMPT, shellQuote } from './claudeBin'
 import {
   claudeSpawnCommand,
@@ -12,6 +13,8 @@ import {
 } from './claudeSpawnCommand'
 
 const SID = 'aaaaaaaa-0000-4000-8000-000000000001'
+/** The channel token every spawn here mints (a fixed random source). */
+const TOKEN = 'c'.repeat(64)
 const NO_GOAL: GoalSpawnExtras = {
   appendPrompt: null,
   mcpConfigPath: null,
@@ -19,11 +22,26 @@ const NO_GOAL: GoalSpawnExtras = {
   taskIds: []
 }
 
-function deps(over: Partial<ClaudeSpawnDeps> = {}): ClaudeSpawnDeps & { skips: string[] } {
+function deps(
+  over: Partial<ClaudeSpawnDeps> = {},
+  channel: HookChannel = createHookChannel(() => TOKEN)
+): ClaudeSpawnDeps & {
+  skips: string[]
+  channel: HookChannel
+  removedFiles: string[]
+  settingsAsked: (string | null)[]
+} {
   const skips: string[] = []
+  const removedFiles: string[] = []
+  const settingsAsked: (string | null)[] = []
   return {
     shell: '/bin/bash',
     hookListening: () => true,
+    hookChannel: channel,
+    channel,
+    hookSettingsFiles: { remove: (id) => void removedFiles.push(id) },
+    removedFiles,
+    settingsAsked,
     bridgeMod: {
       installedDir: () => '/data/mods/watcher-bridge',
       claudeVersion: () => ({ major: 2, minor: 1, patch: 323 }),
@@ -37,7 +55,10 @@ function deps(over: Partial<ClaudeSpawnDeps> = {}): ClaudeSpawnDeps & { skips: s
     memoryResumed: () => undefined,
     activeWorkspaceId: () => 'w1',
     claudeAutoMemory: () => 'claude',
-    hookSettingsPath: () => '/data/hooks.json',
+    hookSettingsPath: (_id, token) => {
+      settingsAsked.push(token)
+      return token === null ? null : '/data/hooks.json'
+    },
     log: () => undefined,
     skips,
     ...over
@@ -72,7 +93,7 @@ describe('claudeSpawnCommand', () => {
       ],
       env: {
         PATH: '/usr/bin',
-        CLAUDE_WATCHER_MOD_URL: 'http://127.0.0.1:19279/mod/report'
+        CLAUDE_WATCHER_MOD_URL: `http://127.0.0.1:19279/h/${TOKEN}/mod/report`
       }
     })
     expect(d.skips).toEqual([])
@@ -97,7 +118,7 @@ describe('claudeSpawnCommand', () => {
       ],
       env: {
         PATH: '/usr/bin',
-        CLAUDE_WATCHER_MOD_URL: 'http://127.0.0.1:19279/mod/report',
+        CLAUDE_WATCHER_MOD_URL: `http://127.0.0.1:19279/h/${TOKEN}/mod/report`,
         CLAUDE_WATCHER_MEMORY: '1',
         CLAUDE_WATCHER_MEMORY_CONFIG: '/data/mcp/m.json'
       }
@@ -200,6 +221,52 @@ describe('claudeSpawnCommand', () => {
     it('a resume carries nothing, and a first spawn carries nothing', () => {
       expect(run({ previousSessionId: PREV, resume: true })).toEqual(['goalSpawnExtras'])
       expect(run({})).toEqual(['goalSpawnExtras'])
+    })
+  })
+
+  describe('the hook channel token (T-D13)', () => {
+    it('is minted once and goes to the settings file and the mod env, never to the command line', () => {
+      const d = deps()
+      const out = claudeSpawnCommand(d, request())
+      expect([
+        d.settingsAsked,
+        out.env.CLAUDE_WATCHER_MOD_URL?.includes(`/h/${TOKEN}/`),
+        out.args.some((a) => a.includes(TOKEN)),
+        d.channel.resolve(TOKEN)
+      ]).toEqual([[TOKEN], true, false, { sessionId: SID }])
+    })
+
+    it('is not minted when the hook port is not ours: no settings file, no mod URL', () => {
+      const d = deps({ hookListening: () => false })
+      const out = claudeSpawnCommand(d, request())
+      expect([d.settingsAsked, out.env, d.channel.resolve(TOKEN)]).toEqual([
+        [null],
+        { PATH: '/usr/bin' },
+        null
+      ])
+    })
+
+    it('is revoked when neither the settings file nor the mod took it', () => {
+      const d = deps({ hookSettingsPath: () => null })
+      claudeSpawnCommand(
+        { ...d, bridgeMod: { ...d.bridgeMod, installedDir: () => null } },
+        request()
+      )
+      expect(d.channel.resolve(TOKEN)).toBeNull()
+    })
+
+    it("a Reopen revokes the replaced id's token and deletes its file before this spawn mints", () => {
+      const PREV = 'aaaaaaaa-0000-4000-8000-000000000000'
+      let n = 0
+      const channel = createHookChannel(() => String(n++).repeat(64))
+      const oldToken = channel.mint({ sessionId: PREV })
+      const d = deps({}, channel)
+      claudeSpawnCommand(d, request({ previousSessionId: PREV }))
+      expect([channel.resolve(oldToken), d.removedFiles, channel.resolve('1'.repeat(64))]).toEqual([
+        null,
+        [PREV],
+        { sessionId: SID }
+      ])
     })
   })
 })

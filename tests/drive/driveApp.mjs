@@ -77,9 +77,10 @@ export function portInUse() {
   })
 }
 
-/** POST one hook body exactly the way Claude Code does. Resolves with the HTTP status
- *  (200 = accepted past the Zod boundary, 400 = dropped). */
-export function postHook(body) {
+/** POST one hook body exactly the way Claude Code does, at `hookPath` (the session's channel
+ *  path, `/h/<token>/`: `hookPathOf`). Resolves with the HTTP status (200 = accepted past the Zod
+ *  boundary, 400 = dropped, 401 = no live channel token, 403 = another live session's token). */
+export function postHook(hookPath, body) {
   return new Promise((resolve, reject) => {
     const payload = Buffer.from(JSON.stringify(body), 'utf8')
     const req = http.request(
@@ -87,7 +88,7 @@ export function postHook(body) {
         host: HOOK_HOST,
         port: HOOK_PORT,
         method: 'POST',
-        path: '/',
+        path: hookPath,
         headers: { 'content-type': 'application/json', 'content-length': payload.length }
       },
       (res) => {
@@ -100,9 +101,10 @@ export function postHook(body) {
   })
 }
 
-/** A hook for one launched session — fills the fields every real hook body carries. */
+/** A hook for one launched session — fills the fields every real hook body carries, and posts
+ *  it under that session's own channel token. */
 export function hook(pickDir, sessionId, body) {
-  return postHook({
+  return postHook(hookPathOf(sessionId), {
     session_id: sessionId,
     transcript_path: path.join(pickDir, `${sessionId}.jsonl`),
     cwd: pickDir,
@@ -131,6 +133,34 @@ function ppidOf(pid) {
   } catch {
     return null
   }
+}
+
+/** The Electron pid of the running drive app (set by `launchApp`). */
+let electronPid = null
+
+function argvOf(pid) {
+  try {
+    return readFileSync(`/proc/${pid}/cmdline`).toString('utf8').split('\0')
+  } catch {
+    return []
+  }
+}
+
+/** The hook URL path (`/h/<token>/`, threat model T-D13) of the launched claude that runs
+ *  `sessionId`, read the way any same-user process could: its `--settings` path from
+ *  /proc/<pid>/cmdline, then the URL in that file. No test back door in the app. Throws when none
+ *  is found (a `/clear`ed id is not on any argv). */
+export function hookPathOf(sessionId) {
+  if (electronPid === null) throw new Error('hookPathOf: no drive app is running')
+  for (const d of descendants(electronPid)) {
+    if (!isLaunchedClaude(d.cmdline)) continue
+    const argv = argvOf(d.pid)
+    const at = argv.indexOf('--settings')
+    if (at < 0 || !argv.includes(sessionId)) continue
+    const url = /"url":\s*"(http:\/\/[^"]+)"/.exec(readFileSync(argv[at + 1], 'utf8'))?.[1]
+    if (url !== undefined) return new URL(url).pathname
+  }
+  throw new Error('hookPathOf: no launched claude runs that session with a --settings file')
 }
 
 function cmdlineOf(pid) {
@@ -200,6 +230,7 @@ export async function launchApp({ args = [] } = {}) {
   // `app.process()` throws, so teardown reads this handle instead.
   const child = app.process()
   const pid = child.pid
+  electronPid = pid
   const page = await app.firstWindow()
   await page
     .locator('[data-testid="header-new-session"]')

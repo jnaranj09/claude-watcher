@@ -6,6 +6,8 @@
 import { describe, it, expect } from 'vitest'
 import { MOD_PROMPT_PATH, MOD_REPORT_PATH } from '../../src/main/hooks/hookContract'
 import { ModPromptSchema } from '../../src/shared/schemas/modPrompt'
+import { parseChannelPath } from '../../src/main/hooks/hookChannel'
+import { bridgeModSpawn } from '../../src/main/mods/bridgeModSpawn'
 import {
   PROMPT_PATH,
   REPORT_PATH,
@@ -28,6 +30,24 @@ describe('the bridge mod prompt contract', () => {
     expect(promptUrl(`http://127.0.0.1:19279${MOD_REPORT_PATH}`)).toBe(
       `http://127.0.0.1:19279${MOD_PROMPT_PATH}`
     )
+  })
+
+  it("the prompt URL the mod derives from the spawn's channel URL is the prompt route under the same token", () => {
+    const token = 'd'.repeat(64)
+    const spawn = bridgeModSpawn(
+      {
+        version: { major: 9, minor: 0, patch: 0 },
+        channelToken: token,
+        installedDir: '/data/mods/watcher-bridge',
+        hookPort: 19279
+      },
+      () => {}
+    )
+    const reportUrl = 'env' in spawn ? spawn.env.CLAUDE_WATCHER_MOD_URL : ''
+    expect(parseChannelPath(new URL(promptUrl(reportUrl) ?? 'http://x/').pathname)).toEqual({
+      token,
+      route: MOD_PROMPT_PATH
+    })
   })
 
   it('a URL that does not end in the report path gives no prompt URL', () => {

@@ -17,18 +17,26 @@
 //   - `--settings` MERGES with the project's own settings, it does NOT replace them: a
 //     command hook in the project's `.claude/settings.json` still fired alongside ours.
 //     Load-bearing — an operator's own hooks/permissions must survive our flag;
-//   - a STALE `settings.local.json` block on the same URL is DEDUPED against the flag (one
-//     POST, not two), so blocks left by the retired merger are harmless. That dedupe is what
-//     keeps push-once safe: two POSTs for one prompt would let the second consume an already
-//     -cleared pending title.
+//   - a STALE `settings.local.json` block on the same URL was DEDUPED against the flag (one POST,
+//     not two). The flag's URL is now per session (`/h/<token>/`, `hookChannel.ts`), so a block
+//     the retired merger left posts to the bare URL, which the listener answers 401: it reaches
+//     nothing, and push-once stays safe (one POST per prompt can consume a pending title).
+//
+// ONE FILE PER SESSION (T-D13): the hook URL carries the session's channel token, so the file is
+// private (`<userData>/hooks/<random>.json`, folder 0700, file 0600, `sessionFiles.ts`), follows
+// the card on `/clear` and goes with it (`window/cardState.ts`); a start clears what the last run
+// left, and the old shared `claude-hooks.settings.json` (`removeLegacyHookSettings`).
 //
 // [spec-zero-footprint-hooks.md; .claude/rules/zod-boundaries.md]
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { HOOK_URL, REGISTERED_EVENTS } from './hookContract'
+import { PORT, REGISTERED_EVENTS } from './hookContract'
+import { hookChannelBase } from './hookChannel'
+import { createSessionFiles, type SessionFiles } from '../sessionFiles'
 
-/** The file written inside the app's OWN data dir. Never inside a project. */
-export const HOOK_SETTINGS_FILENAME = 'claude-hooks.settings.json'
+/** The one shared settings file earlier builds wrote into userData, before each session got its
+ *  own. Deleted at start; nothing writes it any more. */
+const LEGACY_HOOK_SETTINGS_FILENAME = 'claude-hooks.settings.json'
 
 /** One Claude Code hook entry — our loopback listener. */
 interface HookEntry {
@@ -43,68 +51,81 @@ export interface HookSettings {
 }
 
 /**
- * The hook block itself — every REGISTERED_EVENTS key pointed at HOOK_URL.
+ * The hook block itself — every REGISTERED_EVENTS key pointed at `hookUrl` (the session's channel
+ * URL, `http://127.0.0.1:<port>/h/<token>/`).
  *
  * PURE on purpose: the shape is what claude actually consumes, so it is worth asserting
  * directly in a test without touching a filesystem.
  */
-export function buildHookSettings(): HookSettings {
+export function buildHookSettings(hookUrl: string): HookSettings {
   const hooks: Record<string, HookGroup[]> = {}
   for (const eventName of REGISTERED_EVENTS) {
-    hooks[eventName] = [{ hooks: [{ type: 'http', url: HOOK_URL }] }]
+    hooks[eventName] = [{ hooks: [{ type: 'http', url: hookUrl }] }]
   }
   return { hooks }
 }
 
-export interface EnsureHookSettingsOptions {
-  /** The app's own data dir (`app.getPath('userData')`) — NEVER a project directory. */
-  dir: string
-  /** Diagnostics sink. Receives a `code=` string ONLY. */
-  log?: (msg: string) => void
+export interface HookSettingsFiles {
+  /** Write the session's settings file for its channel `token`; its path, or null when the disk
+   *  refused (logged by code). */
+  write(sessionId: string, token: string): string | null
+  /** `/clear` gave the session a new id; claude keeps the file it loaded. */
+  rebind(oldSessionId: string, newSessionId: string): void
+  /** The session is gone: delete its file. */
+  remove(sessionId: string): void
+  /** At start: delete every file a previous run left (each token in it died with that run). */
+  clearStale(): void
 }
 
 /**
- * Ensure the hook settings file exists and is current; return its path for `--settings`.
+ * The per-session hook settings files, in the app's OWN data dir (never a project).
  *
- * Called per spawn rather than once at startup so a deleted/edited file self-heals on the
- * next launch. The write is skipped when the content already matches, so the steady state
- * is a single read.
- *
- * FAIL-SOFT (never-crash): any IO failure returns `null` and the caller omits the flag. The
- * session still spawns — it just reports no status, exactly the degradation the retired
- * merger had. A throw here would fail the launch outright.
- *
- * NEVER-LOG-THE-VALUE: the path is never logged — it leaks the operator's filesystem layout
- * (same rule that keeps the resolved claude binary path out of the logs). Code only.
+ * NEVER-LOG-THE-VALUE: neither the path (it leaks the operator's filesystem layout) nor the
+ * content (its URLs hold the token) is ever logged. Code only.
  */
-export function ensureHookSettingsFile(options: EnsureHookSettingsOptions): string | null {
-  const { dir, log } = options
-  const path = join(dir, HOOK_SETTINGS_FILENAME)
-  const desired = JSON.stringify(buildHookSettings(), null, 2)
+export function createHookSettingsFiles(options: {
+  /** `app.getPath('userData')`, read when a file is written. */
+  dir: () => string
+  log: (line: string) => void
+  /** The port the URLs name (default: the profile's hook port). */
+  port?: number
+}): HookSettingsFiles {
+  const port = options.port ?? PORT
+  const files: SessionFiles = createSessionFiles({
+    dir: options.dir,
+    dirname: 'hooks',
+    prefix: '[claude-watcher][hooks]',
+    code: 'hook_settings',
+    log: options.log
+  })
+  return {
+    write: (sessionId, token) =>
+      files.write(
+        sessionId,
+        JSON.stringify(buildHookSettings(`${hookChannelBase(port, token)}/`), null, 2)
+      ),
+    rebind: files.rebind,
+    remove: files.remove,
+    clearStale: files.clearStale
+  }
+}
 
+/** At start: delete the shared settings file an earlier build left in `dir`; gone already is fine. */
+export function removeLegacyHookSettings(dir: string, log: (line: string) => void): void {
   try {
-    let current: string | null = null
-    try {
-      current = readFileSync(path, 'utf8')
-    } catch {
-      current = null // missing / unreadable — fall through to the write
-    }
-    if (current !== desired) {
-      mkdirSync(dir, { recursive: true })
-      writeFileSync(path, desired, 'utf8')
-    }
-    return path
+    rmSync(join(dir, LEGACY_HOOK_SETTINGS_FILENAME), { force: true })
   } catch {
-    log?.('[c9watch][hookSettings] code=hook_settings_write_failed')
-    return null
+    log('[claude-watcher][hooks] code=hook_settings_remove_failed')
   }
 }
 
 export interface HookSettingsForSpawnDeps {
+  /** The spawn's hook channel token; null when the hook port was not ours when it was minted. */
+  token: string | null
   /** True only while THIS process's hook server is bound (serverHealth.hookListening). */
   listening: () => boolean
-  /** The file write — `ensureHookSettingsFile` in production. */
-  ensure: () => string | null
+  /** The file write — `HookSettingsFiles.write` for the spawn's session in production. */
+  write: (token: string) => string | null
   /** Told whether the write worked, so the banner can say so (UX-05). */
   written: (ok: boolean) => void
   log: (msg: string) => void
@@ -119,13 +140,14 @@ export interface HookSettingsForSpawnDeps {
  * the server-health banner says why. Code only in the log, never the path.
  */
 export function hookSettingsPathIfListening(deps: HookSettingsForSpawnDeps): string | null {
-  if (!deps.listening()) {
+  const token = deps.token
+  if (token === null || !deps.listening()) {
     deps.log('[c9watch][hookSettings] code=hook_server_not_listening')
     return null
   }
   let path: string | null = null
   try {
-    path = deps.ensure()
+    path = deps.write(token)
   } catch {
     deps.log('[c9watch][hookSettings] code=hook_settings_unavailable')
   }

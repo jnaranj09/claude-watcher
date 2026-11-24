@@ -9,6 +9,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { request } from 'node:http'
 import fc from 'fast-check'
 import { createHookServer } from './hookServer'
+import { createHookChannel } from './hookChannel'
 import { HookEventSchema } from '../../shared/schemas/hookEvent'
 import { ModReportSchema } from '../../shared/schemas/modReport'
 import { ModPromptSchema } from '../../shared/schemas/modPrompt'
@@ -90,16 +91,21 @@ function send(
   })
 }
 
-function startHooks(): Promise<string> {
+/** The hook listener with one live channel token (T-D13) and no card live, so a body under the
+ *  token reaches the schemas whatever session it names. */
+function startHooks(): Promise<{ url: string; token: string }> {
+  const channel = createHookChannel()
+  const token = channel.mint({ sessionId: 'fuzz' })
   return new Promise((resolve) => {
     const srv = createHookServer({
       onHookEvent: () => {},
+      channel: { resolve: (t) => channel.resolve(t), isLive: () => false },
       log: () => {},
       port: 0,
       host: '127.0.0.1',
       onModReport: () => true,
       onModPrompt: () => true,
-      onListening: (port) => resolve(`http://127.0.0.1:${port}`)
+      onListening: (port) => resolve({ url: `http://127.0.0.1:${port}`, token })
     })
     closers.push(() => srv.close())
   })
@@ -130,15 +136,37 @@ describe('fuzz: the hook listener', () => {
   it(
     'any body to /, /mod/report or /mod/prompt answers 2xx or 4xx, and the server keeps serving',
     async () => {
-      const url = await startHooks()
+      // Under a live channel token, so every body reaches the schemas (the no-token arm is below).
+      const { url, token } = await startHooks()
       await fc.assert(
         fc.asyncProperty(fc.constantFrom('/', '/mod/report', '/mod/prompt'), body, async (p, b) => {
-          const status = await send(url, 'POST', p, b)
+          const status = await send(url, 'POST', `/h/${token}${p}`, b)
           expect(status >= 200 && status < 500, `${p} answered ${status}`).toBe(true)
         }),
         { numRuns: RUNS }
       )
-      expect(await send(url, 'POST', '/', '{}')).toBe(400)
+      // Non-vacuous: a body under the token reached the hook schema.
+      expect(await send(url, 'POST', `/h/${token}/`, '{}')).toBe(400)
+    },
+    TIMEOUT_MS
+  )
+
+  it(
+    'any body to any path without a live token answers 401, and the server keeps serving',
+    async () => {
+      const { url, token } = await startHooks()
+      const paths = fc.oneof(
+        fc.constantFrom('/', '/mod/report', '/mod/prompt', `/h/${'0'.repeat(64)}/`),
+        fc.string({ maxLength: 80 }).map((x) => `/${encodeURIComponent(x)}`),
+        fc.string({ maxLength: 80 }).map((x) => `/h/${encodeURIComponent(x)}/`)
+      )
+      await fc.assert(
+        fc.asyncProperty(paths, body, async (p, b) => {
+          expect(await send(url, 'POST', p, b), `${p}`).toBe(401)
+        }),
+        { numRuns: RUNS }
+      )
+      expect(await send(url, 'POST', `/h/${token}/`, '{}')).toBe(400)
     },
     TIMEOUT_MS
   )

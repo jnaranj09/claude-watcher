@@ -1,5 +1,6 @@
 // What a card carries beside the reducer, and must follow when the card moves (`/clear` re-keys
-// it) or leaves: its pending rename, its Context setup (spec 2026-10-18 §7), and its goal task
+// it) or leaves: its pending rename, its Context setup (spec 2026-10-18 §7), its hook channel
+// token and `--settings` file (T-D13), and its goal task
 // links, MCP token and `--mcp-config` file (spec 2026-10-19 goals), and its memory token, config
 // file, activity record, recall window and the origin of the items it saved (spec 2026-11-11
 // memory, phase 3 recall).
@@ -14,6 +15,8 @@ import { createGoalsStore } from '../persistence/goals'
 import { createGoalTokens } from '../goals/mcp/goalTokens'
 import { MCP_SERVER_NAME, createMcpConfigs } from '../goals/mcp/mcpConfigFile'
 import { createProposals } from '../goals/proposals'
+import { createHookChannel } from '../hooks/hookChannel'
+import { createHookSettingsFiles } from '../hooks/hookSettingsFile'
 import { MEMORY_MCP_PATH, MEMORY_MCP_URL } from '../hooks/hookContract'
 import { mcpRoute } from '../mcp/mcpEndpoint'
 import { createMemoryActivity } from '../memory/memoryActivity'
@@ -41,6 +44,8 @@ function deps(): Parameters<typeof moveCardState>[0] & {
     rebind: ReturnType<typeof vi.fn<Rebind>>
     forget: ReturnType<typeof vi.fn<Forget>>
   }
+  hookChannel: ReturnType<typeof createHookChannel>
+  hookSettingsFiles: ReturnType<typeof createHookSettingsFiles>
   goals: ReturnType<typeof createGoalsStore>
   tokens: ReturnType<typeof createGoalTokens>
   proposals: ReturnType<typeof createProposals>
@@ -90,6 +95,8 @@ function deps(): Parameters<typeof moveCardState>[0] & {
   return {
     pendingTitles: { rebind: vi.fn<Rebind>(), forget: vi.fn<Forget>() },
     sessionSetup: { rebind: vi.fn<Rebind>(), forget: vi.fn<Forget>() },
+    hookChannel: createHookChannel(),
+    hookSettingsFiles: createHookSettingsFiles({ dir: () => userData, log: () => {} }),
     goals: createGoalsStore(),
     tokens: createGoalTokens(),
     proposals: createProposals(() => {}),
@@ -125,6 +132,23 @@ const LIVE: MemorySessionMeta = {
 }
 
 describe('card state', () => {
+  it('a /clear moves the hook channel token and its settings file to the new id', () => {
+    const d = deps()
+    const token = d.hookChannel.mint({ sessionId: 'old' })
+    const file = d.hookSettingsFiles.write('old', token) as string
+    moveCardState(d, 'old', 'new')
+    dropCardState(d, 'old')
+    expect([d.hookChannel.resolve(token), existsSync(file)]).toEqual([{ sessionId: 'new' }, true])
+  })
+
+  it('a removed card revokes its hook channel token and deletes its settings file', () => {
+    const d = deps()
+    const token = d.hookChannel.mint({ sessionId: 'old' })
+    const file = d.hookSettingsFiles.write('old', token) as string
+    dropCardState(d, 'old')
+    expect([d.hookChannel.resolve(token), existsSync(file)]).toEqual([null, false])
+  })
+
   it("a /clear moves a planner's proposal, and a removed planner card takes it away", () => {
     const d = deps()
     d.proposals.set({

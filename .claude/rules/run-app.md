@@ -47,7 +47,9 @@ real hook POSTs, screenshots; same seams as `tests/e2e/native-engine.e2e.ts`).
    Report each probe, including the ones that held. Prose only.
 
 Helpers (`page` first, except hooks): `launchSession`, `needsYou(pickDir, id)`,
-`working(pickDir, id)`, `hook(pickDir, id, body)`, `cardIds`, `activeWorkspace`, `workspaceNames`,
+`working(pickDir, id)`, `hook(pickDir, id, body)` (posts under the session's own channel token,
+read by `hookPathOf(id)` from the claude's `--settings` file as a same-user process would; a
+`/clear`ed id is on no argv), `cardIds`, `activeWorkspace`, `workspaceNames`,
 `switchWorkspace`, `createWorkspace`, `deleteWorkspace`, `openSwitcher`/`closeSwitcher`,
 `shot(page, name, { region: 'header' })`.
 

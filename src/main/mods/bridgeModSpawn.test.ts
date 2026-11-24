@@ -5,23 +5,24 @@ import { applyBridgeMod, bridgeModSpawn } from './bridgeModSpawn'
 import { MIN_MOD_CLAUDE_VERSION } from '../../shared/launch/claudeVersion'
 
 const DIR = '/data/mods/watcher-bridge'
+const TOKEN = 'a'.repeat(64)
 const ok = {
   version: { major: 9, minor: 0, patch: 0 },
-  listening: true,
+  channelToken: TOKEN,
   installedDir: DIR,
   hookPort: 19279
 }
 
 describe('bridgeModSpawn', () => {
-  it('gives the mod folder and the report URL on the hook port when everything is in place', () => {
+  it("gives the mod folder and the report URL under the session's channel token on the hook port when everything is in place", () => {
     expect(bridgeModSpawn(ok, () => {})).toEqual({
       pluginDir: DIR,
-      env: { CLAUDE_WATCHER_MOD_URL: 'http://127.0.0.1:19279/mod/report' }
+      env: { CLAUDE_WATCHER_MOD_URL: `http://127.0.0.1:19279/h/${TOKEN}/mod/report` }
     })
   })
 
-  it('skips with listener_down when the hook listener is not bound', () => {
-    expect(bridgeModSpawn({ ...ok, listening: false }, () => {})).toEqual({
+  it('skips with listener_down when no channel token was minted (the hook listener is not bound)', () => {
+    expect(bridgeModSpawn({ ...ok, channelToken: null }, () => {})).toEqual({
       skip: 'listener_down'
     })
   })
@@ -55,14 +56,14 @@ describe('bridgeModSpawn', () => {
 })
 
 describe('applyBridgeMod (the spawn wiring)', () => {
-  function deps(listening: boolean): Parameters<typeof applyBridgeMod>[0] & {
+  function deps(token: string | null): Parameters<typeof applyBridgeMod>[0] & {
     env: Record<string, string>
     onSkip: ReturnType<typeof vi.fn<(id: string, reason: string) => void>>
   } {
     return {
       sessionId: 'sid',
       env: { PATH: '/bin' },
-      listening: () => listening,
+      channelToken: token,
       installedDir: () => DIR,
       version: () => ({ major: 9, minor: 0, patch: 0 }),
       hookPort: 19279,
@@ -72,14 +73,14 @@ describe('applyBridgeMod (the spawn wiring)', () => {
   }
 
   it('sets the report URL in the env and returns the mod folder when the mod can run', () => {
-    const d = deps(true)
+    const d = deps(TOKEN)
     expect(applyBridgeMod(d)).toBe(DIR)
-    expect(d.env.CLAUDE_WATCHER_MOD_URL).toBe('http://127.0.0.1:19279/mod/report')
+    expect(d.env.CLAUDE_WATCHER_MOD_URL).toBe(`http://127.0.0.1:19279/h/${TOKEN}/mod/report`)
     expect(d.onSkip).not.toHaveBeenCalled()
   })
 
-  it('reads the port bind at spawn time: not bound → no URL in the env, no folder, onSkip', () => {
-    const d = deps(false)
+  it('no channel token (the port was not ours at spawn) → no URL in the env, no folder, onSkip', () => {
+    const d = deps(null)
     expect(applyBridgeMod(d)).toBeNull()
     expect(d.env).not.toHaveProperty('CLAUDE_WATCHER_MOD_URL')
     expect(d.onSkip).toHaveBeenCalledWith('sid', 'listener_down')

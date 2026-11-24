@@ -84,6 +84,8 @@ import { buildPtyEnv } from './pty/ptyEnv'
 import { goalSpawnExtras } from './goals/goalLaunch'
 import { sessionNameOf } from './goals/sessionNameOf'
 import { createGoalTokens } from './goals/mcp/goalTokens'
+import { createHookChannel } from './hooks/hookChannel'
+import { createHookSettingsFiles, removeLegacyHookSettings } from './hooks/hookSettingsFile'
 import { MCP_SERVER_NAME, createMcpConfigs } from './goals/mcp/mcpConfigFile'
 import { createMcpTools } from './goals/mcp/mcpTools'
 import { createMcpEndpoint } from './mcp/mcpEndpoint'
@@ -763,6 +765,15 @@ const goalMcp = (() => {
   }
 })()
 
+// The hook channel (T-D13): one secret per spawn in the URL claude's hooks and the bridge mod post
+// to, memory only, app-global (each window's hook listener checks it). Each session's `--settings`
+// file carries it in userData; both follow the card (window/cardState.ts).
+const hookChannel = createHookChannel()
+const hookSettingsFiles = createHookSettingsFiles({
+  dir: () => app.getPath('userData'),
+  log: (line) => console.warn(line)
+})
+
 const { registerWatchFeed, teardownWatchFeed } = createWatchFeed({
   smoke: SMOKE,
   reducers,
@@ -771,6 +782,8 @@ const { registerWatchFeed, teardownWatchFeed } = createWatchFeed({
   ruleEngines,
   launchBoardSeams,
   isSessionLive,
+  hookChannel,
+  hookSettingsFiles,
   apiSeams,
   launchedSet,
   sessionSetup,
@@ -1189,7 +1202,13 @@ app
     // Every token in a file the last run left died with it. Not under SMOKE: smoke shares the
     // default userData and skips the single-instance lock, so a running app's files are live.
     // The one sweep for every MCP server: the memory server's files share this folder.
-    if (!SMOKE) goalMcp.configs.clearStale()
+    if (!SMOKE) {
+      goalMcp.configs.clearStale()
+      // The same for the hook settings files (their channel tokens died with the last run), and
+      // the one shared file earlier builds wrote.
+      hookSettingsFiles.clearStale()
+      removeLegacyHookSettings(app.getPath('userData'), (line) => console.warn(line))
+    }
 
     // Memory — after tags and goals (its filters name them). Not under SMOKE (memoryStartup.ts).
     memory = openMemory({
@@ -1331,6 +1350,8 @@ app
       hasTranscript,
       readTranscriptInfo,
       claudeVersionAllowsLaunch,
+      hookChannel,
+      hookSettingsFiles,
       bridgeMod: {
         installedDir: modDirs.bridge,
         claudeVersion: () => claudeVersionGate.lastVersion(),
@@ -1523,14 +1544,15 @@ app
     await modsInstalled
 
     // NOTE: there is NO hook registration step — not here, not per-launch. The hook block is
-    // handed to each spawned `claude` via `--settings` from the app's own data dir
-    // (hookSettingsPathForSpawn, ipc/registerLaunchIpc.ts). The app writes into no project and no user settings file.
+    // handed to each spawned `claude` via `--settings` from the app's own data dir, one private
+    // file per session (hookSettingsPathForSpawn, ipc/registerLaunchIpc.ts). The app writes into
+    // no project and no user settings file.
     //
     // It does NOT clean up after the retired merger either: blocks that merger left in a
-    // project's `.claude/settings.local.json` are the OPERATOR's to remove. They are harmless
-    // — a stale block on the same URL is deduped against the flag, so one prompt still yields
-    // exactly one POST (probe-verified). Deleting an operator's settings entries unasked would
-    // be a worse footprint than the one this change removes.
+    // project's `.claude/settings.local.json` are the OPERATOR's to remove. They reach nothing
+    // — they post to the bare URL, which has no channel token and is answered 401 — so one
+    // prompt still yields exactly one accepted POST. Deleting an operator's settings entries
+    // unasked would be a worse footprint than the one this change removes.
 
     createWindow()
 

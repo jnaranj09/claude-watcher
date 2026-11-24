@@ -1,6 +1,8 @@
 // The `/proc` walk every e2e spec uses to find (and reap) the `claude` an app launched.
 //
 // LINUX-ONLY, like the app's KDE-first scope: it reads `/proc/<pid>/status` and `/cmdline`.
+// `hookPathOf` reads a launched claude's hook URL the way any same-user process could (its
+// `--settings` path from argv, then that file): there is no test back door in the app.
 // `tests/drive/driveApp.mjs` holds its own copy (it cannot import TypeScript).
 
 import path from 'node:path'
@@ -110,4 +112,32 @@ export function killLaunchedClaudes(rootPid: number): void {
       /* the process may already be gone */
     }
   }
+}
+
+/** A process's argv (NUL-separated), or [] on a gone/denied process. */
+function argvOf(pid: number): string[] {
+  try {
+    return readFileSync(`/proc/${pid}/cmdline`).toString('utf8').split('\0')
+  } catch {
+    return []
+  }
+}
+
+/**
+ * The hook URL path (`/h/<token>/`, threat model T-D13) of the launched `claude` under rootPid
+ * that runs `sessionId`: its `--settings` path from /proc/<pid>/cmdline, then the URL in that
+ * file. THROWS when no such claude or URL is found.
+ */
+export function hookPathOf(rootPid: number, sessionId: string): string {
+  for (const d of descendantCmdlines(rootPid)) {
+    if (!isLaunchedClaude(d.cmdline)) continue
+    const argv = argvOf(d.pid)
+    const settings = argv[argv.indexOf('--settings') + 1]
+    if (!argv.includes(sessionId) || !argv.includes('--settings') || settings === undefined) {
+      continue
+    }
+    const url = /"url":\s*"(http:\/\/[^"]+)"/.exec(readFileSync(settings, 'utf8'))?.[1]
+    if (url !== undefined) return new URL(url).pathname
+  }
+  throw new Error(`no launched claude of pid ${rootPid} runs that session with a --settings file`)
 }

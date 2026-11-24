@@ -1,7 +1,7 @@
 // Story 6.4 — the deterministic FAKE HOOK FEED (the native-engine test double).
 //
 // Replaces `fakeC9watchFeed.ts` (retired with the c9watch CLI). A test double for the
-// Claude Code lifecycle hook POSTs the app ingests at `http://127.0.0.1:9279/`, so the
+// Claude Code lifecycle hook POSTs the app ingests at `http://127.0.0.1:9279/h/<token>/`, so the
 // hook boundary (`src/shared/schemas/hookEvent.ts`) and its consumers can be verified
 // WITHOUT a live claude. It is GROUNDED in the observed claude 2.1.199 payload shape
 // (P0 spike 2026-06-24 on 2.1.190, re-verified on 2.1.199 in the Epic-6 keystone spike):

@@ -46,7 +46,7 @@ import path from 'node:path'
 import http from 'node:http'
 import { E2E_PROFILE } from '../../src/main/profile'
 import { test, expect, confirmSessionName } from './fixtures'
-import { isLaunchedClaude, waitForClaudeDescendant } from './support/proc'
+import { hookPathOf, isLaunchedClaude, waitForClaudeDescendant } from './support/proc'
 
 // The e2e profile's hook ingest endpoint (src/main/hooks/hookContract.ts reads the same profile).
 const HOOK_HOST = '127.0.0.1'
@@ -55,9 +55,10 @@ const HOOK_PORT = E2E_PROFILE.hookPort
 test.setTimeout(120000)
 
 /** POST one hook body (an object, JSON-encoded here) to the app's hook listener exactly the
- *  way Claude Code does. Resolves with the HTTP status code (200 = accepted past the Zod
- *  boundary; 400 = dropped). */
-function postHook(body: Record<string, unknown>): Promise<number> {
+ *  way Claude Code does, at the session's channel path (`/h/<token>/`, read by `hookPathOf` as a
+ *  same-user process could). Resolves with the HTTP status code (200 = accepted past the Zod
+ *  boundary; 400 = dropped; 401 = no live channel token). */
+function postHook(hookPath: string, body: Record<string, unknown>): Promise<number> {
   return new Promise((resolve, reject) => {
     const payload = Buffer.from(JSON.stringify(body), 'utf8')
     const req = http.request(
@@ -65,7 +66,7 @@ function postHook(body: Record<string, unknown>): Promise<number> {
         host: HOOK_HOST,
         port: HOOK_PORT,
         method: 'POST',
-        path: '/',
+        path: hookPath,
         headers: { 'content-type': 'application/json', 'content-length': payload.length }
       },
       (res) => {
@@ -157,12 +158,20 @@ test.describe('native engine', () => {
     // nothing of its own can interleave with the POSTs below.
     await waitForClaudeDescendant(electronPid!, 20000)
     const common = hookCommon(sessionId!, appEnv.pickDir)
+    const hookPath = hookPathOf(electronPid!, sessionId!)
+
+    // T-D13 — the session id alone is no credential: the same hook at the bare path is refused,
+    // and the card does not move.
+    expect(
+      await postHook('/', { ...common, hook_event_name: 'Stop', stop_hook_active: false }),
+      'a hook with no channel token must be refused'
+    ).toBe(401)
 
     // Stop with plain prose (NO trailing '?') → `YourTurn` → the NEEDS-YOU column.
     // NOT idle: the deterministic-attention floor (spec DA-1) says a turn end is never idle —
     // claude stopped, so it is the operator's move. Idle is reached only from an interrupt, a
     // /clear or the session:seen demotion.
-    const stopStatus = await postHook({
+    const stopStatus = await postHook(hookPath, {
       ...common,
       hook_event_name: 'Stop',
       stop_hook_active: false,
@@ -175,7 +184,7 @@ test.describe('native engine', () => {
     ).toBeVisible({ timeout: 5000 })
 
     // Notification(permission_prompt) → NeedsPermission → the NEEDS-YOU column.
-    const notifStatus = await postHook({
+    const notifStatus = await postHook(hookPath, {
       ...common,
       hook_event_name: 'Notification',
       notification_type: 'permission_prompt',
@@ -328,12 +337,13 @@ test.describe('native engine', () => {
     // The real claude must be running before any synthetic POST (same as test 1b).
     await waitForClaudeDescendant(electronPid!, 20000)
     const common = hookCommon(sessionId!, appEnv.pickDir)
+    const hookPath = hookPathOf(electronPid!, sessionId!)
 
     // ── (1) A Stop whose `background_tasks` reports a RUNNING shell ───────────────────────
     // This is the real claude 2.1.250 shape (probe-captured keys: id/type/status/
     // description/command). A turn that ends with work still running is `Working`, not the
     // operator's turn — claude will wake ITSELF when the task finishes.
-    const armStatus = await postHook({
+    const armStatus = await postHook(hookPath, {
       ...common,
       hook_event_name: 'Stop',
       stop_hook_active: false,
@@ -402,7 +412,7 @@ test.describe('native engine', () => {
     // (window focused), its `YourTurn` is marked seen and demoted to idle at once
     // (hooks/useSessionSeen.ts), so needs-you is only observable from the board.
     await page.locator('[data-testid="focused-back"]').click()
-    const doneStatus = await postHook({
+    const doneStatus = await postHook(hookPath, {
       ...common,
       hook_event_name: 'Stop',
       stop_hook_active: false,
@@ -421,7 +431,10 @@ test.describe('native engine', () => {
     // instant the operator hits Esc.
     await page.locator(`[data-column] [data-session-id="${sessionId}"]`).click({ force: true })
     await page.waitForSelector('[data-testid="embedded-terminal"]', { timeout: 10000 })
-    const promptStatus = await postHook({ ...common, hook_event_name: 'UserPromptSubmit' })
+    const promptStatus = await postHook(hookPath, {
+      ...common,
+      hook_event_name: 'UserPromptSubmit'
+    })
     expect(promptStatus, 'the UserPromptSubmit POST must pass the Zod boundary').toBe(200)
     await expect(
       page.locator(`[data-column="working"] [data-session-id="${sessionId}"]`),

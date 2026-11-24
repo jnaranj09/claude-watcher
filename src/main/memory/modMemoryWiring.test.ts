@@ -92,6 +92,8 @@ function start(store: MemoryStore | null): Promise<Rig> {
   return new Promise((resolve) => {
     const server: HookServer = createHookServer({
       onHookEvent: () => undefined,
+      // No hook is posted here: no channel token opens anything.
+      channel: { resolve: () => null, isLive: () => false },
       log: () => undefined,
       tokenRoutes: memoryMcp.modRoutes,
       port: 0,

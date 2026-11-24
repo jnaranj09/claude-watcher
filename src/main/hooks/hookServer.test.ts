@@ -16,6 +16,14 @@ import type { ModPrompt } from '../../shared/schemas/modPrompt'
 import { modReportFixture } from '../../__fixtures__/modReport'
 import { createServer, request as httpRequest } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { createHookChannel } from './hookChannel'
+
+// Every request here goes through the hook channel (T-D13) under one live token, and no card is
+// live, so the channel lets every session id through: these tests are about what comes after it
+// (`hookServer.channel.test.ts` covers the channel itself).
+const CHANNEL = createHookChannel()
+const TOKEN = CHANNEL.mint({ sessionId: 'channel-test' })
+const OPEN_CHANNEL = { resolve: (t: string) => CHANNEL.resolve(t), isLive: () => false }
 
 // Make an HTTP request and resolve the status code (never rejects on 4xx/5xx).
 function send(
@@ -53,11 +61,12 @@ function startServer(
   return new Promise((resolve) => {
     const srv: HookServer = createHookServer({
       onHookEvent,
+      channel: OPEN_CHANNEL,
       log,
       port: 0,
       host: '127.0.0.1',
       onListening: (port) => {
-        resolve({ close: () => srv.close(), url: `http://127.0.0.1:${port}/` })
+        resolve({ close: () => srv.close(), url: `http://127.0.0.1:${port}/h/${TOKEN}/` })
       }
     })
   })
@@ -224,6 +233,7 @@ describe('hookServer — EADDRINUSE tolerance (real createHookServer on a used p
     // createHookServer on the SAME port → deterministic EADDRINUSE (no vacuous guard).
     const srv2 = createHookServer({
       onHookEvent: vi.fn(),
+      channel: OPEN_CHANNEL,
       log,
       port: blockerPort,
       host: '127.0.0.1',
@@ -267,11 +277,12 @@ describe('hookServer — the bridge mod report at /mod/report (spec 2026-10-18 �
       const s = createHookServer({
         onHookEvent,
         onModReport,
+        channel: OPEN_CHANNEL,
         log,
         port: 0,
         host: '127.0.0.1',
         onListening: (port) => {
-          srv = { close: () => s.close(), base: `http://127.0.0.1:${port}` }
+          srv = { close: () => s.close(), base: `http://127.0.0.1:${port}/h/${TOKEN}` }
           resolve({ onHookEvent, onModReport, log })
         }
       })
@@ -389,11 +400,12 @@ describe('hookServer — the bridge mod prompt origin at /mod/prompt', () => {
         onHookEvent,
         onModPrompt,
         onModReport,
+        channel: OPEN_CHANNEL,
         log,
         port: 0,
         host: '127.0.0.1',
         onListening: (port) => {
-          srv = { close: () => s.close(), base: `http://127.0.0.1:${port}` }
+          srv = { close: () => s.close(), base: `http://127.0.0.1:${port}/h/${TOKEN}` }
           resolve({ onHookEvent, onModPrompt, onModReport, log })
         }
       })

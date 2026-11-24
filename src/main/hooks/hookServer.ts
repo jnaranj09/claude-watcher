@@ -17,7 +17,13 @@
 // with no route is 404. Each token route (`tokenRoutes`; the memory mod's at `MOD_MEMORY_PATHS`,
 // `memory/modMemoryRoutes.ts`) works the same way behind its own bearer and answers its handler's
 // JSON, or 400 with the issue's PATH + CODE logged; a path under `/mod/memory/` with no route is
-// 404. Every other path is a hook, as before.
+// 404. Every other path must be a hook channel path (`hookChannel.ts`, T-D13): `/h/<token>` with
+// a live token, then `/` (a hook), `/mod/report` or `/mod/prompt`; anything else is 401
+// (`code=channel_unauthorized`) before the body is read, a bare `/` included, and an unknown route
+// after a live token is 404. When the body ends the token is resolved again (revoked meanwhile:
+// 401), and a body that names a live session other than the token's own is 403
+// (`code=channel_session_mismatch`) before any handler runs or a pending rename is taken. A log
+// line names a path or code, never the token or the URL.
 // Never throws past the request handler.
 // [.claude/rules/zod-boundaries.md; spec hookServer.ts Code Map]
 
@@ -35,6 +41,7 @@ import {
   MOD_MEMORY_PATH_PREFIX
 } from './hookContract'
 import { buildHookResponseBody } from './hookResponse'
+import { channelAllows, parseChannelPath, type HookGrant } from './hookChannel'
 import type { BoundaryErrorRecord } from '../c9watch/reducer'
 import type { McpRoute } from '../mcp/mcpEndpoint'
 
@@ -107,9 +114,19 @@ function fromTokenRoute(route: TokenRoute, log: (err: BoundaryErrorRecord) => vo
   }
 }
 
+/** What the server asks the hook channel (`hookChannel.ts`): whose a token is, and whether a
+ *  session is live (a card in any window). */
+export interface HookChannelGate {
+  resolve(token: string): HookGrant | null
+  isLive(sessionId: string): boolean
+}
+
 export interface HookServerOptions {
   /** Called when a POST arrives with a valid, schema-parsed hook event. */
   onHookEvent: (evt: HookEvent) => void
+  /** The hook channel: every hook, mod report and prompt origin arrives under a live token, for
+   *  the token's own session or one no card holds (T-D13). Required: there is no open mode. */
+  channel: HookChannelGate
   /** Boundary-error sink — receives PATH + CODE only, NEVER body content. */
   log?: (err: BoundaryErrorRecord) => void
   /** Override the bind port (default PORT). Tests pass 0 for an ephemeral port. */
@@ -153,16 +170,17 @@ export interface HookServer {
 /**
  * Create and start the localhost HTTP hook listener.
  *
- * Handles POST requests to any path (Claude Code always POSTs to HOOK_URL); `/mod/report` is the
- * bridge mod's report, `/mod/prompt` its prompt origin, each `mcpRoutes` path an MCP endpoint, each
- * `tokenRoutes` path a JSON route behind its own bearer, every other path a hook. Any
+ * Handles POST requests: each `mcpRoutes` path is an MCP endpoint and each `tokenRoutes` path a
+ * JSON route behind its own bearer; every other request names its session's channel token first
+ * (`/h/<token>`, the URL claude and the bridge mod are given): then `/` is a hook, `/mod/report`
+ * the bridge mod's report, `/mod/prompt` its prompt origin. Any
  * non-POST method is rejected with 405 before the body is read. Per the spec, the
  * handler NEVER throws past the request callback.
  *
  * Returns `{ close() }` — call to shut down cleanly (e.g. on app quit).
  */
 export function createHookServer(options: HookServerOptions): HookServer {
-  const { onHookEvent, takePendingTitle, onModReport, onModPrompt } = options
+  const { onHookEvent, takePendingTitle, onModReport, onModPrompt, channel } = options
   const log =
     options.log ??
     ((err: BoundaryErrorRecord): void => {
@@ -173,7 +191,7 @@ export function createHookServer(options: HookServerOptions): HookServer {
   for (const r of options.tokenRoutes ?? []) bearerRoutes.set(r.path, fromTokenRoute(r, log))
 
   const server = createServer((req: IncomingMessage, res: ServerResponse): void => {
-    // Only POST is accepted (Claude Code always POSTs to HOOK_URL). Reject any other
+    // Only POST is accepted (Claude Code always POSTs its hooks). Reject any other
     // method with 405 BEFORE reading the body — a stray GET/health-check never reaches
     // the parser, and a non-POST carrying a valid body cannot fire onHookEvent.
     if (req.method !== 'POST') {
@@ -209,6 +227,29 @@ export function createHookServer(options: HookServerOptions): HookServer {
       return
     }
 
+    // T-D13 — anything else speaks for one session: its channel token must be live, decided before
+    // the body is read. A miss says nothing more than 401; the log never holds the token or URL.
+    let channelToken: string | null = null
+    let channelRoute = route
+    if (bearer === undefined) {
+      const parsedPath = parseChannelPath(route)
+      if (parsedPath === null || channel.resolve(parsedPath.token) === null) {
+        log({ path: '(channel)', code: 'channel_unauthorized' })
+        res.writeHead(401).end()
+        return
+      }
+      channelToken = parsedPath.token
+      channelRoute = parsedPath.route
+      if (
+        channelRoute !== '/' &&
+        channelRoute !== MOD_REPORT_PATH &&
+        channelRoute !== MOD_PROMPT_PATH
+      ) {
+        res.writeHead(404).end()
+        return
+      }
+    }
+
     // Collect the body with a size cap. We use a byte counter instead of Buffer
     // concatenation to detect oversized payloads early.
     const chunks: Buffer[] = []
@@ -229,6 +270,24 @@ export function createHookServer(options: HookServerOptions): HookServer {
 
     req.on('end', () => {
       if (tooLarge) return // already responded
+
+      // A channel request: its token resolved AGAIN now, before anything is parsed: a card removed
+      // (revoked) while the body arrived must not act, and a `/clear` meanwhile means the grant
+      // now names the new id. A bearer route resolves its own below.
+      const grant = channelToken === null ? null : channel.resolve(channelToken)
+      if (bearer === undefined && grant === null) {
+        log({ path: '(channel)', code: 'channel_unauthorized' })
+        res.writeHead(401).end()
+        return
+      }
+      /** The token's session, or one no card holds; any other live session is 403, before any
+       *  handler or pending rename. */
+      const mayActFor = (claimedId: string): boolean => {
+        if (grant !== null && channelAllows(grant.sessionId, claimedId, channel.isLive)) return true
+        log({ path: '(channel)', code: 'channel_session_mismatch' })
+        res.writeHead(403).end()
+        return false
+      }
 
       // 1) JSON parse — value-free: a SyntaxError message can embed a window of the
       // raw body. We swallow the error and log by CODE only (never the body).
@@ -266,7 +325,7 @@ export function createHookServer(options: HookServerOptions): HookServer {
       }
 
       // The bridge mod's report: its own boundary, same PATH + CODE-only log, an empty 200.
-      if (route === MOD_REPORT_PATH) {
+      if (channelRoute === MOD_REPORT_PATH) {
         const report = ModReportSchema.safeParse(parsed)
         if (!report.success) {
           const issue = report.error.issues[0]
@@ -274,6 +333,7 @@ export function createHookServer(options: HookServerOptions): HookServer {
           res.writeHead(400).end()
           return
         }
+        if (!mayActFor(report.data.sessionId)) return
         let kept = true
         try {
           kept = onModReport?.(report.data) ?? true
@@ -285,7 +345,7 @@ export function createHookServer(options: HookServerOptions): HookServer {
       }
 
       // Who sent a prompt: its own boundary, same PATH + CODE-only log, an empty 200.
-      if (route === MOD_PROMPT_PATH) {
+      if (channelRoute === MOD_PROMPT_PATH) {
         const prompt = ModPromptSchema.safeParse(parsed)
         if (!prompt.success) {
           const issue = prompt.error.issues[0]
@@ -293,6 +353,7 @@ export function createHookServer(options: HookServerOptions): HookServer {
           res.writeHead(400).end()
           return
         }
+        if (!mayActFor(prompt.data.sessionId)) return
         let kept = true
         try {
           kept = onModPrompt?.(prompt.data) ?? true
@@ -314,6 +375,7 @@ export function createHookServer(options: HookServerOptions): HookServer {
         res.writeHead(400).end()
         return
       }
+      if (!mayActFor(result.data.session_id)) return
 
       // Valid event: invoke the consumer. Any exception from onHookEvent must not
       // crash the server — catch and log by code only (never the event content).

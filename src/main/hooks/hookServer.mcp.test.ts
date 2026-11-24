@@ -15,6 +15,7 @@ import { createProposals } from '../goals/proposals'
 import { MCP_SERVER_NAME } from '../goals/mcp/mcpConfigFile'
 import { createMcpEndpoint, mcpRoute, type McpEndpoint, type McpRoute } from '../mcp/mcpEndpoint'
 import { createSessionTokens } from '../mcp/sessionTokens'
+import { createHookChannel } from './hookChannel'
 
 interface Reply {
   status: number
@@ -50,6 +51,8 @@ function send(
 
 interface Rig {
   base: string
+  /** The hook channel path a hook posts to (`/h/<token>/`, T-D13). */
+  hookPath: string
   close: () => void
   token: string
   store: GoalsStore
@@ -101,9 +104,12 @@ function start(
   }
   const onHookEvent = vi.fn<(evt: HookEvent) => void>()
   const log = vi.fn<(err: BoundaryErrorRecord) => void>()
+  const channel = createHookChannel()
+  const hookToken = channel.mint({ sessionId: 'a' })
   return new Promise((resolve) => {
     const s = createHookServer({
       onHookEvent,
+      channel: { resolve: (t) => channel.resolve(t), isLive: () => false },
       log,
       ...(withMcp
         ? {
@@ -122,6 +128,7 @@ function start(
       onListening: (port) => {
         rig = {
           base: `http://127.0.0.1:${port}`,
+          hookPath: `/h/${hookToken}/`,
           close: () => s.close(),
           token,
           store,
@@ -210,7 +217,7 @@ describe('hookServer — the goals MCP endpoint', () => {
       session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
       hook_event_name: 'Stop'
     })
-    expect((await send(r.base, '/', 'POST', body)).status).toBe(200)
+    expect((await send(r.base, r.hookPath, 'POST', body)).status).toBe(200)
     expect(r.onHookEvent).toHaveBeenCalledTimes(1)
   })
 
@@ -329,7 +336,7 @@ describe('hookServer — the goals MCP endpoint', () => {
       auth
     )
     const hook = JSON.stringify({ session_id: 'a', hook_event_name: 'Stop' })
-    const next = await send(r.base, '/', 'POST', hook)
+    const next = await send(r.base, r.hookPath, 'POST', hook)
     expect([failed.status, failed.body, next.status]).toEqual([500, '', 200])
     expect(r.mcpLines).toEqual(['[claude-watcher][goals] route=mcp code=mcp_handler_error'])
     expect(JSON.stringify([r.log.mock.calls, r.mcpLines])).not.toContain('SECRET-ARG')
@@ -345,7 +352,7 @@ describe('hookServer — the goals MCP endpoint', () => {
     expect((await send(r.base, GOALS_MCP_PATH, 'POST', rpc('ping'), auth)).status).toBe(500)
     expect(r.mcpLines).toContain('[claude-watcher][goals] route=mcp code=mcp_handler_error')
     const hook = JSON.stringify({ session_id: 'a', hook_event_name: 'Stop' })
-    expect((await send(r.base, '/', 'POST', hook)).status).toBe(200)
+    expect((await send(r.base, r.hookPath, 'POST', hook)).status).toBe(200)
   })
 
   it('with no endpoint wired, /mcp/goals is 404 and never a hook', async () => {

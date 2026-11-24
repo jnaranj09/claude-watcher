@@ -6,6 +6,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { request as httpRequest } from 'node:http'
 import { createHookServer, type TokenRoute, type TokenRouteAnswer } from './hookServer'
 import { MAX_BODY_BYTES } from './hookContract'
+import { createHookChannel } from './hookChannel'
 import type { BoundaryErrorRecord } from '../c9watch/reducer'
 import type { HookEvent } from '../../shared/schemas/hookEvent'
 import { createMcpEndpoint, mcpRoute } from '../mcp/mcpEndpoint'
@@ -21,6 +22,8 @@ interface Reply {
 
 interface Rig {
   base: string
+  /** The hook channel path a hook posts to (`/h/<token>/`, T-D13). */
+  hookPath: string
   close: () => void
   handled: unknown[]
   hookEvents: HookEvent[]
@@ -68,9 +71,12 @@ function start(handler: Handler = answerOk, opens: boolean[] = []): Promise<Rig>
     area: 'goals',
     log: () => {}
   })
+  const channel = createHookChannel()
+  const hookToken = channel.mint({ sessionId: 's' })
   return new Promise((resolve) => {
     const s = createHookServer({
       onHookEvent: (evt) => hookEvents.push(evt),
+      channel: { resolve: (t) => channel.resolve(t), isLive: () => false },
       log: (err) => boundaryLog.push(err),
       mcpRoutes: [mcpRoute(MCP_PATH, endpoint, () => {})],
       tokenRoutes: [route],
@@ -79,6 +85,7 @@ function start(handler: Handler = answerOk, opens: boolean[] = []): Promise<Rig>
       onListening: (port) => {
         rig = {
           base: `http://127.0.0.1:${port}`,
+          hookPath: `/h/${hookToken}/`,
           close: () => s.close(),
           handled,
           hookEvents,
@@ -220,7 +227,7 @@ describe('hookServer — a token route (the memory mod)', () => {
     const r = await start(() => ({ status: 200, body: { ok: true, text: 10n } }))
     const auth = { authorization: 'Bearer good' }
     const failed = await post(RECALL, '{"text":"SECRET-PROMPT"}', auth)
-    const hook = await post('/', '{"session_id":"s","hook_event_name":"Stop"}')
+    const hook = await post(r.hookPath, '{"session_id":"s","hook_event_name":"Stop"}')
     expect([failed.status, failed.body, hook.status]).toEqual([500, '', 200])
     expect(r.routeLog).toEqual(['route=mod_memory code=mod_memory_handler_error'])
     expect(JSON.stringify([r.boundaryLog, r.routeLog])).not.toContain('SECRET-PROMPT')
@@ -228,7 +235,7 @@ describe('hookServer — a token route (the memory mod)', () => {
 
   it('a hook POST and an MCP route still work beside a token route', async () => {
     const r = await start()
-    const hook = await post('/', '{"session_id":"s","hook_event_name":"Stop"}')
+    const hook = await post(r.hookPath, '{"session_id":"s","hook_event_name":"Stop"}')
     const init = JSON.stringify({
       jsonrpc: '2.0',
       id: 0,

@@ -19,16 +19,16 @@ Before reading code, answering a theory, or fanning out subagents, answer these 
 
 ## Symptom → suspect → cheapest test
 
-| Symptom                                                       | Suspect                                | Test                                                                                |
-| ------------------------------------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------- |
-| Terminal blank, content preserved, needs a 2nd terminal alive | layout/stacking                        | stop the other terminal; inspect computed `visibility`, size, paint order           |
-| Terminal blank, content never arrived, `code=` in console     | port pairing / `openToken` / spawn     | read the `code=`; `terminalManager` spawn vs reAttach                               |
-| Wrong size / clipped                                          | `fit()` on 0×0, resize order           | log `clientWidth/Height` in `doFit`                                                 |
-| Garbled / wrong-session bytes                                 | port cross-wire                        | compare minted vs echoed `openToken`                                                |
-| Blank only in dev                                             | StrictMode double-mount                | disable StrictMode                                                                  |
-| Launched session has no card                                  | launch synthesis / hook ingest         | replay `src/__fixtures__/fakeHookFeed` or `curl -X POST 127.0.0.1:9279 -d '<body>'` |
-| One bad session blanks the board                              | Zod boundary violation                 | `zod-boundaries.md`                                                                 |
-| "App won't start": process alive, no window                   | window created but not shown/minimized | KWin script below                                                                   |
+| Symptom                                                       | Suspect                                | Test                                                                                                                                                                    |
+| ------------------------------------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Terminal blank, content preserved, needs a 2nd terminal alive | layout/stacking                        | stop the other terminal; inspect computed `visibility`, size, paint order                                                                                               |
+| Terminal blank, content never arrived, `code=` in console     | port pairing / `openToken` / spawn     | read the `code=`; `terminalManager` spawn vs reAttach                                                                                                                   |
+| Wrong size / clipped                                          | `fit()` on 0×0, resize order           | log `clientWidth/Height` in `doFit`                                                                                                                                     |
+| Garbled / wrong-session bytes                                 | port cross-wire                        | compare minted vs echoed `openToken`                                                                                                                                    |
+| Blank only in dev                                             | StrictMode double-mount                | disable StrictMode                                                                                                                                                      |
+| Launched session has no card                                  | launch synthesis / hook ingest         | replay `src/__fixtures__/fakeHookFeed` or `curl -X POST 127.0.0.1:9279/h/<token>/ -d '<body>'` (`<token>`: the URL in the session's `--settings` file; bare `/` is 401) |
+| One bad session blanks the board                              | Zod boundary violation                 | `zod-boundaries.md`                                                                                                                                                     |
+| "App won't start": process alive, no window                   | window created but not shown/minimized | KWin script below                                                                                                                                                       |
 
 Other kill-tests: gate off `WebglAddon` in `EmbeddedTerminal.tsx` (GPU vs rest); reduce to one
 session.

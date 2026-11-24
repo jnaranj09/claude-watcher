@@ -31,8 +31,9 @@ session truth (`state.md`); every input is parsed at one boundary (`zod-boundari
   `claude_version`, refusal reused 30 s (`createClaudeVersionGate`).
 - **Bridge mod (spec 2026-10-18):** `composeClaudeCommand` adds `--plugin-dir <userData>/mods/
 watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
-  `CLAUDE_WATCHER_MOD_URL=http://127.0.0.1:<hookPort>/mod/report`, only when `bridgeModSpawn`
-  allows it: hook port bound, install at start worked, claude ≥ `MIN_MOD_CLAUDE_VERSION` (2.1.304,
+  `CLAUDE_WATCHER_MOD_URL=http://127.0.0.1:<hookPort>/h/<token>/mod/report` (the session's hook
+  channel token, below; the mod cuts `/mod/report` to reach `/mod/prompt`), only when
+  `bridgeModSpawn` allows it: a channel token minted (hook port bound), install at start worked, claude ≥ `MIN_MOD_CLAUDE_VERSION` (2.1.304,
   probed; its own floor, so `MIN_CLAUDE_VERSION` does not move; unknown version → no mod,
   `code=mod_skipped_version`). A skip is fail open and marks the session `unavailable`
   (`sessionSetup.markUnavailable`). The report follows `/clear` (`sessionSetup.rebind`; the mod
@@ -474,13 +475,33 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   claude. Sensor: `src/main/pty/loginShellRun.test.ts` (real bash and fish).
 - **Identity minted at launch:** `claude --session-id <uuid>`; card synthesized immediately via
   `reducer.upsertLaunched` (status `Connecting`). Identity = stable `id`, never `pid`.
-- **Hooks own every status transition** (POST to `127.0.0.1:9279`). **Zero footprint:**
-  `hookSettingsFile.ts` writes the hook block into userData; `composeClaudeCommand` passes
-  `--settings <path>`. Scoped to app-launched sessions only; merges with project settings; same-URL
-  stale blocks are deduped. (Replaced `registerHooks`, which wrote `.claude/settings.local.json`
+- **Hooks own every status transition** (POST to `127.0.0.1:9279/h/<token>/`). **Zero footprint:**
+  `hookSettingsFile.ts` writes each session's hook block into its own file in userData
+  (`<userData>/hooks/<random>.json`, folder 0700, file 0600, `sessionFiles.ts`, shared with the
+  `--mcp-config` files); `composeClaudeCommand` passes `--settings <path>`. Scoped to app-launched
+  sessions only; merges with project settings. A stale block the retired merger left posts to the
+  bare URL and gets 401. The file follows `/clear` and goes with the card (`window/cardState.ts`);
+  a start (not SMOKE) deletes files a previous run left and the old shared
+  `claude-hooks.settings.json`. (Replaced `registerHooks`, which wrote `.claude/settings.local.json`
   into every cwd — the app does not clean those up.) All input via `hookEvent.ts`
   (`.passthrough()`; malformed known key → 400 + drop + log path/code). `hookStatus.ts` = the only
   event→status map; `pty/approvalKey.ts` = the only keystroke→status map (R4).
+- **A session id is no credential (T-D13):** it is on claude's argv, readable through /proc by
+  any OS user. Each spawn mints one channel token (64 lowercase hex, `hooks/hookChannel.ts` on
+  `mcp/sessionTokens.ts`: memory only, sha256 + `timingSafeEqual`, app-global) only while the hook
+  port is ours, and hands it only to the settings file and the bridge mod's env, never to argv;
+  unused, it is revoked. `hookServer.ts`: every path but the bearer routes must be
+  `/h/<token>` + `/`, `/mod/report` or `/mod/prompt` with a live token, else 401
+  `code=channel_unauthorized` before the body is read (a bare `/` too; an unknown route after a
+  live token is 404); the token is resolved again at the body end (revoked meanwhile: 401); a
+  hook, report or prompt origin that names a LIVE session other than the token's own is 403
+  `code=channel_session_mismatch` before any handler or `takePendingTitle`
+  (`channelAllows`: own id, or an id no card holds, which keeps `/clear` adoption working).
+  `/clear` moves the token and file, a removed card revokes and deletes them, a Reopen revokes
+  the replaced id's first, a resume mints fresh (`pty/claudeSpawnCommand.ts`). Logs never hold
+  the token or a URL. Probed on claude 2.1.331: an http hook keeps the URL's path. Not covered:
+  a token holder adopting another card through `/clear` (`sessionRebind.ts` proof only). Sensor:
+  `src/main/hooks/hookServer.channel.test.ts`, `src/main/pty/claudeSpawnCommand.test.ts`.
 - **No bind, no `--settings` (SEC-6):** `hookSettingsPathIfListening` gives the flag only while
   THIS process holds the hook port (`serverHealth.ts`). Otherwise the session runs without status
   and `ServerHealthBanner` (`CH.serverHealth`/`serverHealthGet`) says `port_in_use` /

@@ -64,7 +64,7 @@ Code lives in four trees; the boundaries between them are the whole design:
 
 ```
 launch spawn (minted --session-id) ──> reducer.upsertLaunched ─┐
-Codex hook POSTs (127.0.0.1:9279) ──> Zod-validate            ├─> reducer (Map<id,Session>)
+Codex hook POSTs (127.0.0.1:9279/h/<token>/) ──> Zod-validate ├─> reducer (Map<id,Session>)
    (hookEvent.ts) ──> reducer.applyHookStatus ─────────────────┘
    ──> validated deltas over CH.watchEvents ──> renderer Zustand store ──> selectors ──> components
 ```
@@ -114,15 +114,17 @@ trustworthy and have been removed; a manual repro with real `Codex` is the relia
   EXACT at spawn. The board card is synthesized IMMEDIATELY via `reducer.upsertLaunched`
   (status `Connecting`) — no discovery wait, no pid-ancestry correlation for new launches.
 - **Hooks own every status transition:** Codex lifecycle hooks POST to
-  `127.0.0.1:9279`. **ZERO FOOTPRINT — the app writes into NO project and NO user settings
+  `127.0.0.1:9279/h/<token>/`, the session's own channel token (`hooks/hookChannel.ts`): a path
+  with no live token is 401, a body naming another live session 403 (a session id is on argv,
+  so it is no credential). **ZERO FOOTPRINT — the app writes into NO project and NO user settings
   file** (one operator-started exception: Context's Restore writes back an instruction file a
-  live session loaded, only a `.md` file, after keeping its current copy). `hookSettingsFile.ts` writes the hook block into the app's OWN data dir
-  (`app.getPath('userData')`) and `composeClaudeCommand` hands it to each spawn as
+  live session loaded, only a `.md` file, after keeping its current copy). `hookSettingsFile.ts` writes each session's hook block into its own private file in the
+  app's OWN data dir (`<userData>/hooks/<random>.json`, 0600) and `composeClaudeCommand` hands it to each spawn as
   `--settings <path>`, so the hooks scope to EXACTLY the sessions the app launches and a
   plain `Codex` in the same folder stays silent. Probe-verified on Codex 2.1.245:
   `--settings` MERGES with the project's own settings (an operator's own hooks/permissions
-  survive), and a stale block on the same URL is DEDUPED against the flag (one POST, not
-  two — which is what keeps the name-sync push-once safe).
+  survive). A stale block the retired merger left posts to the bare URL, which is 401, so one
+  prompt still makes one accepted POST (what keeps the name-sync push-once safe).
   This REPLACED `registerHooks`, which merged the block into
   `<picked cwd>/.Codex/settings.local.json` and left a permanent trace in every directory
   the app was ever launched in. The app does NOT clean those up — they are the operator's

@@ -5,8 +5,9 @@
 // 2.1.285). So a record often has no `transcriptPath`: a session archived before its first prompt,
 // or one that exited on claude's own folder-trust screen. Then the lookup scans every
 // `projects/*` folder for `<id>.jsonl` — no guess at claude's folder-name encoding. A known path
-// that is gone falls back to the same scan: the path came from a hook POST, which anyone on the
-// machine can send, so it alone never proves the conversation is gone.
+// that is gone falls back to the same scan: the path came from a hook POST, outside input (only the
+// session's channel token holder can send one, T-D13, but its body is still unchecked), so it
+// alone never proves the conversation is gone.
 //
 // It FAILS OPEN: only a clean "not found" counts as missing. An unlistable projects folder, a
 // read error other than ENOENT/ENOTDIR, or an id that is not a UUID answers `true` — a wrong

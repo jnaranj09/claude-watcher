@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog } from 'electron'
+import { BrowserWindow, dialog } from 'electron'
 import { accessSync, constants as fsConstants } from 'fs'
 import { statSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
@@ -62,7 +62,8 @@ import { buildPtyEnv } from '../pty/ptyEnv'
 // OWN data dir. The app writes NOTHING into the operator's projects — no
 // `.claude/settings.local.json`, no `~/.claude/settings.json` — and the hooks scope to
 // exactly the sessions it spawns. (This replaced the retired registerHooks merger.)
-import { ensureHookSettingsFile, hookSettingsPathIfListening } from '../hooks/hookSettingsFile'
+import { hookSettingsPathIfListening, type HookSettingsFiles } from '../hooks/hookSettingsFile'
+import type { HookChannel } from '../hooks/hookChannel'
 import type { ServerHealthState } from '../serverHealth'
 import type { ModSkipReason } from '../../shared/schemas/contextIpc'
 import type { ClaudeVersion } from '../../shared/launch/claudeVersion'
@@ -146,6 +147,11 @@ export interface LaunchIpcDeps {
   /** Resume by id — folder + title from claude's transcript (fails closed). */
   readTranscriptInfo: ReadTranscriptInfo
   claudeVersionAllowsLaunch: () => boolean
+  /** The app's hook channel (`hooks/hookChannel.ts`): one token per spawn for its hook URL and the
+   *  bridge mod's report URL. */
+  hookChannel: HookChannel
+  /** The per-session `--settings` files (`hooks/hookSettingsFile.ts`). */
+  hookSettingsFiles: HookSettingsFiles
   /** The bridge mod (spec 2026-10-18 §1.1): read at spawn time. */
   bridgeMod: {
     installedDir: () => string | null
@@ -223,6 +229,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     hasTranscript,
     readTranscriptInfo,
     claudeVersionAllowsLaunch,
+    hookChannel,
+    hookSettingsFiles,
     bridgeMod,
     notePlanner,
     carrySessionGoal,
@@ -337,7 +345,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     })
   }
 
-  // Hook delivery — the app's OWN settings file, handed to claude with `--settings`.
+  // Hook delivery — the session's OWN settings file in userData, handed to claude with
+  // `--settings`, its URL carrying the session's channel token (`hooks/hookChannel.ts`).
   //
   // ZERO FOOTPRINT: this writes into `app.getPath('userData')`, never into the operator's
   // project. It replaced a merger that wrote the hook block into the launched project's
@@ -347,21 +356,18 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
   // Ordering: resolved at spawn-composition time, which is inside the `claude` spawn itself, so
   // the file is on disk before claude reads it.
   //
-  // NEVER-CRASH: a failed write must not fail the launch. `ensureHookSettingsFile` swallows its
-  // own IO errors and returns null; the try/catch is belt-and-braces for an unexpected throw.
+  // NEVER-CRASH: a failed write must not fail the launch. The files store swallows its own IO
+  // errors and returns null; `hookSettingsPathIfListening` also contains an unexpected throw.
   // Either way the flag is omitted and the session spawns WITHOUT status reporting — degraded,
-  // not dead. NEVER-LOG-THE-VALUE: the path is never logged, only a `code=`.
+  // not dead. NEVER-LOG-THE-VALUE: neither the path nor the token is logged, only a `code=`.
   //
   // SEC-6: no `--settings` at all unless THIS process's hook server is bound — a port someone else
   // holds would otherwise receive every prompt of the session. The banner (UX-05) says why.
-  function hookSettingsPathForSpawn(): string | null {
+  function hookSettingsPathForSpawn(sessionId: string, token: string | null): string | null {
     return hookSettingsPathIfListening({
+      token,
       listening: () => serverHealth.hookListening(),
-      ensure: () =>
-        ensureHookSettingsFile({
-          dir: app.getPath('userData'),
-          log: (msg) => console.warn(msg)
-        }),
+      write: (t) => hookSettingsFiles.write(sessionId, t),
       written: (ok) => serverHealth.hookSettingsWritten(ok),
       log: (msg) => console.warn(msg)
     })
@@ -370,6 +376,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
   const spawnCommandDeps: ClaudeSpawnDeps = {
     shell: SHELL,
     hookListening: () => serverHealth.hookListening(),
+    hookChannel,
+    hookSettingsFiles,
     bridgeMod,
     notePlanner,
     carrySessionGoal,

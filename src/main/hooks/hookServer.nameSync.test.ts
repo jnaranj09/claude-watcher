@@ -13,6 +13,7 @@ import { createHookServer, type HookServer } from './hookServer'
 import type { BoundaryErrorRecord } from '../c9watch/reducer'
 import type { HookEvent } from '../../shared/schemas/hookEvent'
 import { createPendingTitles } from './pendingTitles'
+import { createHookChannel } from './hookChannel'
 import { request as httpRequest } from 'node:http'
 
 interface Reply {
@@ -66,14 +67,18 @@ function start(opts: {
   onHookEvent?: (evt: HookEvent) => void
   log?: (err: BoundaryErrorRecord) => void
 }): Promise<string> {
+  // The hook channel (T-D13): one live token, no card live, so every session id gets through.
+  const channel = createHookChannel()
+  const token = channel.mint({ sessionId: 'sess-1' })
   return new Promise((resolve) => {
     const srv = createHookServer({
       onHookEvent: opts.onHookEvent ?? ((): void => {}),
+      channel: { resolve: (t) => channel.resolve(t), isLive: () => false },
       ...(opts.takePendingTitle !== undefined ? { takePendingTitle: opts.takePendingTitle } : {}),
       log: opts.log ?? ((): void => {}),
       port: 0,
       host: '127.0.0.1',
-      onListening: (port) => resolve(`http://127.0.0.1:${port}/`)
+      onListening: (port) => resolve(`http://127.0.0.1:${port}/h/${token}/`)
     })
     open = srv
   })

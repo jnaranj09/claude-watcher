@@ -5,16 +5,14 @@
 // keeps its own `createMcpConfigs`, so a session can hold one file per server (goals, memory), and
 // each logs under its own area (`[claude-watcher][goals]`, `[claude-watcher][memory]`).
 //
-// Files live in `<userData>/mcp/` (folder 0700, files 0600, a random name each), every server's in
-// the one folder. A file goes when its session goes (`window/cardState.ts`), and a start clears
+// Files live in `<userData>/mcp/` (folder 0700, files 0600, a random name each: `sessionFiles.ts`,
+// shared with the hook settings files), every server's in the one folder. A file goes when its session goes (`window/cardState.ts`), and a start clears
 // what the last run left, since every token in it died with that run: ONE sweep (the goals
 // instance's `clearStale`, index.ts) clears every server's files, so no other instance runs one.
 // Logs carry a `code=` only: never the path, never the token. A refused write is also told to the
 // operator through the `report` it is given (the goals server: the `goals` store's `write_failed`,
 // the notice a refused background goals write shows; the memory server: the `memory` store's).
-import { randomBytes } from 'node:crypto'
-import { chmodSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { createSessionFiles, removeSessionFile, writeSessionFile } from '../../sessionFiles'
 import type { StorageProblemCode } from '../../../shared/schemas/storageHealth'
 
 /** The goals server's key in its config, so claude names its tools
@@ -22,38 +20,29 @@ import type { StorageProblemCode } from '../../../shared/schemas/storageHealth'
 export const MCP_SERVER_NAME = 'claude-watcher'
 const MCP_CONFIG_DIRNAME = 'mcp'
 
-/**
- * Write one config file for `serverName` under `<dir>/mcp/` and return its path. Throws when the
- * disk refuses.
- * Shape (claude 2.1.304, probed): `{ mcpServers: { <name>: { type: 'http', url, headers } } }`.
- */
+/** Shape (claude 2.1.304, probed): `{ mcpServers: { <name>: { type: 'http', url, headers } } }`. */
+function mcpConfigText(serverName: string, token: string, url: string): string {
+  return JSON.stringify({
+    mcpServers: {
+      [serverName]: { type: 'http', url, headers: { Authorization: `Bearer ${token}` } }
+    }
+  })
+}
+
+/** Write one config file for `serverName` under `<dir>/mcp/` and return its path. Throws when the
+ *  disk refuses. */
 export function writeMcpConfig(
   dir: string,
   serverName: string,
   token: string,
   url: string
 ): string {
-  const folder = join(dir, MCP_CONFIG_DIRNAME)
-  mkdirSync(folder, { recursive: true, mode: 0o700 })
-  // `mkdirSync`'s mode does nothing to a folder that already exists.
-  chmodSync(folder, 0o700)
-  const path = join(folder, `${randomBytes(16).toString('hex')}.json`)
-  const config = {
-    mcpServers: {
-      [serverName]: { type: 'http', url, headers: { Authorization: `Bearer ${token}` } }
-    }
-  }
-  writeFileSync(path, JSON.stringify(config), { encoding: 'utf8', mode: 0o600, flag: 'wx' })
-  return path
+  return writeSessionFile(dir, MCP_CONFIG_DIRNAME, mcpConfigText(serverName, token, url))
 }
 
 /** Delete a config file; a file already gone is fine. `area` is the log area of its server. */
 export function removeMcpConfig(path: string, area: string, log: (line: string) => void): void {
-  try {
-    rmSync(path, { force: true })
-  } catch {
-    log(`[claude-watcher][${area}] code=mcp_config_remove_failed`)
-  }
+  removeSessionFile(path, { prefix: `[claude-watcher][${area}]`, code: 'mcp_config', log })
 }
 
 export interface McpConfigs {
@@ -79,51 +68,20 @@ export function createMcpConfigs(options: {
   /** Storage health's reporter for the server's store (goals: `storageHealth.reporterFor('goals')`). */
   report: (code: StorageProblemCode) => void
 }): McpConfigs {
-  const paths = new Map<string, string>()
-
-  function remove(sessionId: string): void {
-    const path = paths.get(sessionId)
-    if (path === undefined) return
-    paths.delete(sessionId)
-    removeMcpConfig(path, options.area, options.log)
-  }
-
+  const files = createSessionFiles({
+    dir: options.dir,
+    dirname: MCP_CONFIG_DIRNAME,
+    prefix: `[claude-watcher][${options.area}]`,
+    code: 'mcp_config',
+    log: options.log,
+    onWriteFailed: () => options.report('write_failed')
+  })
   return {
-    write(sessionId, token, url) {
-      remove(sessionId)
-      try {
-        const path = writeMcpConfig(options.dir(), options.serverName, token, url)
-        paths.set(sessionId, path)
-        return path
-      } catch {
-        options.log(`[claude-watcher][${options.area}] code=mcp_config_write_failed`)
-        options.report('write_failed')
-        return null
-      }
-    },
-    rebind(oldSessionId, newSessionId) {
-      const path = paths.get(oldSessionId)
-      if (path === undefined || oldSessionId === newSessionId) return
-      paths.delete(oldSessionId)
-      paths.set(newSessionId, path)
-    },
-    remove,
-    clearStale() {
-      const folder = join(options.dir(), MCP_CONFIG_DIRNAME)
-      let names: string[]
-      try {
-        names = readdirSync(folder)
-      } catch (err) {
-        // No folder yet: nothing was left. Any other refusal leaves dead files behind.
-        if (!(err instanceof Error && 'code' in err && err.code === 'ENOENT')) {
-          options.log(`[claude-watcher][${options.area}] code=mcp_config_clear_failed`)
-        }
-        return
-      }
-      for (const name of names) {
-        if (name.endsWith('.json')) removeMcpConfig(join(folder, name), options.area, options.log)
-      }
-    }
+    write: (sessionId, token, url) =>
+      files.write(sessionId, mcpConfigText(options.serverName, token, url)),
+    rebind: files.rebind,
+    remove: files.remove,
+    clearStale: files.clearStale
   }
 }
 

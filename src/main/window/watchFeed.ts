@@ -82,6 +82,8 @@ import { projectApiSession } from '../api/apiSession'
 // The hook server binds a localhost HTTP listener; hook events flow through the SAME
 // handleDelta chokepoint as c9watch deltas (same enrich/column/tray treatment).
 import { createHookServer, type HookServer } from '../hooks/hookServer'
+import type { HookChannel } from '../hooks/hookChannel'
+import type { HookSettingsFiles } from '../hooks/hookSettingsFile'
 import { hookStatus } from '../hooks/hookStatus'
 import { createTranscriptWatcher, type TranscriptWatcher } from '../hooks/transcriptWatcher'
 import { forgetSession, trackHookEvent, type SessionTrackingDeps } from '../hooks/sessionTracking'
@@ -171,6 +173,10 @@ export interface WatchFeedDeps {
   launchBoardSeams: Map<Electron.WebContents, LaunchBoardSeam>
   /** A card for this id is live in ANY window (index.ts; `sessionSetup.accept` decides the same). */
   isSessionLive: (sessionId: string) => boolean
+  /** The app's hook channel (T-D13): each window's hook listener checks its tokens, and a card's
+   *  token and `--settings` file follow it on `/clear` and go with it (cardState.ts). */
+  hookChannel: HookChannel
+  hookSettingsFiles: HookSettingsFiles
   apiSeams: Map<Electron.WebContents, ApiSeam>
   launchedSet: LaunchedSet
   /** The bridge mod's latest report per session (app-global; Context reads it). */
@@ -225,6 +231,8 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
     ruleEngines,
     launchBoardSeams,
     isSessionLive,
+    hookChannel,
+    hookSettingsFiles,
     apiSeams,
     launchedSet,
     sessionSetup,
@@ -529,6 +537,8 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
     const cardStateDeps = (): Parameters<typeof moveCardState>[0] => ({
       pendingTitles,
       sessionSetup,
+      hookChannel,
+      hookSettingsFiles,
       goals: getGoalsStore(),
       tokens: goalMcp.tokens,
       proposals: goalMcp.proposals,
@@ -854,6 +864,9 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
     }
 
     const hookServer = createHookServer({
+      // T-D13 — a hook, mod report or prompt origin speaks for its own session only (a card in any
+      // window is live, as `isSessionLive` decides).
+      channel: { resolve: (token) => hookChannel.resolve(token), isLive: isSessionLive },
       onHookEvent: (evt) => {
         // Name-sync READ-BACK — claude's own name for the session, reported on every
         // `UserPromptSubmit`. This runs BEFORE the status mapping (and before its unknown-event
