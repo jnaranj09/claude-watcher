@@ -87,7 +87,9 @@ the message.
 
 - **Search before you write.** Look for the existing helper, component or type first. No new
   abstraction without a second real caller; inline a shared helper once it grows a flag or branch
-  for one caller. Copies are caught by jscpd (`npm run lint`); the rest is prose only.
+  for one caller. Copies: jscpd in `npm run lint` (0.5% total), and
+  `tests/main/duplication.guard.test.ts` pins today's clones by file pair (any new copy fails;
+  the list only shrinks); the rest is prose only.
 - **"Why" comments stay.** A comment that states a constraint or an incident is kept; a commit that
   removes one says so. Prose only.
 - **Split by entanglement, not line count** (technical-taste.md: "hidden state and entanglement"). Refactor the biggest,
@@ -174,14 +176,14 @@ Landed walks today:
 
 **1 — one owner per shared value**
 
-- **Tokens live in `tokens.ts` and `tokens.css`.** Landed: `TOKENS` in `src/shared/theme/tokens.ts` and
-  `styles/tokens.css` hold the same set, and `styles/tokens.test.ts` fails when one has a key the
 - **Raw CSS values.** Landed (2026-11-23): stylelint fails on a raw spacing, border, radius,
   colour, shadow, z-index, type or motion value in any renderer CSS file but the token files
   (`stylelint.config.mjs`; `var()`, `calc()` and keywords pass). It does not check that a value
   matches a token, which is what the planned radius, height and stacking walks below add. Sensor:
   `npm run lint`; old hits in `stylelint-suppressions.json`, pinned by
   `tests/main/stylelintSuppressions.guard.test.ts`.
+- **Tokens live in `tokens.ts` and `tokens.css`.** Landed: `TOKENS` in `src/shared/theme/tokens.ts` and
+  `styles/tokens.css` hold the same set, and `styles/tokens.test.ts` fails when one has a key the
   other lacks, or a value differs. A new radius or height token goes in both, then `npm run gen:theme-docs`. Every
   `TOKENS` key is themeable. Planned: the `--z-*` rungs are not themeable, because
   stacking order is app behaviour, not look. They follow the landed sibling `styles/motion.css`
@@ -460,16 +462,19 @@ Landed walks today:
   a comment says a test keeps it on purpose; otherwise it is dead and deleted.
 - **Prompt, not a guard.** Search the changed files for "harmless", "unverified", "never
   observed" and "not yet wired"; each hit is a claim to check.
-- **Doc paths.** Landed in part: `tests/unit/agentContext.guard.test.ts` checks that every
-  `rules/<x>.md` CLAUDE.md points to exists. Planned: every code span whose text starts with `src/`
-  or `tests/`, and every `CH.<key>` in CLAUDE.md and `.claude/rules/*.md` exists. A path that ends in `/`
-  or names a folder passes when that folder exists (`src/main/themes/`, `tests/e2e`). Any other
-  path with no extension resolves as a module (`.ts`, `.tsx`, `/index.ts`). Skipped, each with its
-  reason on an allow-list: the placeholder `CH.x`, any `CH` name that holds `<` or `…` (a
-  placeholder), any `CH` name ending in `*` (a family, such as `CH.watch*`), any path holding a glob character (`*`, `?` or `{`) anywhere, such as
-  `src/shared/schemas/*.ts` and `src/main/ipc/register*.ts` in `ipc.md`, a placeholder path (one
-  holding `…` or `<x>`), and a path in a bullet that still carries a _(to write)_ mark (this
-  file names files its planned blocks will create).
+- **Doc paths.** Landed: `tests/unit/agentContext.guard.test.ts` checks that every
+  `rules/<x>.md` CLAUDE.md points to exists; `tests/unit/agentDocs.guard.test.ts` checks that
+  every code span whose text starts with
+  `src/`, `tests/` or `.claude/`, and every `CH.<key>`, in CLAUDE.md and `.claude/rules/*.md`
+  exists. A path that ends in `/` or names a folder passes when that folder exists
+  (`src/main/themes/`, `tests/e2e`). Any other path with no extension resolves as a module (`.ts`,
+  `.tsx`, `/index.ts`). Skipped: the placeholder `CH.x`, any `CH` name that holds `<` or `…`, any
+  `CH` name ending in `*` (a family, such as `CH.watch*`), any path holding a glob character (`*`,
+  `?` or `{`), such as `src/shared/schemas/*.ts` and `src/main/ipc/register*.ts` in `ipc.md`, a
+  placeholder path (one holding `…` or `<x>`), a git-ignored path, and a path in a bullet that
+  still carries a _(to write)_ mark (this file names files its planned blocks will create). The
+  same guard counts rule bullets that name no sensor (`Sensor:`, `Prose only`, `Lint:`, `Guard:`)
+  per file (`agentDocs.guard.test.ts`); the counts only shrink.
 
 **6 — failures and guards**
 

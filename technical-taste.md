@@ -358,7 +358,8 @@ yet. Prefer turning prose-only rules into sensors.
     near-copies instead of finding the helper (GitClear 2026: duplicated blocks +81%, refactoring
     down to 3.8% of changes). So both halves are needed. _Consensus_, with weak (vendor) evidence.
     Sensors: the primitive-ban guards (one Button, one Popover…); jscpd in `npm run lint` fails over
-    0.5% duplication (0.22% today).
+    0.5% duplication (0.25% today), and `tests/main/duplication.guard.test.ts` pins today's clones
+    by file pair, so any new copy fails.
 15. **Plain functions and data over classes and inheritance. Explicit over magic. Long, specific
     names.** _Taste_ (Ronacher, Hickey, Carmack). Sensor: prose only. Today there is 1 class in
     non-test `src`.
@@ -390,7 +391,9 @@ yet. Prefer turning prose-only rules into sensors.
     path. Add a line only after an agent repeats a mistake. Repository overviews in context files
     add about 20% cost with no gain, while the instructions themselves are followed well.
     _Evidence_ (ETH Zurich 2026) plus Anthropic and Cursor guidance. Sensor:
-    `tests/unit/agentContext.guard.test.ts` (CLAUDE.md ≤ 200 lines; every rule file has `paths:`).
+    `tests/unit/agentContext.guard.test.ts` (CLAUDE.md ≤ 200 lines; every rule file has `paths:`)
+    and `tests/unit/agentDocs.guard.test.ts` (every named path and `CH.<key>` exists; unlabeled
+    rule bullets only shrink).
     This file is read on demand, not always loaded, on purpose.
 
 ### Stack

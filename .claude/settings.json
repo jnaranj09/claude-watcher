@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/typecheck-lint.sh",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/typecheck-lint.sh\"",
             "timeout": 60,
             "statusMessage": "Typecheck + lint on changed file"
           }
@@ -37,9 +37,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx --no-install vitest run",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/run-tests-on-stop.sh\"",
             "timeout": 180,
-            "statusMessage": "Running vitest"
+            "statusMessage": "Running tests (npm test)"
           }
         ]
       }

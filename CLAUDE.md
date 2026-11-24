@@ -183,7 +183,7 @@ open dialog. `Esc to return` shows only while focus is outside.
 
 - **Strict TS** (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`,
   `noImplicitOverride`, `noFallthroughCasesInSwitch`). Never drop a flag — fix the consumer.
-- Hooks (`.claude/hooks/`): PostToolUse runs `tsc` + `eslint` on edited TS; Stop runs `vitest run`.
+- Hooks (`.claude/hooks/`): PostToolUse runs `tsc` + `eslint` on edited TS; Stop runs `npm test`. Both exit 2 on red.
 - ESLint: `no-floating-promises`, `consistent-type-imports`, `no-literal-channels`,
   `switch-exhaustiveness-check`. `npm run lint` also runs stylelint (raw CSS values → tokens),
   knip (dead code, `knip.json`) and jscpd (duplication ≤ 0.5%, `.jscpd.json`).
