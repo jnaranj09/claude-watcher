@@ -8,7 +8,18 @@
 // the file) writes nothing. A file without the header is never written or removed, and a
 // missing folder is never created. Problems live in memory, per folder; the store folds them into
 // `GoalsView.fileProblems`. NEVER log a path, a goal name or a task title — codes only.
-import { readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import {
+  closeSync,
+  constants,
+  lstatSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from 'node:fs'
 import { join } from 'node:path'
 import type { Goal, GoalFileProblem, GoalsFileProblemCode, Task } from '../../shared/schemas/goal'
 
@@ -57,8 +68,9 @@ function savingFolders(snap: GoalsSnapshot): Set<string> {
 
 export interface GoalsFileFs {
   isDirectory(path: string): boolean
-  /** null = no such file. */
+  /** null = no such file; '' = a path that is not a regular file (a link, a folder). */
   readText(path: string): string | null
+  /** Creates `path`; throws when anything (a link included) is already there. */
   writeText(path: string, text: string): void
   rename(from: string, to: string): void
   remove(path: string): void
@@ -95,9 +107,11 @@ export function createGoalsFileExporter(deps: {
     return current !== null && !isOurs(current) ? 'goals_file_not_ours' : null
   }
 
-  /** Write `text` through a temp file; on failure the temp file goes and the error rethrows. */
+  /** Write `text` through a temp file; on failure the temp file goes and the error rethrows.
+   *  The temp name is random and `writeText` creates it new: a cloned project cannot plant a
+   *  link at a name it can guess and have the write land outside the folder. */
   function writeAtomic(file: string, text: string): void {
-    const tmp = `${file}${TMP_SUFFIX}`
+    const tmp = `${file}.${randomUUID()}${TMP_SUFFIX}`
     try {
       fs.writeText(tmp, text)
       fs.rename(tmp, file)
@@ -191,6 +205,9 @@ export const nodeGoalsFileFs: GoalsFileFs = {
   },
   readText(path) {
     try {
+      // A link or any other non-file is not a file the app made: '' has no header, so the caller
+      // sees `goals_file_not_ours` and never writes or removes it.
+      if (!lstatSync(path).isFile()) return ''
       return readFileSync(path, 'utf8')
     } catch (err) {
       if (err instanceof Error && 'code' in err && err.code === 'ENOENT') return null
@@ -198,7 +215,14 @@ export const nodeGoalsFileFs: GoalsFileFs = {
     }
   },
   writeText(path, text) {
-    writeFileSync(path, text, 'utf8')
+    // Create only: never open a file or link that is already there.
+    const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW
+    const fd = openSync(path, flags, 0o644)
+    try {
+      writeFileSync(fd, text, 'utf8')
+    } finally {
+      closeSync(fd)
+    }
   },
   rename(from, to) {
     renameSync(from, to)

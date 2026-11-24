@@ -125,7 +125,9 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   session lineage or the planner records does not emit) and before the listeners, so a new store
   method reaches the file only if it emits. It rewrites a folder's
   `GOALS.md` only when that folder's text changed (links and `/clear` write nothing), never writes
-  or removes one without its header line, never creates a folder, and at startup only checks.
+  or removes one without its header line (a `GOALS.md` that is a link or not a regular file counts as
+  not ours), writes through a random temp name it creates new (never a link that is there), never
+  creates a folder, and at startup only checks.
   Problems (`goals_file_not_ours`, `folder_missing`, `goals_file_write_failed`) live in memory and
   ride `GoalsView.fileProblems`; one no saving goal can show goes to `StorageNotice` (`goals_file`). `goals:link-task` (the session's task rail and the
   Goals sheet's `Link session`) refuses with `session_not_found` unless the session is live on
