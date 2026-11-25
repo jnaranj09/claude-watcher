@@ -777,7 +777,13 @@ test('no animation loops under reduced motion, a needs-you card included', async
   const sessionId = (await card.getAttribute('data-session-id')) ?? ''
   const pid = app.process().pid ?? 0
   await waitForClaudeDescendant(pid, 20000)
-  const status = await postHook(hookPathOf(pid, sessionId), {
+  // The first match can be the login shell still running `exec claude …` (its argv is one
+  // string, without the session id on its own), so retry until the stand-in itself runs.
+  let hookPath = ''
+  await expect(() => {
+    hookPath = hookPathOf(pid, sessionId)
+  }).toPass({ timeout: 20000 })
+  const status = await postHook(hookPath, {
     session_id: sessionId,
     transcript_path: `${appEnv.pickDir}/${sessionId}.jsonl`,
     cwd: appEnv.pickDir,
