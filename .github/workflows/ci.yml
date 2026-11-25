@@ -55,6 +55,8 @@ jobs:
 
   # DAST (docs/threat-model.md T-C10): ZAP's API scan against a throwaway e2e-profile app, plus
   # the docs page under its CSP (tests/e2e/dast.e2e.ts). No `claude` here; the spec needs none.
+  # Then the UI probe (tests/e2e/uiProbe.e2e.ts) at 900 and 1400 px; it launches a stand-in
+  # claude (tests/e2e/probeFixtures.ts), not a real one. The screen is wider than 1400 px.
   dast:
     runs-on: ubuntu-22.04
     steps:
@@ -76,3 +78,4 @@ jobs:
           sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
       - run: npm run build
       - run: xvfb-run -a npx playwright test tests/e2e/dast.e2e.ts
+      - run: xvfb-run -a -s "-screen 0 1920x1080x24" npx playwright test --project=w900 --project=w1400
