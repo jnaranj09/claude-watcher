@@ -39,6 +39,8 @@ export default defineConfig(
       '**/node_modules',
       '**/dist',
       '**/out',
+      // `npm run test:coverage` output (coverage/lcov.info), regenerable.
+      'coverage/**',
       'eslint-rules/__fixtures__/**',
       // Semgrep rule fixtures: forbidden calls on purpose (`semgrep --test` reads them).
       'security/semgrep/**',
@@ -175,8 +177,8 @@ export default defineConfig(
     })
   },
   {
-    // Playwright e2e: web-first waits, no sleeps, no force, no skips.
-    files: ['tests/e2e/**/*.ts'],
+    // Playwright e2e and acceptance scenarios: web-first waits, no sleeps, no force, no skips.
+    files: ['tests/e2e/**/*.ts', 'tests/acceptance/**/*.ts'],
     ...playwrightPlugin.configs['flat/recommended'],
     rules: {
       ...asErrors(playwrightPlugin.configs['flat/recommended'].rules),
@@ -184,6 +186,13 @@ export default defineConfig(
       // pattern still carries its own disable comment (`tests/e2e/fixtures.ts`).
       'no-empty-pattern': ['error', { allowObjectPatternsAsParameters: false }]
     }
+  },
+  {
+    // Complexity cap (.claude/rules/testing.md "Risky code"): a function over 10 is split or
+    // simplified. Every linted file, tests included. Hits that existed when it landed (2026-11-24)
+    // sit in eslint-suppressions.json; `npm run crap` scores the CRAP limit separately.
+    files: ['**/*.{ts,tsx,js,mjs,cjs}'],
+    rules: { complexity: ['error', 10] }
   },
   eslintConfigPrettier
 )

@@ -1,0 +1,242 @@
+[
+  {
+    "file": "src/main/api/apiServer.ts",
+    "name": "createApiServer.dispatch",
+    "crap": 38,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/c9watch/reducer.ts",
+    "name": "createReducer.applyHookStatus",
+    "crap": 31,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/hooks/hookServer.ts",
+    "name": "createHookServer",
+    "crap": 65.09,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/hooks/hookStatus.ts",
+    "name": "hookStatus",
+    "crap": 31,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/index.ts",
+    "name": "pushServerHealth",
+    "crap": 42,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/index.ts",
+    "name": "pushStorageHealth",
+    "crap": 42,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/index.ts",
+    "name": "pushGuard",
+    "crap": 42,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/ipc/registerContextIpc.ts",
+    "name": "pushSessionSetupChanged",
+    "crap": 42,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/ipc/registerLaunchIpc.ts",
+    "name": "registerLaunchIpc",
+    "crap": 462,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/ipc/registerPtyIpc.ts",
+    "name": "registerPtyIpc.ptyResize",
+    "crap": 42,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/ipc/registerPtyIpc.ts",
+    "name": "registerPtyIpc.smokeReport",
+    "crap": 210,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/ipc/registerStoreIpc.ts",
+    "name": "createStoreIpc.registerGoalsIpc.showFolderPicker",
+    "crap": 56,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/ipc/registerStoreIpc.ts",
+    "name": "createStoreIpc.registerTelemetryIpc",
+    "crap": 110,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/ipc/registerTerminalIpc.ts",
+    "name": "registerTerminalIpc",
+    "crap": 552,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/ipc/registerTerminalIpc.ts",
+    "name": "registerTerminalIpc.onInput",
+    "crap": 42,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/ipc/registerTerminalIpc.ts",
+    "name": "registerTerminalIpc.onExit",
+    "crap": 90,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/kde/tray.ts",
+    "name": "electronIconPainter",
+    "crap": 56,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/kde/tray.ts",
+    "name": "paintCountChip",
+    "crap": 72,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/kde/tray.ts",
+    "name": "drawGlyph",
+    "crap": 132,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/kde/tray.ts",
+    "name": "loadBaseTrayIcon",
+    "crap": 42,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/pty/ptyFactory.ts",
+    "name": "createPty",
+    "crap": 42,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/window/createWindow.ts",
+    "name": "makeCreateWindow",
+    "crap": 36.15,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/window/watchFeed.ts",
+    "name": "createWatchFeed.registerWatchFeed.handleDelta",
+    "crap": 42,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/window/watchFeed.ts",
+    "name": "createWatchFeed.registerWatchFeed.handleDelta.ship",
+    "crap": 72,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/window/watchFeed.ts",
+    "name": "createWatchFeed.registerWatchFeed.requestLaunch",
+    "crap": 56,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/window/watchFeed.ts",
+    "name": "createWatchFeed.registerWatchFeed.onHookEvent",
+    "crap": 210,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/main/window/watchFeed.ts",
+    "name": "createWatchFeed.teardownWatchFeed",
+    "crap": 56,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/renderer/src/App.tsx",
+    "name": "App",
+    "crap": 69.06,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/renderer/src/components/attention/AttentionRail.tsx",
+    "name": "RailRow",
+    "crap": 44,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/renderer/src/components/GoalsDialog/GoalsDialog.tsx",
+    "name": "GoalForm",
+    "crap": 32.03,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/renderer/src/components/MemoryDialog/MemoryForm.tsx",
+    "name": "MemoryForm",
+    "crap": 45,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/renderer/src/components/MemoryDialog/MemoryPage.tsx",
+    "name": "MemoryPage",
+    "crap": 31.37,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/renderer/src/components/SessionCard/SessionCard.tsx",
+    "name": "SessionCard",
+    "crap": 36.13,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/renderer/src/components/Settings/Settings.tsx",
+    "name": "SettingsPanel",
+    "crap": 46,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/renderer/src/components/WorkspaceSwitcher/WorkspaceSwitcher.tsx",
+    "name": "WorkspaceSwitcher",
+    "crap": 31.04,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/renderer/src/glass/glassRenderer.ts",
+    "name": "createGlassRenderer.drawItem",
+    "crap": 110,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/renderer/src/glass/glassRenderer.ts",
+    "name": "createGlassRenderer.draw",
+    "crap": 156,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/renderer/src/SmokeCockpit.tsx",
+    "name": "SmokeCockpit.runSmoke",
+    "crap": 156,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/renderer/src/terminal/EmbeddedTerminal.tsx",
+    "name": "EmbeddedTerminal",
+    "crap": 69.35,
+    "reason": "pinned at T16 start (2026-11-24)"
+  },
+  {
+    "file": "src/renderer/src/views/FocusedSession.tsx",
+    "name": "FocusedSession",
+    "crap": 33,
+    "reason": "pinned at T16 start (2026-11-24)"
+  }
+]

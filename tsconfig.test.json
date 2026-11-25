@@ -18,7 +18,8 @@
     "src/renderer/src/env.d.ts",
     "tests/unit/**/*",
     "tests/main/**/*",
-    "tests/e2e/**/*"
+    "tests/e2e/**/*",
+    "tests/acceptance/**/*"
   ],
   // Each mod's `*.test.ts` (watcher-bridge, watcher-memory) are engine tests typed by the engine itself (`claude plugin test`).
   "exclude": ["src/mod/**"],

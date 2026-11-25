@@ -15,3 +15,6 @@ docs/themes/THEMES.md
 # ESLint bulk suppressions — written by `eslint --suppress-all` / `--prune-suppressions` in its own
 # shape; reformatting it would churn the file on every re-key.
 eslint-suppressions.json
+
+# Vitest coverage report (`npm run test:coverage`), regenerable.
+coverage

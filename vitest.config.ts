@@ -34,6 +34,23 @@ const MOD_TESTS = 'src/mod/**'
 
 export default defineConfig({
   test: {
+    // Per-function coverage for `npm run crap` only (`npm run test:coverage` writes
+    // coverage/lcov.info). Off in `npm test`, and no threshold anywhere: coverage is a report that
+    // feeds the CRAP score, never a number to reach (.claude/rules/testing.md "Risky code").
+    // `src/mod/**` is out: the mods' own tests run in `claude plugin test`, not Vitest.
+    coverage: {
+      provider: 'v8',
+      reporter: ['lcov'],
+      reportsDirectory: 'coverage',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        '**/*.test.{ts,tsx}',
+        '**/*.d.ts',
+        'src/__fixtures__/**',
+        'src/renderer/src/test/**',
+        MOD_TESTS
+      ]
+    },
     projects: [
       {
         test: {

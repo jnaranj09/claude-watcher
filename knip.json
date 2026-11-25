@@ -1,7 +1,12 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["tests/**/*.{ts,mjs}", "eslint-rules/*.js", "src/mod/*/hooks/register.ts"],
-  "project": ["src/**/*.{ts,tsx}", "tests/**/*.{ts,mjs}", "eslint-rules/**/*.js"],
+  "entry": [
+    "tests/**/*.{ts,mjs}",
+    "eslint-rules/*.js",
+    "src/mod/*/hooks/register.ts",
+    "tools/**/*.mjs"
+  ],
+  "project": ["src/**/*.{ts,tsx}", "tests/**/*.{ts,mjs}", "eslint-rules/**/*.js", "tools/**/*.mjs"],
   "ignoreExportsUsedInFile": true,
   "ignoreDependencies": ["swagger-ui-dist", "claude-code"],
   "ignoreBinaries": ["kwin_wayland", "ss", "mkfifo"],

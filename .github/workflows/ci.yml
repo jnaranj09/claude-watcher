@@ -1,6 +1,6 @@
-# The gate (CLAUDE.md "Gates"): typecheck, lint, test, build, and the security scans
-# (`npm run security`, docs/threat-model.md). Runs on every push and PR to main, and is CALLED by
-# release.yml so a release never skips it.
+# The gate (CLAUDE.md "Gates"): typecheck, lint, test (with coverage), the CRAP budget, build, and
+# the security scans (`npm run security`, docs/threat-model.md). Runs on every push and PR to main,
+# and is CALLED by release.yml so a release never skips it.
 name: CI
 
 on:
@@ -26,7 +26,16 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm run test
+      # `npm test` plus the per-function coverage report the CRAP check reads (coverage/lcov.info).
+      - run: npm run test:coverage
+      # CRAP budget (tests/main/crapBudget.guard.test.ts): `npm run crap`, plus `--base-allow`, the
+      # allow list as it is on main (`[]` while main has none), so a new entry or a higher pin fails.
+      - name: CRAP budget
+        run: |
+          git fetch --no-tags --depth=1 origin main
+          git show origin/main:crap-allow.json > "$RUNNER_TEMP/base-allow.json" || echo '[]' > "$RUNNER_TEMP/base-allow.json"
+          node tools/crap/cc_ts.mjs --root . src > coverage/functions.json
+          node tools/crap/crap.mjs --functions coverage/functions.json --coverage coverage/lcov.info --exclude src/mod/ --exclude src/__fixtures__/ --exclude src/renderer/src/test/ --cc-cap 0 --limit 30 --allow crap-allow.json --base-allow "$RUNNER_TEMP/base-allow.json"
       - run: npm run build
 
   security:

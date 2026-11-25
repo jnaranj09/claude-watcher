@@ -1,7 +1,32 @@
 {
+  "eslint-rules/no-literal-channels.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "security/run.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/__fixtures__/fakeHookFeed.test.ts": {
     "vitest/no-conditional-in-test": {
       "count": 2
+    }
+  },
+  "src/main/api/apiServer.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/api/commands/sessionsCreate.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/api/docs.ts": {
+    "complexity": {
+      "count": 1
     }
   },
   "src/main/c9watch/enrichDelta.test.ts": {
@@ -9,6 +34,11 @@
       "count": 4
     },
     "vitest/no-conditional-in-test": {
+      "count": 1
+    }
+  },
+  "src/main/c9watch/enrichDelta.ts": {
+    "complexity": {
       "count": 1
     }
   },
@@ -28,12 +58,62 @@
       "count": 2
     }
   },
+  "src/main/c9watch/reducer.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/main/goals/goalLaunch.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/hooks/hookServer.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/main/hooks/hookStatus.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/main/hooks/hookToColumn.test.ts": {
     "vitest/no-conditional-expect": {
       "count": 8
     },
     "vitest/no-conditional-in-test": {
       "count": 3
+    }
+  },
+  "src/main/hooks/transcriptWatcher.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/index.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/ipc/registerPtyIpc.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/ipc/registerTerminalIpc.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/kde/reminderSink.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/kde/tray.ts": {
+    "complexity": {
+      "count": 1
     }
   },
   "src/main/lifecycle/computeLiveLaunchedSessions.test.ts": {
@@ -44,8 +124,98 @@
       "count": 1
     }
   },
+  "src/main/mcp/mcpEndpoint.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/memory/extract/checkCandidates.ts": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/main/memory/extract/commandCapture.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/memory/extract/extractWiring.test.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/memory/extract/extractor.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/memory/extract/headlessClaude.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/main/memory/extract/runJob.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/main/memory/extract/sliceCleaner.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/memory/extract/transcriptReader.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/memory/memoryIndex.ts": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/main/memory/memoryRecall.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/main/mods/fileHistory.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/mods/myersDiff.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/persistence/goals.ts": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/main/persistence/pastSessions.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/persistence/telemetry.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/persistence/workspaces.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/main/pty/claudeSessionFile.test.ts": {
     "vitest/no-standalone-expect": {
+      "count": 1
+    }
+  },
+  "src/main/pty/claudeTranscriptInfo.ts": {
+    "complexity": {
       "count": 1
     }
   },
@@ -64,8 +234,18 @@
       "count": 1
     }
   },
+  "src/main/pty/launchSession.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/main/pty/runningElsewhere.test.ts": {
     "vitest/no-standalone-expect": {
+      "count": 1
+    }
+  },
+  "src/main/pty/runningElsewhere.ts": {
+    "complexity": {
       "count": 1
     }
   },
@@ -82,6 +262,16 @@
       "count": 2
     }
   },
+  "src/main/themes/themeCompose.ts": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/main/themes/themeExamples.liquidGlassV2.test.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/main/themes/themeExamples.test.ts": {
     "vitest/no-conditional-expect": {
       "count": 16
@@ -96,6 +286,26 @@
     },
     "vitest/no-conditional-in-test": {
       "count": 4
+    }
+  },
+  "src/main/themes/themeScanner.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/main/window/watchFeed.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/mod/watcher-bridge/hooks/report.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/mod/watcher-memory/hooks/register.ts": {
+    "complexity": {
+      "count": 2
     }
   },
   "src/renderer/src/App.apiLaunch.test.tsx": {
@@ -179,6 +389,16 @@
       "count": 2
     }
   },
+  "src/renderer/src/App.tsx": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/SmokeCockpit.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/renderer/src/components/AppMenu/AppMenu.test.tsx": {
     "jest-dom/prefer-focus": {
       "count": 8
@@ -200,6 +420,11 @@
       "count": 4
     },
     "testing-library/no-container": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/Button/Button.tsx": {
+    "complexity": {
       "count": 1
     }
   },
@@ -229,9 +454,24 @@
       "count": 12
     }
   },
+  "src/renderer/src/components/ContextDialog/ContextDialog.tsx": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/ContextDialog/contextPages.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/renderer/src/components/ExpanderBox/ExpanderBox.test.tsx": {
     "jest-dom/prefer-focus": {
       "count": 2
+    }
+  },
+  "src/renderer/src/components/ExpanderBox/ExpanderBox.tsx": {
+    "complexity": {
+      "count": 1
     }
   },
   "src/renderer/src/components/FavoriteToggle/FavoriteToggle.test.tsx": {
@@ -252,6 +492,9 @@
     }
   },
   "src/renderer/src/components/FilterBar/FilterBar.test.tsx": {
+    "complexity": {
+      "count": 2
+    },
     "jest-dom/prefer-to-have-attribute": {
       "count": 1
     },
@@ -268,7 +511,15 @@
     }
   },
   "src/renderer/src/components/FilterChips/FilterChips.tsx": {
+    "complexity": {
+      "count": 5
+    },
     "jsx-a11y/no-static-element-interactions": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/GoalsDialog/GoalsDialog.tsx": {
+    "complexity": {
       "count": 1
     }
   },
@@ -323,6 +574,26 @@
       "count": 1
     }
   },
+  "src/renderer/src/components/MemoryDialog/CommandsPage.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/MemoryDialog/MemoryForm.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/MemoryDialog/MemoryItemParts.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/MemoryDialog/MemoryPage.tsx": {
+    "complexity": {
+      "count": 2
+    }
+  },
   "src/renderer/src/components/NewSessionMenu/NewSessionButton.test.tsx": {
     "jest-dom/prefer-focus": {
       "count": 2
@@ -362,6 +633,21 @@
       "count": 3
     },
     "testing-library/no-unnecessary-act": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/PastSessionsDialog/PastSessionsPage.tsx": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/PastSessionsDialog/pastSessionsView.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/Popover/Popover.guard.test.ts": {
+    "complexity": {
       "count": 1
     }
   },
@@ -467,6 +753,11 @@
       "count": 3
     }
   },
+  "src/renderer/src/components/SessionCard/SessionCard.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/renderer/src/components/SessionNameDialog/SessionNameDialog.busy.test.tsx": {
     "jest-dom/prefer-to-have-attribute": {
       "count": 1
@@ -492,9 +783,19 @@
       "count": 12
     }
   },
+  "src/renderer/src/components/SessionNameDialog/SessionNameDialog.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/renderer/src/components/SessionsDialog/ActiveSessionsPage.test.tsx": {
     "testing-library/no-container": {
       "count": 3
+    }
+  },
+  "src/renderer/src/components/SessionsDialog/ActiveSessionsPage.tsx": {
+    "complexity": {
+      "count": 1
     }
   },
   "src/renderer/src/components/SessionsDialog/ImportSessionPage.test.tsx": {
@@ -543,6 +844,11 @@
       "count": 4
     }
   },
+  "src/renderer/src/components/Settings/Settings.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/renderer/src/components/ShortcutsDialog/PhraseEditor.tsx": {
     "jsx-a11y/no-noninteractive-element-interactions": {
       "count": 1
@@ -583,12 +889,22 @@
       "count": 4
     }
   },
+  "src/renderer/src/components/ShortcutsDialog/ShortcutsDialog.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/renderer/src/components/ShortcutsDialog/shortcutForm.test.ts": {
     "vitest/no-conditional-expect": {
       "count": 4
     },
     "vitest/no-conditional-in-test": {
       "count": 4
+    }
+  },
+  "src/renderer/src/components/ShortcutsDialog/shortcutForm.ts": {
+    "complexity": {
+      "count": 1
     }
   },
   "src/renderer/src/components/SplitDivider/SplitDivider.test.tsx": {
@@ -677,6 +993,11 @@
       "count": 1
     }
   },
+  "src/renderer/src/components/TagPicker/TagPicker.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/renderer/src/components/TagsDialog/TagsDialog.pages.test.tsx": {
     "testing-library/no-container": {
       "count": 2
@@ -688,6 +1009,21 @@
     },
     "testing-library/no-container": {
       "count": 9
+    }
+  },
+  "src/renderer/src/components/TagsDialog/TagsPage.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/TaskRow/TaskRow.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/TemplatesDialog/TemplateForm.tsx": {
+    "complexity": {
+      "count": 1
     }
   },
   "src/renderer/src/components/TemplatesDialog/TemplatesDialog.favorites.test.tsx": {
@@ -724,6 +1060,11 @@
       "count": 1
     }
   },
+  "src/renderer/src/components/TemplatesDialog/templateForm.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/renderer/src/components/TextArea/TextArea.test.tsx": {
     "jest-dom/prefer-to-have-attribute": {
       "count": 3
@@ -738,6 +1079,11 @@
     },
     "testing-library/no-container": {
       "count": 6
+    }
+  },
+  "src/renderer/src/components/TextInput/TextInput.tsx": {
+    "complexity": {
+      "count": 1
     }
   },
   "src/renderer/src/components/Toaster/Toaster.test.tsx": {
@@ -764,6 +1110,11 @@
       "count": 24
     }
   },
+  "src/renderer/src/components/WorkspaceSwitcher/WorkspaceSwitcher.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/renderer/src/components/WorkspacesDialog/WorkspacesDialog.feedback.test.tsx": {
     "jest-dom/prefer-to-have-attribute": {
       "count": 1
@@ -781,11 +1132,17 @@
     }
   },
   "src/renderer/src/components/WorkspacesDialog/WorkspacesDialog.tsx": {
+    "complexity": {
+      "count": 1
+    },
     "jsx-a11y/label-has-associated-control": {
       "count": 1
     }
   },
   "src/renderer/src/components/attention/AttentionRail.rows.test.tsx": {
+    "complexity": {
+      "count": 1
+    },
     "jest-dom/prefer-to-have-attribute": {
       "count": 3
     },
@@ -793,6 +1150,11 @@
       "count": 14
     },
     "vitest/no-conditional-in-test": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/attention/AttentionRail.tsx": {
+    "complexity": {
       "count": 1
     }
   },
@@ -804,12 +1166,27 @@
       "count": 1
     }
   },
+  "src/renderer/src/components/board/Board.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/board/Column.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/renderer/src/components/board/StartingBanner.test.tsx": {
     "jest-dom/prefer-to-have-text-content": {
       "count": 1
     },
     "testing-library/no-container": {
       "count": 22
+    }
+  },
+  "src/renderer/src/components/choiceInputs.guard.test.ts": {
+    "complexity": {
+      "count": 1
     }
   },
   "src/renderer/src/glass/GlassLayer.test.tsx": {
@@ -823,8 +1200,23 @@
       "count": 4
     }
   },
+  "src/renderer/src/glass/GlassLayer.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/glass/glassRenderer.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
   "src/renderer/src/glass/surfaces.test.ts": {
     "vitest/no-conditional-in-test": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/glass/surfaces.ts": {
+    "complexity": {
       "count": 1
     }
   },
@@ -849,6 +1241,16 @@
       "count": 1
     }
   },
+  "src/renderer/src/lib/bridgeCatch.test.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/lib/memoryToasts.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/renderer/src/lib/namePromptFlow.test.ts": {
     "vitest/no-conditional-in-test": {
       "count": 4
@@ -864,9 +1266,29 @@
       "count": 6
     }
   },
+  "src/renderer/src/shortcuts/expand.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/stores/boardStore.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/stores/settingsStore.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/renderer/src/styles/emphasis.test.tsx": {
     "testing-library/no-container": {
       "count": 2
+    }
+  },
+  "src/renderer/src/styles/hover.guard.test.ts": {
+    "complexity": {
+      "count": 1
     }
   },
   "src/renderer/src/terminal/EmbeddedTerminal.clipboard.test.tsx": {
@@ -907,6 +1329,11 @@
       "count": 3
     }
   },
+  "src/renderer/src/terminal/EmbeddedTerminal.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/renderer/src/terminal/EmbeddedTerminal.webgl.test.tsx": {
     "testing-library/no-container": {
       "count": 1
@@ -920,6 +1347,11 @@
       "count": 1
     }
   },
+  "src/renderer/src/test/settingsBridge.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/renderer/src/views/FocusedSession.test.tsx": {
     "jest-dom/prefer-to-have-attribute": {
       "count": 1
@@ -929,6 +1361,11 @@
     },
     "testing-library/no-container": {
       "count": 43
+    }
+  },
+  "src/renderer/src/views/FocusedSession.tsx": {
+    "complexity": {
+      "count": 1
     }
   },
   "src/shared/schemas/claudeSessionFile.test.ts": {
@@ -1015,6 +1452,51 @@
       "count": 1
     },
     "playwright/no-wait-for-selector": {
+      "count": 1
+    }
+  },
+  "tests/main/eslintSuppressions.guard.test.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "tests/main/memoryModBounds.guard.test.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "tests/main/rendererHardening.guard.test.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "tests/main/securityAllowList.guard.test.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "tests/main/sourceScan.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "tests/main/supplyChainPins.guard.test.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "tests/main/threatModel.guard.test.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "tests/smoke/smokeVerdict.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "tests/tools/findName.mjs": {
+    "complexity": {
       "count": 1
     }
   }
