@@ -50,8 +50,20 @@ file yet, so stages 1–3 are prose only until `TASKS.md` T11 adds one.
    Sensor: `eslint-plugin-jsx-a11y` recommended rules as errors on `src/renderer/**/*.tsx` (old
    hits in `eslint-suppressions.json`); axe on the board and every header-menu dialog
    (`tests/e2e/axe.e2e.ts`, `npm run test:e2e`, WCAG 2.0–2.2 A/AA; old violations in its
-   shrink-only `ALLOWED`). A new dialog adds its state there. The layout and action probes are
-   prose only until T12 adds guards `ui-probe` and `action-feedback`.
+   shrink-only `ALLOWED`). A new dialog adds its state there. Guard `ui-probe`
+   (`tests/e2e/uiProbe.e2e.ts`, Playwright projects `w900` and `w1400`, also run by CI's `dast`
+   job): at each width axe, no horizontal overflow, every control at least 24 × 24 px (WCAG 2.2
+   AA, owner's pick over 44: Button heights are 32 / 28 / 20 px), every field named, each list
+   dialog's empty sentence; an action probe (each control of a state has an `ACTIONS` entry; a
+   press must change the accessibility snapshot, a failing channel must show an alert, a slow one
+   must leave the control `aria-busy` at the same size with one request for two presses); a
+   reduced-motion pass (no infinite animation, a needs-you card included). A new dialog or control
+   adds its state or entry there; old problems sit in its shrink-only `ALLOWED`. The input
+   `font-size` check is N/A (desktop, no iOS zoom). Guard `action-feedback`
+   (`tests/main/actionFeedback.guard.test.ts`): a `window.<bridge>.<method>(…)` call in
+   `components/`, `views/` or `App.tsx` sits in a function handed to `useAsyncAction`; old calls
+   sit in its allow-list (exact count per file). Guard `ui-literal-text` is N/A: the app has no
+   i18n message file.
 8. **Fix the class, not the instance.** A visual fix lands in the token or primitive that causes
    it, never in a one-off class in the screen where it was seen. The reply names the token or
    primitive and how many screens use it. Sensor: stage 4 guards block most route-level fixes;
@@ -774,8 +786,9 @@ that area, never cite it as precedent.
 
 **Targets and input**
 
-23. **Big, close targets** (Fitts): clickable size ≥ 24×24 px (WCAG 2.5.8), 36 px for rows. Gap:
-    not guarded; the smallest `xs` buttons were never measured.
+23. **Big, close targets** (Fitts): clickable size ≥ 24×24 px (WCAG 2.5.8), 36 px for rows.
+    Sensor: `tests/e2e/uiProbe.e2e.ts` (the states it opens; a control only another state shows,
+    such as an `xs` toast ✕, is not measured yet).
 24. **Everything works from the keyboard and focus is always visible** (WCAG 2.1.1, 2.4.7):
     `:focus-visible` on every control; focus lands in the terminal on a switch.
 
@@ -792,6 +805,7 @@ that area, never cite it as precedent.
 28. **Motion explains a change or a place; never decoration.** Only needs-you pulses loop.
 29. **Short:** 150–300 ms for UI (ours: 150 ms overlays); keyboard-opened = instant.
 30. **Reduced motion removes the movement, keeps the information** (`prefers-reduced-motion`).
+    Sensor: the `ui-probe` reduced-motion pass (no infinite animation runs).
 
 **Content**
 

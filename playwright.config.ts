@@ -4,9 +4,16 @@
 // per launch, tests/e2e/fixtures.ts; profile.e2e.ts leaves the folder out to check the refusal)
 // on a hidden display (tests/headless/headlessDisplay.mjs).
 // The zero-dependency packaged smoke (`npm run smoke`) is a separate gate.
+//
+// Three projects. `default` runs every spec but the UI probe at the app's own start size (axe.e2e.ts
+// included: it uses tests/e2e/fixtures.ts, which has no width option). `w900` (the narrowest
+// supported width) and `w1400` (the main desktop width) run only `uiProbe.e2e.ts`, which sizes the
+// window through `probeWidth` (tests/e2e/probeFixtures.ts) and runs axe itself at that width.
 import { defineConfig } from '@playwright/test'
 
-export default defineConfig({
+const UI_PROBE = '**/uiProbe.e2e.ts'
+
+export default defineConfig<{ probeWidth: number }>({
   testDir: './tests/e2e',
   testMatch: '**/*.e2e.ts',
   // Fails the run on a stale build or a held e2e port, then starts the hidden display
@@ -24,5 +31,10 @@ export default defineConfig({
   // A `.only` would silently skip every other e2e test (technical-taste §5b-3), locally too.
   forbidOnly: true,
   retries: 0,
-  reporter: 'list'
+  reporter: 'list',
+  projects: [
+    { name: 'default', testIgnore: UI_PROBE },
+    { name: 'w900', testMatch: UI_PROBE, use: { probeWidth: 900 } },
+    { name: 'w1400', testMatch: UI_PROBE, use: { probeWidth: 1400 } }
+  ]
 })
