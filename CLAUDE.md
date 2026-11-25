@@ -21,9 +21,9 @@ and tag their own picks `[AGENT]` in the spec.
 
 ## Commands
 
-`npm run dev` (HMR) · `build` (typecheck + bundle) · `build:dir` (packaged) · `typecheck` ·
-`lint` · `format` · `test` / `test:watch` (Vitest) · `test:e2e` (Playwright-Electron) ·
-`smoke` (after `build:dir`, or `smoke:packaged`) · release: `.claude/rules/release.md`.
+`npm run dev` (HMR) · `build` (typecheck + bundle) · `build:dir` (packaged) · `typecheck` · `lint` ·
+`format` · `test` / `test:watch` (Vitest) · `test:e2e` (Playwright-Electron) · `test:coverage` then
+`crap` · `test:acceptance` (local) · `smoke` (after `build:dir`, or `smoke:packaged`) · release: `.claude/rules/release.md`.
 Single test — Vitest projects `unit` (jsdom), `shared-node`, `main-unit`, `zone-berlin` (node):
 `npx vitest run <file>` · `npx vitest run --project main-unit -t "desync"`.
 
@@ -39,7 +39,7 @@ Single test — Vitest projects `unit` (jsdom), `shared-node`, `main-unit`, `zon
 
 **Visual changes:** tests cannot see CSS. `npm run build`, then drive the built app
 (`tests/drive/driveApp.mjs`) — recipe in `.claude/rules/run-app.md`.
-**Gates:** `typecheck / lint / test / build / security` (scans need Docker). node-pty / preload / packaging also
+**Gates:** `typecheck / lint / test / build / security` (scans need Docker; CI also runs `crap`). node-pty / preload / packaging also
 need `build:dir` + `smoke` (proves node-pty survives packaging — load-bearing).
 
 ## Architecture

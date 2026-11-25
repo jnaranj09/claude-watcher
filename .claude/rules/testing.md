@@ -37,15 +37,21 @@ only".
 
 ## Risky code
 
-- **Complexity cap.** A function over the cap (10) is split or simplified. Prose only until
-  `TASKS.md` T16 adds the ESLint `complexity` rule.
-- **CRAP limit.** A function's CRAP score (complexity and per-function coverage) stays under the
-  limit; old offenders sit on a pinned list that only shrinks. Prose only until T16 adds guard
-  `crap-budget`.
-- **Behaviour has a plain scenario** (Given / When / Then) through the public surface, added in the
-  same change as the behaviour; never edited to match a changed result without the owner.
-  Prose only until T16 confirms the scenario runner (Playwright-Electron); editing to match is
-  reviewer only.
+- **Complexity cap.** A function over the cap (10) is split or simplified. Lint: ESLint
+  `complexity` (every linted file, tests too); hits that existed when it landed sit in
+  `eslint-suppressions.json`.
+- **CRAP limit.** A function's CRAP score (CC² × (1 − coverage)³ + CC, per-function coverage from
+  `npm run test:coverage`) stays at or under 30; old offenders sit in `crap-allow.json`, a pinned
+  list that only shrinks: a test that lowers a pinned score lowers its pin in the same commit, and
+  one now under the limit leaves the list. Sensor: `npm run crap` (`tools/crap/`), and in CI the
+  same check with `--base-allow` (main's copy of the list: a new entry or a higher pin fails).
+  Guard: `tests/main/crapBudget.guard.test.ts` (CI keeps the step, the limit, the list, the base
+  copy and the `src/mod` exclusion).
+- **Behaviour has a plain scenario** (Given / When / Then, as `test.step` titles) through the
+  public surface, in `tests/acceptance/*.scenario.ts`, added in the same change as the behaviour;
+  never edited to match a changed result without the owner. Sensor: `npm run test:acceptance`
+  (Playwright-Electron on the built app, local only: most scenarios launch a real `claude`);
+  editing to match is reviewer only.
 
 ## Renderer tests (jsdom)
 

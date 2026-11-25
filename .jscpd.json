@@ -1,7 +1,7 @@
 {
   "path": ["src"],
   "pattern": "**/*.{ts,tsx}",
-  "ignore": ["**/*.test.ts", "**/*.test.tsx", "**/__fixtures__/**", "**/*.d.ts"],
+  "ignore": ["**/*.test.ts", "**/*.test.tsx", "**/__fixtures__/**", "**/*.d.ts", "coverage/**"],
   "minLines": 10,
   "minTokens": 70,
   "threshold": 0.5,
