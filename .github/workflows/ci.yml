@@ -29,11 +29,12 @@ jobs:
       # `npm test` plus the per-function coverage report the CRAP check reads (coverage/lcov.info).
       - run: npm run test:coverage
       # CRAP budget (tests/main/crapBudget.guard.test.ts): `npm run crap`, plus `--base-allow`, the
-      # allow list as it is on main (`[]` while main has none), so a new entry or a higher pin fails.
+      # allow list as it is on main, so a new entry or a higher pin fails. While main has none (the
+      # change that brings the list), the branch's own list is the base: its pins are the start.
       - name: CRAP budget
         run: |
           git fetch --no-tags --depth=1 origin main
-          git show origin/main:crap-allow.json > "$RUNNER_TEMP/base-allow.json" || echo '[]' > "$RUNNER_TEMP/base-allow.json"
+          git show origin/main:crap-allow.json > "$RUNNER_TEMP/base-allow.json" || cp crap-allow.json "$RUNNER_TEMP/base-allow.json"
           node tools/crap/cc_ts.mjs --root . src > coverage/functions.json
           node tools/crap/crap.mjs --functions coverage/functions.json --coverage coverage/lcov.info --exclude src/mod/ --exclude src/__fixtures__/ --exclude src/renderer/src/test/ --cc-cap 0 --limit 30 --allow crap-allow.json --base-allow "$RUNNER_TEMP/base-allow.json"
       - run: npm run build

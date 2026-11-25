@@ -81,10 +81,11 @@ describe('ci.yml gate: the CRAP budget', () => {
     expect(crapLine).toMatch(/--allow crap-allow\.json(\s|$)/)
   })
 
-  it('compares the allow list with main’s copy, [] when main has none', () => {
+  // An empty base on the first change failed every pin as new (PR #4's first CI run).
+  it('compares the allow list with main’s copy, the branch’s own when main has none', () => {
     expect(crapLine).toMatch(/--base-allow "\$RUNNER_TEMP\/base-allow\.json"/)
     expect(lines).toContain(
-      `git show origin/main:crap-allow.json > "$RUNNER_TEMP/base-allow.json" || echo '[]' > "$RUNNER_TEMP/base-allow.json"`
+      `git show origin/main:crap-allow.json > "$RUNNER_TEMP/base-allow.json" || cp crap-allow.json "$RUNNER_TEMP/base-allow.json"`
     )
     expect(lines).toContain('git fetch --no-tags --depth=1 origin main')
   })

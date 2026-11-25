@@ -12,7 +12,8 @@
 //              sensor here).
 // --exclude:   drop functions whose file starts with PREFIX (code the coverage run does not load).
 // allow list:  [{file,name,crap,reason}], only shrinks. `--base-allow` is the list as it is on the
-//              main branch (`[]` when it has none): a new entry or a higher pin is a GREW finding.
+//              main branch (CI passes the branch's own list while main has none): a new entry or
+//              a higher pin is a GREW finding.
 //
 // Coverage of a function = covered / executable lines in [start, end]. A file with no coverage
 // data scores 0; a function with data but no executable line in range scores 1.
